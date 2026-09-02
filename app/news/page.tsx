@@ -1,0 +1,293 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+
+type NewsItem = {
+  id: number;
+  title: string;
+  excerpt: string | null;
+  content: string | null;
+  image_url: string | null;
+  author: string | null;
+  published_date: string | null;
+  is_published: boolean;
+  category: string | null;
+};
+
+export default function NewsPage() {
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("All");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    loadNews();
+  }, []);
+
+  async function loadNews() {
+    setLoading(true);
+    setError("");
+
+    const supabase = createClient();
+
+    const { data, error } = await supabase
+      .from("news")
+      .select(
+        "id, title, excerpt, content, image_url, author, published_date, is_published, category"
+      )
+      .eq("is_published", true)
+      .order("published_date", { ascending: false });
+
+    if (error) {
+      console.error(error);
+      setError(error.message);
+    } else {
+      setNews(data || []);
+    }
+
+    setLoading(false);
+  }
+
+  function formatDate(date: string | null) {
+    if (!date) return "Date not announced";
+
+    return new Date(date + "T00:00:00").toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  }
+
+  const categories = useMemo(() => {
+    const uniqueCategories = Array.from(
+      new Set(
+        news
+          .map((item) => item.category)
+          .filter((item): item is string => Boolean(item))
+      )
+    );
+
+    return ["All", ...uniqueCategories];
+  }, [news]);
+
+  const filteredNews = useMemo(() => {
+    const searchText = search.toLowerCase().trim();
+
+    return news.filter((item) => {
+      const matchesSearch =
+        !searchText ||
+        item.title.toLowerCase().includes(searchText) ||
+        item.excerpt?.toLowerCase().includes(searchText) ||
+        item.content?.toLowerCase().includes(searchText) ||
+        item.author?.toLowerCase().includes(searchText) ||
+        item.category?.toLowerCase().includes(searchText);
+
+      const matchesCategory =
+        category === "All" || item.category === category;
+
+      return matchesSearch && matchesCategory;
+    });
+  }, [news, search, category]);
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-slate-50 px-6 py-16">
+        <div className="mx-auto max-w-6xl text-center">
+          <p className="text-slate-600">Loading news...</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main className="min-h-screen bg-slate-50 px-6 py-16">
+        <div className="mx-auto max-w-6xl text-center">
+          <h1 className="text-2xl font-bold text-red-600">
+            Unable to load news
+          </h1>
+
+          <p className="mt-3 text-slate-600">
+            {error}
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-50 text-slate-900">
+      {/* Hero */}
+      <section className="bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 px-6 py-16 text-white">
+        <div className="mx-auto max-w-6xl">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-blue-200">
+            Pharmacia Club DIU
+          </p>
+
+          <h1 className="text-4xl font-bold md:text-5xl">
+            News & Announcements
+          </h1>
+
+          <p className="mt-4 max-w-2xl text-lg text-blue-100">
+            Stay updated with the latest news, announcements, achievements,
+            seminars, activities, and events of Pharmacia Club DIU.
+          </p>
+        </div>
+      </section>
+
+      {/* News Section */}
+      <section className="mx-auto max-w-6xl px-6 py-12">
+
+        {/* Search */}
+        <div className="mb-6">
+          <input
+            type="text"
+            placeholder="Search news..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 bg-white px-5 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          />
+        </div>
+
+        {/* Category Filter */}
+        {categories.length > 1 && (
+          <div className="mb-8 flex flex-wrap gap-3">
+            {categories.map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setCategory(item)}
+                className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
+                  category === item
+                    ? "bg-blue-600 text-white"
+                    : "bg-white text-slate-700 shadow-sm hover:bg-slate-100"
+                }`}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* No News */}
+        {news.length === 0 ? (
+          <div className="rounded-2xl bg-white p-12 text-center shadow-sm">
+            <h2 className="text-2xl font-bold">
+              No News Available
+            </h2>
+
+            <p className="mt-3 text-slate-600">
+              New announcements and updates will be published here soon.
+            </p>
+          </div>
+        ) : filteredNews.length === 0 ? (
+          <div className="rounded-2xl bg-white p-12 text-center shadow-sm">
+            <h2 className="text-2xl font-bold">
+              No Matching News
+            </h2>
+
+            <p className="mt-3 text-slate-600">
+              Try another search term or category.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setCategory("All");
+              }}
+              className="mt-5 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              Clear Filters
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Result Count */}
+            <div className="mb-6">
+              <p className="text-sm text-slate-500">
+                Showing {filteredNews.length} news item
+                {filteredNews.length !== 1 ? "s" : ""}
+              </p>
+            </div>
+
+            {/* News Grid */}
+            <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+              {filteredNews.map((item) => (
+                <article
+                  key={item.id}
+                  className="overflow-hidden rounded-2xl bg-white shadow-md transition hover:-translate-y-1 hover:shadow-xl"
+                >
+                  {/* Image */}
+                  {item.image_url ? (
+                    <img
+                      src={item.image_url}
+                      alt={item.title}
+                      className="h-56 w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-56 items-center justify-center bg-gradient-to-br from-blue-800 to-indigo-700 text-white">
+                      <span className="text-lg font-semibold">
+                        Pharmacia Club DIU
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="p-6">
+
+                    {/* Category */}
+                    {item.category && (
+                      <span className="inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                        {item.category}
+                      </span>
+                    )}
+
+                    {/* Title */}
+                    <h2 className="mt-4 text-xl font-bold leading-7 text-slate-900">
+                      {item.title}
+                    </h2>
+
+                    {/* Date */}
+                    {item.published_date && (
+                      <p className="mt-3 text-sm font-medium text-slate-500">
+                        📅 {formatDate(item.published_date)}
+                      </p>
+                    )}
+
+                    {/* Author */}
+                    {item.author && (
+                      <p className="mt-2 text-sm text-slate-500">
+                        By {item.author}
+                      </p>
+                    )}
+
+                    {/* Excerpt */}
+                    {item.excerpt && (
+                      <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-600">
+                        {item.excerpt}
+                      </p>
+                    )}
+
+                    {/* Button */}
+                    <div className="mt-6">
+                      <Link
+                        href={`/news/${item.id}`}
+                        className="inline-flex rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+                      >
+                        Read More
+                      </Link>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </>
+        )}
+      </section>
+    </main>
+  );
+}
