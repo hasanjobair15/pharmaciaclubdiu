@@ -241,11 +241,11 @@ export default function HomePage() {
 
         <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-6 py-12 sm:grid-cols-4 lg:px-8">
 
-          {/* 8 Batches */}
+          {/* 37+ Batches Connected */}
 
           <div>
             <p className="text-3xl font-bold">
-              8
+              37+
             </p>
 
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -265,11 +265,11 @@ export default function HomePage() {
             </p>
           </div>
 
-          {/* 800+ Students */}
+          {/* 15,000+ Students */}
 
           <div>
             <p className="text-3xl font-bold">
-              800+
+              15,000+
             </p>
 
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -277,7 +277,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          {/* 2 Pharmacy Communities */}
+          {/* 2 Pharmacy Community */}
 
           <div>
             <p className="text-3xl font-bold">
@@ -285,7 +285,7 @@ export default function HomePage() {
             </p>
 
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Pharmacy Communities
+              Pharmacy Community
             </p>
           </div>
 
@@ -341,8 +341,6 @@ export default function HomePage() {
 
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
 
-          {/* Heading */}
-
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
 
             <div>
@@ -370,8 +368,6 @@ export default function HomePage() {
 
           </div>
 
-          {/* Loading */}
-
           {loadingEvents && (
             <div className="mt-12 rounded-2xl border border-white/10 bg-white/5 p-10 text-center">
 
@@ -381,8 +377,6 @@ export default function HomePage() {
 
             </div>
           )}
-
-          {/* No Upcoming Events */}
 
           {!loadingEvents && highlightedEvents.length === 0 && (
             <div className="mt-12 rounded-2xl border border-white/10 bg-white/5 p-10 text-center">
@@ -405,8 +399,6 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* Event Cards */}
-
           {!loadingEvents && highlightedEvents.length > 0 && (
 
             <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -417,8 +409,6 @@ export default function HomePage() {
                   key={event.id}
                   className="group overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur transition hover:-translate-y-1 hover:bg-white/10"
                 >
-
-                  {/* Image */}
 
                   {event.image_url ? (
 
@@ -440,11 +430,7 @@ export default function HomePage() {
 
                   )}
 
-                  {/* Content */}
-
                   <div className="p-6">
-
-                    {/* Status */}
 
                     <span
                       className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
@@ -454,13 +440,9 @@ export default function HomePage() {
                       {event.automaticStatus}
                     </span>
 
-                    {/* Title */}
-
                     <h3 className="mt-4 text-2xl font-bold">
                       {event.title}
                     </h3>
-
-                    {/* Description */}
 
                     {event.description && (
 
@@ -470,8 +452,6 @@ export default function HomePage() {
 
                     )}
 
-                    {/* Date */}
-
                     {event.event_date && (
 
                       <p className="mt-5 text-sm font-semibold text-white">
@@ -479,8 +459,6 @@ export default function HomePage() {
                       </p>
 
                     )}
-
-                    {/* Time */}
 
                     {(event.start_time || event.end_time) && (
 
@@ -493,8 +471,6 @@ export default function HomePage() {
 
                     )}
 
-                    {/* Venue */}
-
                     {event.venue && (
 
                       <p className="mt-2 text-sm text-slate-400">
@@ -502,8 +478,6 @@ export default function HomePage() {
                       </p>
 
                     )}
-
-                    {/* Details */}
 
                     <Link
                       href={`/events/${event.id}`}
