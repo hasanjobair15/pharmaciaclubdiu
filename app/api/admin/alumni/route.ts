@@ -1,219 +1,410 @@
-"use client";
-
-import { FormEvent, useState } from "react";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import Link from "next/link";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+const supabaseAdmin = createClient(
+  supabaseUrl,
+  serviceRoleKey,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
 );
 
-export default function ChangePasswordPage() {
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+const ADMIN_EMAIL = "jobair2311091015@diu.edu.bd";
 
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+async function verifyAdmin(request: NextRequest) {
+  const authHeader = request.headers.get("authorization");
 
-  async function handleChangePassword(
-    e: FormEvent<HTMLFormElement>
-  ) {
-    e.preventDefault();
-
-    setError("");
-    setMessage("");
-
-    if (newPassword.length < 8) {
-      setError(
-        "New password must be at least 8 characters."
-      );
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setError("New passwords do not match.");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError || !user?.email) {
-        setError(
-          "Your login session has expired. Please log in again."
-        );
-        return;
-      }
-
-      // Verify the current password first
-      const { error: verifyError } =
-        await supabase.auth.signInWithPassword({
-          email: user.email,
-          password: currentPassword,
-        });
-
-      if (verifyError) {
-        setError("Current password is incorrect.");
-        return;
-      }
-
-      // Update password
-      const { error: updateError } =
-        await supabase.auth.updateUser({
-          password: newPassword,
-        });
-
-      if (updateError) {
-        setError(updateError.message);
-        return;
-      }
-
-      setMessage(
-        "Password changed successfully."
-      );
-
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-    } catch {
-      setError(
-        "Something went wrong. Please try again."
-      );
-    } finally {
-      setLoading(false);
-    }
+  if (!authHeader?.startsWith("Bearer ")) {
+    return null;
   }
 
-  return (
-    <main className="min-h-screen bg-slate-50 dark:bg-slate-950 px-4 py-12">
-      <div className="mx-auto max-w-md">
+  const accessToken = authHeader.replace("Bearer ", "").trim();
 
-        <div className="mb-8 text-center">
-          <div className="mb-4 text-5xl">🔐</div>
+  if (!accessToken) {
+    return null;
+  }
 
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-            Change Password
-          </h1>
+  const {
+    data: { user },
+    error,
+  } = await supabaseAdmin.auth.getUser(accessToken);
 
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-            Keep your alumni account secure by using a
-            strong personal password.
-          </p>
-        </div>
+  if (error || !user) {
+    return null;
+  }
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+  if (user.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+    return null;
+  }
 
-          {error && (
-            <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-              {error}
-            </div>
-          )}
+  return user;
+}
 
-          {message && (
-            <div className="mb-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300">
-              {message}
-            </div>
-          )}
+function generateTemporaryPassword() {
+  const randomPart = Math.random()
+    .toString(36)
+    .slice(2, 10);
 
-          <form
-            onSubmit={handleChangePassword}
-            className="space-y-5"
-          >
+  return `PCDIU-${randomPart}-29Kp`;
+}
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Current Password
-              </label>
+/* =========================
+   CREATE ALUMNI ACCOUNT
+========================= */
 
-              <input
-                type="password"
-                value={currentPassword}
-                onChange={(e) =>
-                  setCurrentPassword(e.target.value)
-                }
-                required
-                autoComplete="current-password"
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                placeholder="Enter current password"
-              />
-            </div>
+export async function POST(request: NextRequest) {
+  try {
+    const admin = await verifyAdmin(request);
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                New Password
-              </label>
+    if (!admin) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
 
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) =>
-                  setNewPassword(e.target.value)
-                }
-                required
-                minLength={8}
-                autoComplete="new-password"
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                placeholder="At least 8 characters"
-              />
-            </div>
+    const body = await request.json();
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Confirm New Password
-              </label>
+    const {
+      full_name,
+      email,
+      batch,
+      section,
+      graduation_year,
+      profile_photo_url,
+      current_position,
+      organization,
+      bio,
+      phone,
+      linkedin_url,
+      facebook_url,
+      instagram_url,
+      is_public,
+    } = body;
 
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) =>
-                  setConfirmPassword(e.target.value)
-                }
-                required
-                minLength={8}
-                autoComplete="new-password"
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                placeholder="Re-enter new password"
-              />
-            </div>
+    if (!full_name?.trim()) {
+      return NextResponse.json(
+        { error: "Full name is required." },
+        { status: 400 }
+      );
+    }
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading
-                ? "Changing Password..."
-                : "Change Password"}
-            </button>
+    if (!email?.trim()) {
+      return NextResponse.json(
+        { error: "Email is required." },
+        { status: 400 }
+      );
+    }
 
-          </form>
+    if (!batch) {
+      return NextResponse.json(
+        { error: "Batch is required." },
+        { status: 400 }
+      );
+    }
 
-          <div className="mt-6 flex flex-col gap-3 text-center text-sm">
-            <Link
-              href="/alumni/profile"
-              className="font-medium text-blue-600 hover:underline dark:text-blue-400"
-            >
-              ← Back to My Profile
-            </Link>
+    if (!section) {
+      return NextResponse.json(
+        { error: "Section is required." },
+        { status: 400 }
+      );
+    }
 
-            <Link
-              href="/alumni"
-              className="text-slate-500 hover:underline dark:text-slate-400"
-            >
-              Back to Our Proud Alumni
-            </Link>
-          </div>
+    const temporaryPassword = generateTemporaryPassword();
 
-        </div>
-      </div>
-    </main>
-  );
+    const {
+      data: createdUser,
+      error: createUserError,
+    } = await supabaseAdmin.auth.admin.createUser({
+      email: email.trim(),
+      password: temporaryPassword,
+      email_confirm: true,
+    });
+
+    if (createUserError || !createdUser.user) {
+      return NextResponse.json(
+        {
+          error:
+            createUserError?.message ||
+            "Failed to create alumni account.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const userId = createdUser.user.id;
+
+    const { error: profileError } = await supabaseAdmin
+      .from("alumni_profiles")
+      .insert({
+        id: userId,
+        full_name: full_name.trim(),
+        email: email.trim(),
+        batch,
+        section,
+        graduation_year:
+          graduation_year || null,
+        profile_photo_url:
+          profile_photo_url || null,
+        current_position:
+          current_position?.trim() || null,
+        organization:
+          organization?.trim() || null,
+        bio: bio?.trim() || null,
+        phone: phone?.trim() || null,
+        linkedin_url:
+          linkedin_url?.trim() || null,
+        facebook_url:
+          facebook_url?.trim() || null,
+        instagram_url:
+          instagram_url?.trim() || null,
+        is_public:
+          typeof is_public === "boolean"
+            ? is_public
+            : true,
+      });
+
+    if (profileError) {
+      await supabaseAdmin.auth.admin.deleteUser(userId);
+
+      return NextResponse.json(
+        {
+          error:
+            "Account was created but profile creation failed: " +
+            profileError.message,
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Alumni account created successfully.",
+      user_id: userId,
+      temporary_password: temporaryPassword,
+    });
+  } catch (error) {
+    console.error("POST /api/admin/alumni error:", error);
+
+    return NextResponse.json(
+      {
+        error: "Internal server error.",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/* =========================
+   UPDATE ALUMNI PROFILE
+========================= */
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const admin = await verifyAdmin(request);
+
+    if (!admin) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+
+    const {
+      id,
+      full_name,
+      email,
+      batch,
+      section,
+      graduation_year,
+      profile_photo_url,
+      current_position,
+      organization,
+      bio,
+      phone,
+      linkedin_url,
+      facebook_url,
+      instagram_url,
+      is_public,
+    } = body;
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Alumni ID is required." },
+        { status: 400 }
+      );
+    }
+
+    const { error: profileError } =
+      await supabaseAdmin
+        .from("alumni_profiles")
+        .update({
+          full_name: full_name?.trim(),
+          email: email?.trim(),
+          batch,
+          section,
+          graduation_year:
+            graduation_year || null,
+          profile_photo_url:
+            profile_photo_url || null,
+          current_position:
+            current_position?.trim() || null,
+          organization:
+            organization?.trim() || null,
+          bio: bio?.trim() || null,
+          phone: phone?.trim() || null,
+          linkedin_url:
+            linkedin_url?.trim() || null,
+          facebook_url:
+            facebook_url?.trim() || null,
+          instagram_url:
+            instagram_url?.trim() || null,
+          is_public:
+            typeof is_public === "boolean"
+              ? is_public
+              : true,
+        })
+        .eq("id", id);
+
+    if (profileError) {
+      return NextResponse.json(
+        {
+          error: profileError.message,
+        },
+        { status: 400 }
+      );
+    }
+
+    if (email?.trim()) {
+      const { error: authUpdateError } =
+        await supabaseAdmin.auth.admin.updateUserById(
+          id,
+          {
+            email: email.trim(),
+          }
+        );
+
+      if (authUpdateError) {
+        return NextResponse.json(
+          {
+            error:
+              "Profile updated, but authentication email could not be updated: " +
+              authUpdateError.message,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Alumni profile updated successfully.",
+    });
+  } catch (error) {
+    console.error("PATCH /api/admin/alumni error:", error);
+
+    return NextResponse.json(
+      {
+        error: "Internal server error.",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/* =========================
+   DELETE ALUMNI ACCOUNT
+========================= */
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const admin = await verifyAdmin(request);
+
+    if (!admin) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+
+    const { id } = body;
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Alumni ID is required." },
+        { status: 400 }
+      );
+    }
+
+    if (id === admin.id) {
+      return NextResponse.json(
+        {
+          error:
+            "You cannot delete the administrator account.",
+        },
+        { status: 403 }
+      );
+    }
+
+    const {
+      data: targetUser,
+      error: targetUserError,
+    } = await supabaseAdmin.auth.admin.getUserById(id);
+
+    if (targetUserError || !targetUser.user) {
+      return NextResponse.json(
+        { error: "Alumni account not found." },
+        { status: 404 }
+      );
+    }
+
+    if (
+      targetUser.user.email?.toLowerCase() ===
+      ADMIN_EMAIL.toLowerCase()
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "The administrator account cannot be deleted.",
+        },
+        { status: 403 }
+      );
+    }
+
+    const { error: deleteError } =
+      await supabaseAdmin.auth.admin.deleteUser(id);
+
+    if (deleteError) {
+      return NextResponse.json(
+        {
+          error: deleteError.message,
+        },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Alumni account deleted successfully.",
+    });
+  } catch (error) {
+    console.error("DELETE /api/admin/alumni error:", error);
+
+    return NextResponse.json(
+      {
+        error: "Internal server error.",
+      },
+      { status: 500 }
+    );
+  }
 }
