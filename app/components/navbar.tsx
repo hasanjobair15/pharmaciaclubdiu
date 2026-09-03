@@ -27,8 +27,8 @@ export default function Navbar() {
         {/* LOGO */}
         <a
           href="/"
-          onClick={() => setMenuOpen(false)}
           className="flex min-w-0 shrink-0 items-center gap-3"
+          onClick={() => setMenuOpen(false)}
         >
           <img
             src="/pharmacialogo.png"
@@ -48,7 +48,7 @@ export default function Navbar() {
         </a>
 
         {/* DESKTOP NAVBAR */}
-        <nav className="ml-auto hidden items-center gap-5 lg:flex">
+        <nav className="ml-auto hidden items-center gap-5 text-sm font-medium lg:flex">
           {links.map((link) => {
             const isExternal = link.href.startsWith("http");
 
@@ -58,7 +58,7 @@ export default function Navbar() {
                 href={link.href}
                 target={isExternal ? "_blank" : undefined}
                 rel={isExternal ? "noopener noreferrer" : undefined}
-                className="text-sm font-medium text-[#0b1736] transition-colors hover:text-[#087f8c] dark:text-slate-100 dark:hover:text-[#087f8c]"
+                className="!font-medium !text-[#0b1736] !no-underline transition-colors hover:!text-[#087f8c] dark:!text-slate-100 dark:hover:!text-[#087f8c]"
               >
                 {link.name}
               </a>
@@ -133,7 +133,7 @@ export default function Navbar() {
                   target={isExternal ? "_blank" : undefined}
                   rel={isExternal ? "noopener noreferrer" : undefined}
                   onClick={() => setMenuOpen(false)}
-                  className="border-b border-slate-100 py-3 text-sm font-medium text-[#0b1736] transition-colors hover:text-[#087f8c] dark:border-slate-800 dark:text-slate-100 dark:hover:text-[#087f8c]"
+                  className="border-b border-slate-100 py-3 text-sm !font-medium !text-[#0b1736] !no-underline transition-colors hover:!text-[#087f8c] dark:border-slate-800 dark:!text-slate-100 dark:hover:!text-[#087f8c]"
                 >
                   {link.name}
                 </a>
