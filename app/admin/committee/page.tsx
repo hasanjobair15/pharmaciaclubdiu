@@ -1,13 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import imageCompression from "browser-image-compression";
 import { createClient } from "@/lib/supabase/client";
+
+type Panel =
+  | "Faculty Advisory Panel"
+  | "Student Advisory Panel"
+  | "Executive Committee";
 
 type Member = {
   id: number;
   name: string;
   position: string;
+  panel: Panel;
+  session: string | null;
+  is_current: boolean;
   batch: string | null;
   photo_url: string | null;
   bio: string | null;
@@ -17,9 +25,18 @@ type Member = {
   display_order: number | null;
 };
 
+const panels: Panel[] = [
+  "Faculty Advisory Panel",
+  "Student Advisory Panel",
+  "Executive Committee",
+];
+
 const emptyForm = {
   name: "",
   position: "",
+  panel: "Executive Committee" as Panel,
+  session: "Fall 2026",
+  is_current: true,
   batch: "",
   photo_url: "",
   bio: "",
@@ -37,7 +54,10 @@ export default function CommitteeManager() {
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string>("");
+  const [previewUrl, setPreviewUrl] = useState("");
+
+  const [selectedSession, setSelectedSession] = useState("");
+  const [sessionInput, setSessionInput] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -65,6 +85,27 @@ export default function CommitteeManager() {
     loadMembers();
   }, []);
 
+  const currentSession =
+    members.find((member) => member.is_current)?.session ?? "";
+
+  const sessions = useMemo(() => {
+    return Array.from(
+      new Set(
+        members
+          .map((member) => member.session)
+          .filter((session): session is string => Boolean(session))
+      )
+    );
+  }, [members]);
+
+  const previousSessions = sessions.filter(
+    (session) => session !== currentSession
+  );
+
+  const visibleMembers = selectedSession
+    ? members.filter((member) => member.session === selectedSession)
+    : members.filter((member) => member.is_current);
+
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) {
@@ -76,7 +117,27 @@ export default function CommitteeManager() {
     }));
   }
 
-  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handlePanelChange(
+    e: React.ChangeEvent<HTMLSelectElement>
+  ) {
+    setForm((current) => ({
+      ...current,
+      panel: e.target.value as Panel,
+    }));
+  }
+
+  function handleCurrentChange(
+    e: React.ChangeEvent<HTMLInputElement>
+  ) {
+    setForm((current) => ({
+      ...current,
+      is_current: e.target.checked,
+    }));
+  }
+
+  function handlePhotoChange(
+    e: React.ChangeEvent<HTMLInputElement>
+  ) {
     const file = e.target.files?.[0];
 
     if (!file) return;
@@ -135,10 +196,63 @@ export default function CommitteeManager() {
       return data.publicUrl;
     } catch (error) {
       throw new Error(
-        error instanceof Error ? error.message : "Photo upload failed."
+        error instanceof Error
+          ? error.message
+          : "Photo upload failed."
       );
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function makeSessionCurrent(sessionName: string) {
+    if (!sessionName.trim()) {
+      setMessage("Session name is required.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Make "${sessionName}" the current committee?`
+    );
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    setMessage("");
+
+    try {
+      const { error } = await supabase
+        .from("committee")
+        .update({ is_current: false })
+        .neq("session", sessionName);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      const { error: currentError } = await supabase
+        .from("committee")
+        .update({ is_current: true })
+        .eq("session", sessionName);
+
+      if (currentError) {
+        throw new Error(currentError.message);
+      }
+
+      setMessage(
+        `"${sessionName}" is now the current committee.`
+      );
+
+      setSelectedSession("");
+      await loadMembers();
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to change current committee."
+      );
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -147,6 +261,16 @@ export default function CommitteeManager() {
 
     if (!form.name.trim() || !form.position.trim()) {
       setMessage("Name and position are required.");
+      return;
+    }
+
+    if (!form.panel) {
+      setMessage("Please select a panel.");
+      return;
+    }
+
+    if (!form.session.trim()) {
+      setMessage("Session is required.");
       return;
     }
 
@@ -160,9 +284,39 @@ export default function CommitteeManager() {
         photoUrl = await uploadPhoto(selectedFile);
       }
 
+      const sessionName = form.session.trim();
+
+      /*
+       * If this is a new current-session member,
+       * make the whole session current and every other
+       * session non-current.
+       */
+      if (form.is_current) {
+        const { error: otherSessionsError } = await supabase
+          .from("committee")
+          .update({ is_current: false })
+          .neq("session", sessionName);
+
+        if (otherSessionsError) {
+          throw new Error(otherSessionsError.message);
+        }
+
+        const { error: sameSessionError } = await supabase
+          .from("committee")
+          .update({ is_current: true })
+          .eq("session", sessionName);
+
+        if (sameSessionError) {
+          throw new Error(sameSessionError.message);
+        }
+      }
+
       const memberData = {
         name: form.name.trim(),
         position: form.position.trim(),
+        panel: form.panel,
+        session: sessionName,
+        is_current: form.is_current,
         batch: form.batch.trim() || null,
         photo_url: photoUrl.trim() || null,
         bio: form.bio.trim() || null,
@@ -201,7 +355,9 @@ export default function CommitteeManager() {
       await loadMembers();
     } catch (error) {
       setMessage(
-        error instanceof Error ? error.message : "Something went wrong."
+        error instanceof Error
+          ? error.message
+          : "Something went wrong."
       );
     } finally {
       setSaving(false);
@@ -214,6 +370,9 @@ export default function CommitteeManager() {
     setForm({
       name: member.name,
       position: member.position,
+      panel: member.panel,
+      session: member.session ?? "Fall 2026",
+      is_current: member.is_current,
       batch: member.batch ?? "",
       photo_url: member.photo_url ?? "",
       bio: member.bio ?? "",
@@ -226,7 +385,10 @@ export default function CommitteeManager() {
     setSelectedFile(null);
     setPreviewUrl("");
 
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   }
 
   async function deleteMember(id: number) {
@@ -251,9 +413,63 @@ export default function CommitteeManager() {
 
   function resetForm() {
     setEditingId(null);
-    setForm(emptyForm);
+
+    setForm({
+      ...emptyForm,
+      session: currentSession || "Fall 2026",
+      is_current: true,
+    });
+
     setSelectedFile(null);
     setPreviewUrl("");
+  }
+
+  function startAddingToSession(
+    session: string,
+    isCurrent: boolean
+  ) {
+    setEditingId(null);
+
+    setForm({
+      ...emptyForm,
+      session,
+      is_current: isCurrent,
+    });
+
+    setSelectedFile(null);
+    setPreviewUrl("");
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }
+
+  function addNewSession() {
+    const name = sessionInput.trim();
+
+    if (!name) {
+      setMessage("Enter a session name first.");
+      return;
+    }
+
+    setSelectedSession(name);
+    setSessionInput("");
+
+    setForm({
+      ...emptyForm,
+      session: name,
+      is_current: false,
+    });
+
+    setMessage(
+      `Ready to add members to "${name}".`
+    );
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   }
 
   const currentPhoto = previewUrl || form.photo_url;
@@ -284,7 +500,9 @@ export default function CommitteeManager() {
             </button>
 
             <button
-              onClick={() => (window.location.href = "/committee")}
+              onClick={() =>
+                (window.location.href = "/committee")
+              }
               className="rounded-full bg-[#087f8c] px-5 py-2 text-sm font-semibold text-white hover:bg-[#066b76]"
             >
               View Site
@@ -294,11 +512,13 @@ export default function CommitteeManager() {
       </header>
 
       <section className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
-        {/* FORM */}
+        {/* ADD / EDIT MEMBER */}
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
           <div className="mb-8">
             <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#087f8c]">
-              {editingId !== null ? "Edit Member" : "Add Member"}
+              {editingId !== null
+                ? "Edit Member"
+                : "Add Member"}
             </p>
 
             <h2 className="mt-2 text-3xl font-black">
@@ -308,7 +528,10 @@ export default function CommitteeManager() {
             </h2>
           </div>
 
-          <form onSubmit={handleSubmit} className="grid gap-5 md:grid-cols-2">
+          <form
+            onSubmit={handleSubmit}
+            className="grid gap-5 md:grid-cols-2"
+          >
             <Input
               label="Name *"
               name="name"
@@ -325,6 +548,46 @@ export default function CommitteeManager() {
               placeholder="President"
             />
 
+            {/* PANEL */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold">
+                Panel *
+              </label>
+
+              <select
+                value={form.panel}
+                onChange={handlePanelChange}
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20"
+              >
+                {panels.map((panel) => (
+                  <option key={panel} value={panel}>
+                    {panel}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* SESSION */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold">
+                Session *
+              </label>
+
+              <input
+                name="session"
+                value={form.session}
+                onChange={handleChange}
+                placeholder="Fall 2026"
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20"
+              />
+
+              <p className="mt-2 text-xs text-slate-500">
+                Use any name you want: Spring 2025,
+                Session 2024, Fall 2026, etc.
+              </p>
+            </div>
+
+            {/* BATCH */}
             <Input
               label="Batch"
               name="batch"
@@ -333,7 +596,25 @@ export default function CommitteeManager() {
               placeholder="30th Batch"
             />
 
-            {/* PHOTO UPLOAD */}
+            {/* CURRENT */}
+            <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <input
+                id="is_current"
+                type="checkbox"
+                checked={form.is_current}
+                onChange={handleCurrentChange}
+                className="h-4 w-4 accent-[#087f8c]"
+              />
+
+              <label
+                htmlFor="is_current"
+                className="ml-3 text-sm font-semibold"
+              >
+                Current Committee
+              </label>
+            </div>
+
+            {/* PHOTO */}
             <div>
               <label className="mb-2 block text-sm font-semibold">
                 Committee Photo
@@ -361,6 +642,7 @@ export default function CommitteeManager() {
               )}
             </div>
 
+            {/* SOCIAL */}
             <Input
               label="Facebook URL"
               name="facebook_url"
@@ -445,15 +727,182 @@ export default function CommitteeManager() {
           </form>
         </div>
 
+        {/* SESSION MANAGEMENT */}
+        <div className="mt-10 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+          <div className="mb-6">
+            <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#087f8c]">
+              Committee Sessions
+            </p>
+
+            <h2 className="mt-2 text-3xl font-black">
+              Manage Sessions
+            </h2>
+
+            <p className="mt-2 text-sm text-slate-500">
+              Create any session name and manage its
+              members separately.
+            </p>
+          </div>
+
+          {/* NEW SESSION */}
+          <div className="flex flex-col gap-3 md:flex-row">
+            <input
+              value={sessionInput}
+              onChange={(e) =>
+                setSessionInput(e.target.value)
+              }
+              placeholder="Example: Spring 2027"
+              className="flex-1 rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20"
+            />
+
+            <button
+              type="button"
+              onClick={addNewSession}
+              className="rounded-xl bg-[#087f8c] px-6 py-3 font-bold text-white hover:bg-[#066b76]"
+            >
+              Add / Manage Session
+            </button>
+          </div>
+
+          {/* CURRENT SESSION */}
+          {currentSession && (
+            <div className="mt-8">
+              <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-[#087f8c]">
+                Current
+              </p>
+
+              <div className="flex flex-col gap-3 rounded-2xl border border-[#087f8c]/20 bg-[#e9f8f9] p-5 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h3 className="text-lg font-black">
+                    {currentSession}
+                  </h3>
+
+                  <p className="mt-1 text-sm text-slate-600">
+                    {members.filter(
+                      (member) =>
+                        member.session === currentSession
+                    ).length}{" "}
+                    members
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    startAddingToSession(
+                      currentSession,
+                      true
+                    )
+                  }
+                  className="rounded-full bg-[#087f8c] px-5 py-2 text-sm font-bold text-white"
+                >
+                  Add Member
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* PREVIOUS */}
+          <div className="mt-8">
+            <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-[#087f8c]">
+              Previous / Other Sessions
+            </p>
+
+            {previousSessions.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+                No previous sessions yet.
+              </div>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                {previousSessions.map((session) => {
+                  const count = members.filter(
+                    (member) =>
+                      member.session === session
+                  ).length;
+
+                  return (
+                    <div
+                      key={session}
+                      className={`rounded-2xl border p-5 ${
+                        selectedSession === session
+                          ? "border-[#087f8c] bg-[#f0fbfc]"
+                          : "border-slate-200 bg-white"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <h3 className="font-black">
+                            {session}
+                          </h3>
+
+                          <p className="mt-1 text-xs text-slate-500">
+                            {count} members
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelectedSession(
+                                selectedSession === session
+                                  ? ""
+                                  : session
+                              )
+                            }
+                            className="rounded-full border border-slate-200 px-4 py-2 text-xs font-bold hover:border-[#087f8c] hover:text-[#087f8c]"
+                          >
+                            {selectedSession === session
+                              ? "Close"
+                              : "Manage"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              startAddingToSession(
+                                session,
+                                false
+                              )
+                            }
+                            className="rounded-full bg-[#087f8c] px-4 py-2 text-xs font-bold text-white"
+                          >
+                            Add Member
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              makeSessionCurrent(session)
+                            }
+                            disabled={saving}
+                            className="rounded-full border border-amber-300 px-4 py-2 text-xs font-bold text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                          >
+                            Make Current
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* MEMBER LIST */}
         <div className="mt-10">
           <div className="mb-6">
             <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#087f8c]">
-              Current Committee
+              {selectedSession
+                ? selectedSession
+                : "Current Committee"}
             </p>
 
             <h2 className="mt-2 text-3xl font-black">
-              Manage Members
+              {selectedSession
+                ? "Session Members"
+                : currentSession || "Committee Members"}
             </h2>
           </div>
 
@@ -461,71 +910,116 @@ export default function CommitteeManager() {
             <div className="rounded-3xl bg-white p-8 text-center">
               Loading committee...
             </div>
-          ) : members.length === 0 ? (
+          ) : visibleMembers.length === 0 ? (
             <div className="rounded-3xl bg-white p-8 text-center text-slate-500">
-              No committee members found.
+              No members found for this session.
             </div>
           ) : (
-            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-              {members.map((member) => (
-                <article
-                  key={member.id}
-                  className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
-                >
-                  <div className="aspect-[4/3] bg-gradient-to-br from-[#dff7f8] to-[#e8eefb]">
-                    {member.photo_url ? (
-                      <img
-                        src={member.photo_url}
-                        alt={member.name}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center">
-                        <div className="flex h-24 w-24 items-center justify-center rounded-full bg-white text-3xl font-black text-[#087f8c] shadow">
-                          {member.name.charAt(0).toUpperCase()}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+            <>
+              {panels.map((panel) => {
+                const panelMembers =
+                  visibleMembers.filter(
+                    (member) => member.panel === panel
+                  );
 
-                  <div className="p-5">
-                    <p className="text-xs font-bold uppercase tracking-wider text-[#087f8c]">
-                      {member.position}
-                    </p>
+                if (panelMembers.length === 0) {
+                  return null;
+                }
 
-                    <h3 className="mt-2 text-xl font-black">
-                      {member.name}
-                    </h3>
-
-                    {member.batch && (
-                      <p className="mt-1 text-sm text-slate-500">
-                        {member.batch}
+                return (
+                  <section key={panel} className="mb-10">
+                    <div className="mb-4">
+                      <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#087f8c]">
+                        {panel}
                       </p>
-                    )}
-
-                    <div className="mt-5 flex gap-2">
-                      <button
-                        onClick={() => editMember(member)}
-                        className="rounded-full bg-[#087f8c] px-4 py-2 text-xs font-bold text-white hover:bg-[#066b76]"
-                      >
-                        Edit
-                      </button>
-
-                      <button
-                        onClick={() => deleteMember(member.id)}
-                        className="rounded-full border border-red-200 px-4 py-2 text-xs font-bold text-red-500 hover:bg-red-50"
-                      >
-                        Delete
-                      </button>
                     </div>
-                  </div>
-                </article>
-              ))}
-            </div>
+
+                    <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                      {panelMembers.map((member) => (
+                        <MemberCard
+                          key={member.id}
+                          member={member}
+                          onEdit={editMember}
+                          onDelete={deleteMember}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+            </>
           )}
         </div>
       </section>
     </main>
+  );
+}
+
+function MemberCard({
+  member,
+  onEdit,
+  onDelete,
+}: {
+  member: Member;
+  onEdit: (member: Member) => void;
+  onDelete: (id: number) => void;
+}) {
+  return (
+    <article className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <div className="aspect-[4/3] bg-gradient-to-br from-[#dff7f8] to-[#e8eefb]">
+        {member.photo_url ? (
+          <img
+            src={member.photo_url}
+            alt={member.name}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center">
+            <div className="flex h-24 w-24 items-center justify-center rounded-full bg-white text-3xl font-black text-[#087f8c] shadow">
+              {member.name.charAt(0).toUpperCase()}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="p-5">
+        <p className="text-xs font-bold uppercase tracking-wider text-[#087f8c]">
+          {member.position}
+        </p>
+
+        <h3 className="mt-2 text-xl font-black">
+          {member.name}
+        </h3>
+
+        {member.batch && (
+          <p className="mt-1 text-sm text-slate-500">
+            {member.batch}
+          </p>
+        )}
+
+        <p className="mt-1 text-xs text-slate-400">
+          {member.session}
+        </p>
+
+        <div className="mt-5 flex gap-2">
+          <button
+            type="button"
+            onClick={() => onEdit(member)}
+            className="rounded-full bg-[#087f8c] px-4 py-2 text-xs font-bold text-white hover:bg-[#066b76]"
+          >
+            Edit
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onDelete(member.id)}
+            className="rounded-full border border-red-200 px-4 py-2 text-xs font-bold text-red-500 hover:bg-red-50"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </article>
   );
 }
 
