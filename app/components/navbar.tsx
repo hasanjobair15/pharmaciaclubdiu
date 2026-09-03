@@ -144,7 +144,7 @@ export default function Navbar() {
                   pc-navlink
                   whitespace-nowrap
                   rounded-lg
-                  px-1.5
+                  px-1
                   py-1.5
                   text-sm
                   font-medium
