@@ -144,4 +144,5 @@ textarea::placeholder {
 
 .dark ::-webkit-scrollbar-thumb:hover {
   background: #475569;
-}
+}input, textarea, select { color: #0f172a !important; -webkit-text-fill-color: #0f172a !important; }
+
