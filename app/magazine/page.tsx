@@ -15,6 +15,9 @@ type MagazineIssue = {
   is_published: boolean;
 };
 
+const GOOGLE_FORM_URL =
+  "https://docs.google.com/forms/d/e/1FAIpQLScpGkSU4Os6qzwEJ5IVehnOTUFis-nRuutC0zaLzwd2pLJhxg/viewform?usp=sharing&ouid=101072528785080516332";
+
 export default function MagazinePage() {
   const [issues, setIssues] = useState<MagazineIssue[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,6 +73,7 @@ export default function MagazinePage() {
 
             <div className="mt-8 flex flex-wrap gap-4">
 
+              {/* READ CURRENT ISSUE */}
               <a
                 href="#current-issue"
                 className="rounded-full bg-[#0b1736] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#087f8c] dark:bg-[#2dd4bf] dark:text-[#062a2d] dark:hover:bg-[#5eead4]"
@@ -77,8 +81,11 @@ export default function MagazinePage() {
                 Read Current Issue
               </a>
 
+              {/* SUBMIT YOUR CONTENT - GOOGLE FORM */}
               <a
-                href="#submit"
+                href={GOOGLE_FORM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="rounded-full border border-slate-300 px-6 py-3 text-sm font-bold text-[#0b1736] transition hover:border-[#087f8c] hover:text-[#087f8c] dark:border-slate-700 dark:text-slate-200 dark:hover:border-[#2dd4bf] dark:hover:text-[#2dd4bf]"
               >
                 Submit Your Content
@@ -387,12 +394,15 @@ export default function MagazinePage() {
               consideration in an upcoming semester magazine.
             </p>
 
-            <Link
-              href="/magazine/submit"
+            {/* SUBMIT YOUR CONTENT - GOOGLE FORM */}
+            <a
+              href={GOOGLE_FORM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
               className="mt-8 inline-flex rounded-full bg-white px-7 py-3.5 text-sm font-bold text-[#0b1736] transition hover:bg-cyan-300"
             >
               Submit Your Content →
-            </Link>
+            </a>
 
           </div>
         </div>
