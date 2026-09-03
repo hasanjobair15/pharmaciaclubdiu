@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import PageHero from "../components/page-hero";
 import Reveal from "../components/reveal";
 import { createClient } from "@/lib/supabase/client";
+import { parseImageList } from "@/lib/images";
 
 type GalleryItem = {
   id: number;
@@ -22,6 +23,7 @@ export default function GalleryPage() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<GalleryItem | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [search, setSearch] = useState("");
 
@@ -72,6 +74,30 @@ export default function GalleryPage() {
 
     return matchesCategory && matchesSearch;
   });
+
+  const lightboxUrls = selectedImage ? parseImageList(selectedImage.image_url) : [];
+
+  function openLightbox(item: GalleryItem) {
+    setSelectedImage(item);
+    setLightboxIndex(0);
+  }
+
+  function lightboxStep(delta: number) {
+    if (lightboxUrls.length < 2) return;
+    setLightboxIndex((i) => (i + delta + lightboxUrls.length) % lightboxUrls.length);
+  }
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!selectedImage) return;
+      if (e.key === "Escape") setSelectedImage(null);
+      if (e.key === "ArrowRight") lightboxStep(1);
+      if (e.key === "ArrowLeft") lightboxStep(-1);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedImage, lightboxUrls.length]);
 
   function formatDate(date: string | null) {
     if (!date) return "";
@@ -175,9 +201,9 @@ export default function GalleryPage() {
                 {/* IMAGE */}
                 <div className="pc-img3d relative aspect-[4/3] overflow-hidden bg-slate-200 dark:bg-slate-800">
 
-                  {item.image_url ? (
+                  {parseImageList(item.image_url).length > 0 ? (
                     <img
-                      src={item.image_url}
+                      src={parseImageList(item.image_url)[0]}
                       alt={item.title}
                       className="h-full w-full object-cover"
                     />
@@ -197,15 +223,25 @@ export default function GalleryPage() {
                   )}
 
                   {/* IMAGE HOVER BUTTON */}
-                  {item.image_url && (
+                  {parseImageList(item.image_url).length > 0 && (
                     <button
-                      onClick={() => setSelectedImage(item)}
+                      onClick={() => openLightbox(item)}
                       className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/30 group-hover:opacity-100"
                     >
                       <span className="rounded-full bg-white px-5 py-2.5 text-sm font-bold text-slate-900 shadow-lg">
-                        View Photo
+                        {parseImageList(item.image_url).length > 1
+                          ? `View ${parseImageList(item.image_url).length} Photos`
+                          : "View Photo"}
                       </span>
                     </button>
+                  )}
+
+                  {parseImageList(item.image_url).length > 1 && (
+                    <div className="absolute bottom-4 right-4">
+                      <span className="rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
+                        {parseImageList(item.image_url).length} photos
+                      </span>
+                    </div>
                   )}
 
                 </div>
@@ -235,12 +271,14 @@ export default function GalleryPage() {
                     </p>
                   )}
 
-                  {item.image_url && (
+                  {parseImageList(item.image_url).length > 0 && (
                     <button
-                      onClick={() => setSelectedImage(item)}
+                      onClick={() => openLightbox(item)}
                       className="mt-5 w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 dark:bg-cyan-600 dark:text-[#062a2d] dark:hover:bg-cyan-500"
                     >
-                      View Photo
+                      {parseImageList(item.image_url).length > 1
+                        ? `View ${parseImageList(item.image_url).length} Photos`
+                        : "View Photo"}
                     </button>
                   )}
 
@@ -255,7 +293,7 @@ export default function GalleryPage() {
       </section>
 
       {/* LIGHTBOX */}
-      {selectedImage && selectedImage.image_url && (
+      {selectedImage && lightboxUrls.length > 0 && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
           onClick={() => setSelectedImage(null)}
@@ -264,11 +302,38 @@ export default function GalleryPage() {
           {/* CLOSE BUTTON */}
           <button
             onClick={() => setSelectedImage(null)}
-            className="absolute right-5 top-5 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white text-2xl font-bold text-slate-900 shadow-lg transition hover:bg-slate-200"
+            className="absolute right-5 top-5 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-white text-2xl font-bold text-slate-900 shadow-lg transition hover:bg-slate-200"
             aria-label="Close"
           >
             ×
           </button>
+
+          {/* PREV / NEXT */}
+          {lightboxUrls.length > 1 && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  lightboxStep(-1);
+                }}
+                aria-label="Previous photo"
+                className="absolute left-3 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-2xl font-bold text-slate-900 shadow-lg transition hover:bg-white sm:left-6"
+              >
+                ‹
+              </button>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  lightboxStep(1);
+                }}
+                aria-label="Next photo"
+                className="absolute right-3 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-2xl font-bold text-slate-900 shadow-lg transition hover:bg-white sm:right-6"
+              >
+                ›
+              </button>
+            </>
+          )}
 
           {/* IMAGE */}
           <div
@@ -277,9 +342,9 @@ export default function GalleryPage() {
           >
 
             <img
-              src={selectedImage.image_url}
+              src={lightboxUrls[lightboxIndex]}
               alt={selectedImage.title}
-              className="max-h-[85vh] max-w-full rounded-xl object-contain shadow-2xl"
+              className="max-h-[82vh] max-w-full rounded-xl object-contain shadow-2xl"
             />
 
             <div className="mt-4 text-center">
@@ -292,6 +357,30 @@ export default function GalleryPage() {
                 <p className="mt-1 text-slate-300">
                   {selectedImage.event_name}
                 </p>
+              )}
+
+              {lightboxUrls.length > 1 && (
+                <div className="mt-3 flex items-center justify-center gap-2">
+                  <p className="mr-2 text-sm font-semibold text-slate-300">
+                    {lightboxIndex + 1} / {lightboxUrls.length}
+                  </p>
+
+                  {lightboxUrls.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLightboxIndex(i);
+                      }}
+                      aria-label={`Photo ${i + 1}`}
+                      className={`h-2.5 rounded-full transition-all ${
+                        i === lightboxIndex
+                          ? "w-6 bg-cyan-400"
+                          : "w-2.5 bg-white/40 hover:bg-white/70"
+                      }`}
+                    />
+                  ))}
+                </div>
               )}
 
             </div>

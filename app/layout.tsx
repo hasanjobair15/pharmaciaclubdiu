@@ -70,20 +70,12 @@ export default function RootLayout({
                   </p>
 
                   <div className="mt-4 space-y-3 text-xs text-slate-500 dark:text-slate-400">
-                    
-                    {/* CLUB WEBSITE CREDIT */}
-                    <p>
-                      <span className="font-semibold text-[#087f8c] dark:text-[#2dd4bf]">
-                        Club Website Designed &amp; Developed by Md. Hasan Jobair
-                      </span>
-                      <br />
-                      30th Batch, Department of Pharmacy
-                    </p>
 
-                    {/* CLASS ROUTINE WEBSITE CREDIT */}
-                    <p>
+                    {/* JOINT WEBSITE CREDIT */}
+                    <p className="mx-auto max-w-xs sm:max-w-sm md:mx-0">
                       <span className="font-semibold text-[#087f8c] dark:text-[#2dd4bf]">
-                        Class Routine Website Developed by Md. Musfiqur Rahaman
+                        Club Website Designed &amp; Developed by Md. Hasan
+                        Jobair &amp; Md. Musfiqur Rahaman
                       </span>
                       <br />
                       30th Batch, Department of Pharmacy

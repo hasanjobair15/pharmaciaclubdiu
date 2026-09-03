@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -45,7 +44,7 @@ export default function MagazinePage() {
   }, []);
 
   const currentIssue = issues.find((issue) => issue.is_current);
-  const previousIssues = issues.filter((issue) => !issue.is_current);
+  const targetIssue = currentIssue || issues[0] || null;
 
   return (
     <main className="min-h-screen bg-white text-[#0b1736] transition-colors dark:bg-[#0a0f1a] dark:text-slate-100">
@@ -73,13 +72,26 @@ export default function MagazinePage() {
 
             <div className="mt-8 flex flex-wrap gap-4">
 
-              {/* READ CURRENT ISSUE */}
-              <a
-                href="#current-issue"
-                className="rounded-full bg-[#0b1736] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#087f8c] dark:bg-[#2dd4bf] dark:text-[#062a2d] dark:hover:bg-[#5eead4]"
-              >
-                Read Current Issue
-              </a>
+              {/* READ CURRENT ISSUE → opens the magazine reader */}
+              {targetIssue ? (
+                <a
+                  href={`/magazine/${targetIssue.id}`}
+                  className="rounded-full bg-[#0b1736] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#087f8c] dark:bg-[#2dd4bf] dark:text-[#062a2d] dark:hover:bg-[#5eead4]"
+                >
+                  Read Current Issue
+                </a>
+              ) : (
+                <a
+                  href="#"
+                  onClick={(e) => e.preventDefault()}
+                  aria-disabled={loading}
+                  className={`rounded-full bg-[#0b1736] px-6 py-3 text-sm font-bold text-white transition dark:bg-[#2dd4bf] dark:text-[#062a2d] ${
+                    loading ? "cursor-wait opacity-70" : "opacity-70"
+                  }`}
+                >
+                  {loading ? "Loading..." : "Read Current Issue"}
+                </a>
+              )}
 
               {/* SUBMIT YOUR CONTENT - GOOGLE FORM */}
               <a
@@ -153,258 +165,18 @@ export default function MagazinePage() {
 
               <div>
                 <p className="text-2xl font-black text-[#0b1736] dark:text-white">
-                  Digital Archive
+                  Published Issues
                 </p>
 
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Previous issues preserved online
+                  Every edition is preserved online — use the
+                  &ldquo;Read Current Issue&rdquo; button to open the reader
                 </p>
               </div>
 
             </div>
           </div>
 
-        </div>
-      </section>
-
-      {/* CURRENT ISSUE */}
-      <section
-        id="current-issue"
-        className="border-y border-slate-200 bg-slate-50 transition-colors dark:border-slate-800 dark:bg-[#0d1422]"
-      >
-        <div className="mx-auto max-w-7xl px-6 py-16 lg:px-8">
-
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-
-            <div>
-              <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#087f8c] dark:text-[#2dd4bf]">
-                Featured Issue
-              </p>
-
-              <h2 className="mt-2 text-3xl font-black tracking-tight text-[#0b1736] dark:text-white sm:text-4xl">
-                Current Issue
-              </h2>
-            </div>
-
-            {currentIssue && (
-              <span className="w-fit rounded-full bg-[#087f8c]/10 px-4 py-2 text-sm font-bold text-[#087f8c] dark:bg-[#2dd4bf]/10 dark:text-[#2dd4bf]">
-                Current · {currentIssue.season} {currentIssue.year}
-              </span>
-            )}
-
-          </div>
-
-          {loading ? (
-            <div className="mt-10 rounded-3xl border border-slate-200 bg-white p-10 text-center dark:border-slate-800 dark:bg-[#111827]">
-              <p className="text-slate-500 dark:text-slate-400">
-                Loading magazine...
-              </p>
-            </div>
-          ) : currentIssue ? (
-            <div className="mt-10 grid gap-8 overflow-hidden rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-[#111827] lg:grid-cols-[0.75fr_1.25fr]">
-
-              <div className="flex min-h-[380px] items-center justify-center bg-slate-100 p-8 dark:bg-slate-800">
-
-                {currentIssue.cover_image_url ? (
-                  <img
-                    src={currentIssue.cover_image_url}
-                    alt={currentIssue.title}
-                    className="max-h-[420px] w-auto rounded-xl object-contain shadow-xl"
-                  />
-                ) : (
-                  <div className="flex h-[380px] w-[270px] flex-col items-center justify-center rounded-xl bg-[#0b1736] p-8 text-center text-white shadow-xl dark:bg-[#12383c]">
-
-                    <p className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-300">
-                      Pharmacia Club DIU
-                    </p>
-
-                    <h3 className="mt-5 text-4xl font-black">
-                      {currentIssue.season}
-                    </h3>
-
-                    <p className="mt-2 text-5xl font-black">
-                      {currentIssue.year}
-                    </p>
-
-                    <div className="mt-8 h-px w-16 bg-cyan-300" />
-
-                    <p className="mt-5 text-sm text-slate-300">
-                      Department of Pharmacy
-                    </p>
-
-                  </div>
-                )}
-
-              </div>
-
-              <div className="flex flex-col justify-center p-8 lg:p-12">
-
-                <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#087f8c] dark:text-[#2dd4bf]">
-                  {currentIssue.season} {currentIssue.year}
-                </p>
-
-                <h3 className="mt-3 text-3xl font-black text-[#0b1736] dark:text-white sm:text-4xl">
-                  {currentIssue.title}
-                </h3>
-
-                <p className="mt-5 leading-8 text-slate-600 dark:text-slate-300">
-                  {currentIssue.description ||
-                    "Explore the latest issue of Pharmacia Club DIU Magazine."}
-                </p>
-
-                <div className="mt-8">
-                  <Link
-                    href={`/magazine/${currentIssue.id}`}
-                    className="inline-flex rounded-full bg-[#0b1736] px-7 py-3.5 text-sm font-bold text-white transition hover:bg-[#087f8c] dark:bg-[#2dd4bf] dark:text-[#062a2d] dark:hover:bg-[#5eead4]"
-                  >
-                    Read Magazine →
-                  </Link>
-                </div>
-
-              </div>
-            </div>
-          ) : (
-            <div className="mt-10 rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-[#111827]">
-
-              <p className="font-bold text-[#0b1736] dark:text-white">
-                No current issue is available yet.
-              </p>
-
-              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                The next magazine issue will appear here once published.
-              </p>
-
-            </div>
-          )}
-
-        </div>
-      </section>
-
-      {/* PREVIOUS ISSUES */}
-      <section className="mx-auto max-w-7xl px-6 py-16 lg:px-8">
-
-        <div>
-          <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#087f8c] dark:text-[#2dd4bf]">
-            Digital Archive
-          </p>
-
-          <h2 className="mt-2 text-3xl font-black tracking-tight text-[#0b1736] dark:text-white sm:text-4xl">
-            Previous Issues
-          </h2>
-
-          <p className="mt-4 max-w-2xl text-slate-600 dark:text-slate-300">
-            Explore previous semester editions of Pharmacia Club DIU Magazine.
-          </p>
-        </div>
-
-        {previousIssues.length > 0 ? (
-          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-
-            {previousIssues.map((issue) => (
-              <Link
-                key={issue.id}
-                href={`/magazine/${issue.id}`}
-                className="group overflow-hidden rounded-3xl border border-slate-200 bg-white transition hover:-translate-y-1 hover:border-[#087f8c]/40 hover:shadow-xl dark:border-slate-800 dark:bg-[#111827] dark:hover:border-[#2dd4bf]/40"
-              >
-
-                <div className="flex h-64 items-center justify-center bg-slate-100 p-6 dark:bg-slate-800">
-
-                  {issue.cover_image_url ? (
-                    <img
-                      src={issue.cover_image_url}
-                      alt={issue.title}
-                      className="h-full max-w-full rounded-lg object-contain shadow-lg"
-                    />
-                  ) : (
-                    <div className="flex h-full w-40 flex-col items-center justify-center rounded-lg bg-[#0b1736] text-center text-white shadow-lg dark:bg-[#12383c]">
-
-                      <p className="text-xs font-bold uppercase tracking-widest text-cyan-300">
-                        Pharmacia Club
-                      </p>
-
-                      <p className="mt-4 text-2xl font-black">
-                        {issue.season}
-                      </p>
-
-                      <p className="text-3xl font-black">
-                        {issue.year}
-                      </p>
-
-                    </div>
-                  )}
-
-                </div>
-
-                <div className="p-6">
-
-                  <p className="text-sm font-bold text-[#087f8c] dark:text-[#2dd4bf]">
-                    {issue.season} {issue.year}
-                  </p>
-
-                  <h3 className="mt-2 text-xl font-black text-[#0b1736] transition group-hover:text-[#087f8c] dark:text-white dark:group-hover:text-[#2dd4bf]">
-                    {issue.title}
-                  </h3>
-
-                  <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                    {issue.description || "Read this magazine issue."}
-                  </p>
-
-                  <p className="mt-5 text-sm font-bold text-[#0b1736] dark:text-white">
-                    Read Issue →
-                  </p>
-
-                </div>
-
-              </Link>
-            ))}
-
-          </div>
-        ) : (
-          <div className="mt-10 rounded-3xl border border-dashed border-slate-300 p-10 text-center dark:border-slate-700">
-
-            <p className="font-semibold text-slate-500 dark:text-slate-400">
-              Previous issues will appear here.
-            </p>
-
-          </div>
-        )}
-
-      </section>
-
-      {/* SUBMISSION */}
-      <section
-        id="submit"
-        className="mx-auto max-w-7xl px-6 pb-20 lg:px-8"
-      >
-        <div className="overflow-hidden rounded-3xl bg-[#0b1736] p-8 text-white dark:bg-[#111827] sm:p-12">
-
-          <div className="max-w-3xl">
-
-            <p className="text-sm font-bold uppercase tracking-[0.18em] text-cyan-300">
-              Share Your Voice
-            </p>
-
-            <h2 className="mt-3 text-3xl font-black sm:text-4xl">
-              Submit Your Content
-            </h2>
-
-            <p className="mt-5 leading-8 text-slate-300">
-              Have a poem, story, article, research idea, reflection,
-              photography or creative work? Submit your contribution for
-              consideration in an upcoming semester magazine.
-            </p>
-
-            {/* SUBMIT YOUR CONTENT - GOOGLE FORM */}
-            <a
-              href={GOOGLE_FORM_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-8 inline-flex rounded-full bg-white px-7 py-3.5 text-sm font-bold text-[#0b1736] transition hover:bg-cyan-300"
-            >
-              Submit Your Content →
-            </a>
-
-          </div>
         </div>
       </section>
 

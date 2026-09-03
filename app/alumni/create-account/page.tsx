@@ -55,6 +55,11 @@ export default function CreateAlumniAccountPage() {
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
+  /* true once the account is created but needs email confirmation */
+  const [signupDone, setSignupDone] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [showResend, setShowResend] = useState(false);
+
   function handlePhotoSelect(
     event: ChangeEvent<HTMLInputElement>
   ) {
@@ -190,41 +195,92 @@ export default function CreateAlumniAccountPage() {
 
     try {
       /* CREATE SUPABASE AUTH ACCOUNT */
+      const emailRedirectTo = `${window.location.origin}/alumni/login?confirmed=1`;
+
       const {
         data: { user, session },
         error: signUpError,
       } = await supabase.auth.signUp({
         email: email.trim(),
         password,
+        options: {
+          emailRedirectTo,
+          data: { full_name: fullName.trim(), batch, section },
+        },
       });
 
       if (signUpError) {
-        throw signUpError;
+        const raw = signUpError.message || "";
+        const code = String((signUpError as any)?.code || "");
+
+        if (raw.includes("already registered")) {
+          setErrorMessage(
+            "This email is already registered. Please log in with your password — or resend the confirmation email below if you have not confirmed your account yet."
+          );
+          setShowResend(true);
+        } else if (code.includes("over_request_rate_limit") || /too many requests|rate limit/i.test(raw)) {
+          setErrorMessage("Too many attempts. Please wait a minute and try again.");
+        } else if (raw.includes("Signups not allowed")) {
+          setErrorMessage("New registrations are currently paused. Please contact the club admin.");
+        } else {
+          setErrorMessage(raw || "Unable to create your alumni account. Please try again.");
+        }
+        setLoading(false);
+        return;
       }
 
       if (!user) {
-        throw new Error(
-          "Unable to create your alumni account."
-        );
+        setErrorMessage("Unable to create your alumni account. Please try again.");
+        setLoading(false);
+        return;
       }
 
       /*
-       * Upload photo after account creation.
-       * The authenticated session is required for Storage access.
+       * Email confirmation is REQUIRED on this project, so a fresh sign-up has
+       * no session. Never attempt the storage photo upload or the profile
+       * insert here — both need an authenticated session. Save the details as
+       * a draft, show a clear "check your email" screen, and let the member
+       * complete their profile after confirming and logging in.
+       */
+      if (!session) {
+        try {
+          localStorage.setItem(
+            "pharmacia_alumni_draft",
+            JSON.stringify({
+              full_name: fullName.trim(),
+              email: email.trim(),
+              batch,
+              section,
+              graduation_year: graduationYear,
+              current_position: currentPosition,
+              organization,
+              bio,
+              linkedin_url: linkedinUrl,
+              facebook_url: facebookUrl,
+              instagram_url: instagramUrl,
+              is_public: isPublic,
+            })
+          );
+        } catch {
+          /* localStorage unavailable — the member can re-enter the details */
+        }
+
+        setSignupDone(true);
+        setShowResend(true);
+        setLoading(false);
+        return;
+      }
+
+      /*
+       * Session exists (account already confirmed). Upload the photo and
+       * create the alumni profile row, then continue to the profile page.
        */
       let profilePhotoUrl: string | null = null;
 
       if (selectedPhoto) {
-        if (!session) {
-          throw new Error(
-            "Your account was created, but the profile photo could not be uploaded because email confirmation is required. Please confirm your email first and add your photo from My Alumni Profile."
-          );
-        }
-
         profilePhotoUrl = await uploadProfilePhoto(user.id);
       }
 
-      /* CREATE ALUMNI PROFILE */
       const { error: profileError } = await supabase
         .from("alumni_profiles")
         .insert({
@@ -254,24 +310,14 @@ export default function CreateAlumniAccountPage() {
         throw profileError;
       }
 
-      if (session) {
-        setMessage(
-          "Alumni account created successfully! Redirecting to your profile..."
-        );
+      setMessage(
+        "Alumni account created successfully! Redirecting to your profile..."
+      );
 
-        setTimeout(() => {
-          router.push("/alumni/profile");
-          router.refresh();
-        }, 1200);
-      } else {
-        setMessage(
-          "Your alumni account has been created successfully. Please check your email to confirm your account, then log in to complete or update your profile."
-        );
-
-        setTimeout(() => {
-          router.push("/alumni/login");
-        }, 2500);
-      }
+      setTimeout(() => {
+        router.push("/alumni/profile");
+        router.refresh();
+      }, 1200);
     } catch (error) {
       console.error(
         "Create alumni account error:",
@@ -288,6 +334,45 @@ export default function CreateAlumniAccountPage() {
     }
   }
 
+  async function handleResendConfirmation() {
+    if (!email.trim() || resending) return;
+
+    setResending(true);
+    setMessage("");
+    setErrorMessage("");
+
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: email.trim(),
+        options: {
+          emailRedirectTo: `${window.location.origin}/alumni/login?confirmed=1`,
+        },
+      });
+
+      if (error) {
+        const raw = error.message || "";
+
+        if (/too many requests|rate limit|over_request/i.test(raw)) {
+          setErrorMessage("Too many emails were sent. Please wait a minute and try again.");
+        } else {
+          throw error;
+        }
+      } else {
+        setMessage(
+          `Confirmation email sent again to ${email.trim()}. Check your inbox (and the spam folder).`
+        );
+      }
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not resend the confirmation email. Please try again."
+      );
+    } finally {
+      setResending(false);
+    }
+  }
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-[#0a0f1a]">
       {/* HEADER */}
@@ -311,6 +396,68 @@ export default function CreateAlumniAccountPage() {
       {/* FORM */}
       <section className="mx-auto max-w-4xl px-6 py-12">
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+          {signupDone ? (
+            <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-12">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-5xl dark:bg-emerald-950/30">
+                📬
+              </div>
+
+              <h2 className="mt-6 text-3xl font-extrabold text-[#0b1736] dark:text-white">
+                Confirm Your Email
+              </h2>
+
+              <p className="mx-auto mt-4 max-w-md text-base leading-7 text-slate-600 dark:text-slate-300">
+                Your alumni account has been created. We have sent a
+                confirmation link to{" "}
+                <strong className="text-[#087f8c] dark:text-[#2dd4bf]">
+                  {email.trim()}
+                </strong>
+                . Click the link in the email to activate your account.
+              </p>
+
+              <div className="mx-auto mt-6 max-w-md rounded-2xl bg-slate-50 p-4 text-left text-sm leading-6 text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+                💡 If you chose a profile photo, you can upload it after
+                confirming your email — just open{" "}
+                <strong>My Alumni Profile</strong> and take it from there. Your
+                registration details have been saved for you.
+              </div>
+
+              {message && (
+                <div className="mx-auto mt-6 max-w-md rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">
+                  {message}
+                </div>
+              )}
+
+              {errorMessage && (
+                <div className="mx-auto mt-6 max-w-md rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+                  {errorMessage}
+                </div>
+              )}
+
+              <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={handleResendConfirmation}
+                  disabled={resending}
+                  className="w-full rounded-full bg-[#0b1736] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#087f8c] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                >
+                  {resending ? "Sending..." : "Resend Confirmation Email"}
+                </button>
+
+                <Link
+                  href="/alumni/login"
+                  className="w-full rounded-full border border-slate-300 px-6 py-3 text-sm font-bold text-[#0b1736] transition hover:border-[#087f8c] hover:text-[#087f8c] sm:w-auto dark:border-slate-700 dark:text-slate-200 dark:hover:border-[#2dd4bf] dark:hover:text-[#2dd4bf]"
+                >
+                  Go to Alumni Login
+                </Link>
+              </div>
+
+              <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">
+                Didn&apos;t get the email? Check the spam folder, or use the
+                resend button above.
+              </p>
+            </div>
+          ) : (
           <form
             onSubmit={handleCreateAccount}
             className="space-y-8"
@@ -735,6 +882,16 @@ export default function CreateAlumniAccountPage() {
                 {errorMessage}
               </div>
             )}
+            {showResend && errorMessage && !signupDone && (
+              <button
+                type="button"
+                onClick={handleResendConfirmation}
+                disabled={resending}
+                className="w-full rounded-full border border-[#087f8c] px-6 py-3 text-sm font-bold text-[#087f8c] transition hover:bg-[#087f8c] hover:text-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#2dd4bf] dark:text-[#2dd4bf] dark:hover:bg-[#2dd4bf] dark:hover:text-[#062a2d]"
+              >
+                {resending ? "Sending..." : "Resend Confirmation Email"}
+              </button>
+            )}
 
             {/* SUBMIT */}
             <button
@@ -763,6 +920,7 @@ export default function CreateAlumniAccountPage() {
               </Link>
             </div>
           </form>
+          )}
         </div>
       </section>
     </main>

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import imageCompression from "browser-image-compression";
+import MultiImageUploader from "@/app/components/multi-image-uploader";
+import { parseImageList, serializeImageList } from "@/lib/images";
 
 type NewsItem = {
   id: number;
@@ -22,7 +23,6 @@ export default function AdminNewsPage() {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
 
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -32,7 +32,7 @@ export default function AdminNewsPage() {
   const [author, setAuthor] = useState("");
   const [publishedDate, setPublishedDate] = useState("");
   const [category, setCategory] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [isPublished, setIsPublished] = useState(true);
 
   useEffect(() => {
@@ -66,7 +66,7 @@ export default function AdminNewsPage() {
     setAuthor("");
     setPublishedDate("");
     setCategory("");
-    setImageUrl("");
+    setImageUrls([]);
     setIsPublished(true);
   }
 
@@ -78,7 +78,7 @@ export default function AdminNewsPage() {
     setAuthor(item.author || "");
     setPublishedDate(item.published_date || "");
     setCategory(item.category || "");
-    setImageUrl(item.image_url || "");
+    setImageUrls(parseImageList(item.image_url));
     setIsPublished(item.is_published);
 
     window.scrollTo({
@@ -109,51 +109,6 @@ export default function AdminNewsPage() {
     loadNews();
   }
 
-  async function uploadImage(file: File) {
-    try {
-      setUploading(true);
-
-      const compressedFile = await imageCompression(file, {
-        maxSizeMB: 0.7,
-        maxWidthOrHeight: 1600,
-        useWebWorker: true,
-        fileType: "image/jpeg",
-      });
-
-      const fileName =
-        "news/" +
-        Date.now() +
-        "-" +
-        Math.random().toString(36).substring(2, 8) +
-        ".jpg";
-
-      const { error: uploadError } = await supabase.storage
-        .from("committee-photos")
-        .upload(fileName, compressedFile, {
-          contentType: "image/jpeg",
-          upsert: false,
-        });
-
-      if (uploadError) {
-        alert(uploadError.message);
-        return;
-      }
-
-      const { data } = supabase.storage
-        .from("committee-photos")
-        .getPublicUrl(fileName);
-
-      setImageUrl(data.publicUrl);
-
-      alert("Image uploaded successfully.");
-    } catch (error) {
-      console.error(error);
-      alert("Image upload failed.");
-    } finally {
-      setUploading(false);
-    }
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
@@ -168,7 +123,7 @@ export default function AdminNewsPage() {
       title: title.trim(),
       excerpt: excerpt.trim() || null,
       content: content.trim() || null,
-      image_url: imageUrl.trim() || null,
+      image_url: serializeImageList(imageUrls),
       author: author.trim() || null,
       published_date: publishedDate || null,
       is_published: isPublished,
@@ -364,49 +319,18 @@ export default function AdminNewsPage() {
               />
             </div>
 
-            {/* Image */}
+            {/* Images */}
             <div>
               <label className="mb-2 block font-semibold text-slate-800">
-                News Image
+                News Images
               </label>
 
-              <input
-                type="file"
-                accept="image/*"
-                disabled={uploading}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-
-                  if (file) {
-                    uploadImage(file);
-                  }
-                }}
-                className="block w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 file:mr-4 file:rounded-lg file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:font-semibold file:text-white hover:file:bg-slate-700"
+              <MultiImageUploader
+                value={imageUrls}
+                onChange={setImageUrls}
+                folder="news"
+                inputId="news-image"
               />
-
-              <p className="mt-2 text-xs text-slate-500">
-                Recommended: JPG or PNG image.
-              </p>
-
-              {uploading && (
-                <p className="mt-2 text-sm font-medium text-blue-600">
-                  Uploading image...
-                </p>
-              )}
-
-              {imageUrl && (
-                <div className="mt-4">
-                  <p className="mb-2 text-sm font-semibold text-slate-700">
-                    Image Preview
-                  </p>
-
-                  <img
-                    src={imageUrl}
-                    alt="News preview"
-                    className="h-48 w-full rounded-xl border border-slate-200 object-cover md:w-80"
-                  />
-                </div>
-              )}
             </div>
 
             {/* Published Status */}
@@ -436,7 +360,7 @@ export default function AdminNewsPage() {
 
               <button
                 type="submit"
-                disabled={saving || uploading}
+                disabled={saving}
                 className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {saving
@@ -492,9 +416,9 @@ export default function AdminNewsPage() {
 
                   {/* Image */}
                   <div className="shrink-0">
-                    {item.image_url ? (
+                    {parseImageList(item.image_url).length > 0 ? (
                       <img
-                        src={item.image_url}
+                        src={parseImageList(item.image_url)[0]}
                         alt={item.title}
                         className="h-40 w-full rounded-lg object-cover md:w-56"
                       />

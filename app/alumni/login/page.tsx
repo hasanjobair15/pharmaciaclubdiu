@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -14,6 +14,88 @@ export default function AlumniLoginPage() {
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [infoMessage, setInfoMessage] = useState("");
+  const [resending, setResending] = useState(false);
+  const [showResend, setShowResend] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
+
+  useEffect(() => {
+    /* After the email-confirmation link, Supabase redirects here
+       (/?confirmed=1&...tokens). The browser client picks up the session
+       from the URL; surface the confirmation to the member and clean the URL. */
+    async function handleConfirmRedirect() {
+      const params = new URLSearchParams(window.location.search);
+      const confirmed = params.get("confirmed") === "1";
+
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session) {
+          setSessionReady(true);
+          setInfoMessage(
+            "Your email has been confirmed and you are signed in."
+          );
+        } else if (confirmed) {
+          setInfoMessage(
+            "Your email has been confirmed! You can now log in with your email and password."
+          );
+        }
+      } catch {
+        /* ignore — member can simply log in */
+      }
+
+      if (confirmed || window.location.hash.includes("access_token")) {
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname + window.location.search.replace(/[?&]confirmed=1&?/, "")
+        );
+      }
+    }
+
+    handleConfirmRedirect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleResendConfirmation() {
+    if (!email.trim() || resending) return;
+
+    setResending(true);
+    setErrorMessage("");
+    setInfoMessage("");
+
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: email.trim(),
+        options: {
+          emailRedirectTo: `${window.location.origin}/alumni/login?confirmed=1`,
+        },
+      });
+
+      if (error) {
+        if (/too many requests|rate limit|over_request/i.test(error.message || "")) {
+          setErrorMessage("Too many emails were sent. Please wait a minute and try again.");
+        } else {
+          throw error;
+        }
+      } else {
+        setInfoMessage(
+          `Confirmation email sent again to ${email.trim()}. Check your inbox (and the spam folder).`
+        );
+      }
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not resend the confirmation email. Please try again."
+      );
+    } finally {
+      setResending(false);
+    }
+  }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,11 +130,18 @@ export default function AlumniLoginPage() {
     } catch (error) {
       console.error("Alumni login error:", error);
 
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Unable to log in. Please check your email and password."
-      );
+      const raw = error instanceof Error ? error.message : "";
+
+      if (/email not confirmed/i.test(raw)) {
+        setErrorMessage(
+          "Your email is not confirmed yet. Check your inbox for the confirmation link — or resend it below."
+        );
+        setShowResend(true);
+      } else {
+        setErrorMessage(
+          raw || "Unable to log in. Please check your email and password."
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -163,11 +252,37 @@ export default function AlumniLoginPage() {
 
             </div>
 
+            {/* INFO MESSAGE */}
+            {infoMessage && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium leading-6 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">
+                {infoMessage}
+              </div>
+            )}
+
             {/* ERROR MESSAGE */}
             {errorMessage && (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium leading-6 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
                 {errorMessage}
               </div>
+            )}
+            {showResend && errorMessage && (
+              <button
+                type="button"
+                onClick={handleResendConfirmation}
+                disabled={resending}
+                className="w-full rounded-full border border-[#087f8c] px-6 py-3 text-sm font-bold text-[#087f8c] transition hover:bg-[#087f8c] hover:text-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#2dd4bf] dark:text-[#2dd4bf] dark:hover:bg-[#2dd4bf] dark:hover:text-[#062a2d]"
+              >
+                {resending ? "Sending..." : "Resend Confirmation Email"}
+              </button>
+            )}
+
+            {sessionReady && (
+              <Link
+                href="/alumni/profile"
+                className="block w-full rounded-full bg-[#087f8c] px-6 py-3 text-center text-sm font-bold text-white transition hover:bg-[#0b1736]"
+              >
+                Continue to My Alumni Profile →
+              </Link>
             )}
 
             {/* LOGIN BUTTON */}

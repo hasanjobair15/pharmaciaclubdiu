@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { parseImageList } from "@/lib/images";
 
 type NewsItem = {
   id: number;
@@ -226,12 +227,20 @@ export default function NewsPage() {
                   className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md transition hover:-translate-y-1 hover:shadow-xl dark:border-slate-700 dark:bg-[#111827] dark:shadow-none dark:hover:shadow-xl"
                 >
                   {/* Image */}
-                  {item.image_url ? (
-                    <img
-                      src={item.image_url}
-                      alt={item.title}
-                      className="h-56 w-full object-cover"
-                    />
+                  {parseImageList(item.image_url).length > 0 ? (
+                    <div className="relative">
+                      <img
+                        src={parseImageList(item.image_url)[0]}
+                        alt={item.title}
+                        className="h-56 w-full object-cover"
+                      />
+
+                      {parseImageList(item.image_url).length > 1 && (
+                        <span className="absolute right-3 top-3 rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white">
+                          📷 {parseImageList(item.image_url).length} photos
+                        </span>
+                      )}
+                    </div>
                   ) : (
                     <div className="flex h-56 items-center justify-center bg-gradient-to-br from-blue-800 to-indigo-700 text-white dark:from-[#12383c] dark:to-[#172554]">
                       <span className="text-lg font-semibold">

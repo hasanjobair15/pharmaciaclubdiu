@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import MultiImageUploader from "@/app/components/multi-image-uploader";
+import { parseImageList, serializeImageList } from "@/lib/images";
 
 type GalleryItem = {
   id: number;
@@ -28,8 +30,7 @@ export default function AdminGalleryPage() {
   const [eventName, setEventName] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [category, setCategory] = useState("");
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [currentImage, setCurrentImage] = useState("");
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
 
   useEffect(() => {
     fetchGallery();
@@ -60,16 +61,7 @@ export default function AdminGalleryPage() {
     setEventName("");
     setEventDate("");
     setCategory("");
-    setImageFile(null);
-    setCurrentImage("");
-
-    const input = document.getElementById(
-      "gallery-image"
-    ) as HTMLInputElement | null;
-
-    if (input) {
-      input.value = "";
-    }
+    setImageUrls([]);
   }
 
   function editItem(item: GalleryItem) {
@@ -79,39 +71,12 @@ export default function AdminGalleryPage() {
     setEventName(item.event_name || "");
     setEventDate(item.event_date || "");
     setCategory(item.category || "");
-    setCurrentImage(item.image_url);
-    setImageFile(null);
+    setImageUrls(parseImageList(item.image_url));
 
     window.scrollTo({
       top: 0,
       behavior: "smooth",
     });
-  }
-
-  async function uploadImage(file: File) {
-    const fileExt = file.name.split(".").pop();
-
-    const fileName = `${Date.now()}-${Math.random()
-      .toString(36)
-      .substring(2)}.${fileExt}`;
-
-    const filePath = `gallery/${fileName}`;
-
-    const { error } = await supabase.storage
-      .from("committee-photos")
-      .upload(filePath, file, {
-        upsert: false,
-      });
-
-    if (error) {
-      throw error;
-    }
-
-    const { data } = supabase.storage
-      .from("committee-photos")
-      .getPublicUrl(filePath);
-
-    return data.publicUrl;
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -122,24 +87,18 @@ export default function AdminGalleryPage() {
       return;
     }
 
-    if (!editingId && !imageFile) {
-      alert("Please select an image.");
+    if (imageUrls.length === 0) {
+      alert("Please add at least one image (upload, paste or URL).");
       return;
     }
 
     setSaving(true);
 
     try {
-      let imageUrl = currentImage;
-
-      if (imageFile) {
-        imageUrl = await uploadImage(imageFile);
-      }
-
       const galleryData = {
         title: title.trim(),
         description: description.trim() || null,
-        image_url: imageUrl,
+        image_url: serializeImageList(imageUrls),
         event_name: eventName.trim() || null,
         event_date: eventDate || null,
         category: category.trim() || null,
@@ -213,7 +172,8 @@ export default function AdminGalleryPage() {
           </h1>
 
           <p className="mt-2 text-base text-slate-600">
-            Add, edit and manage Pharmacia Club DIU gallery photos.
+            Add, edit and manage Pharmacia Club DIU gallery photos. Each post
+            can hold any number of images.
           </p>
         </div>
 
@@ -227,8 +187,8 @@ export default function AdminGalleryPage() {
 
             <p className="mt-1 text-sm text-slate-600">
               {editingId
-                ? "Update the information below."
-                : "Fill in the details and upload a photo."}
+                ? "Images are kept as they are — remove or add only what you want to change."
+                : "Fill in the details and add one or more photos."}
             </p>
           </div>
 
@@ -328,54 +288,21 @@ export default function AdminGalleryPage() {
               />
             </div>
 
-            {/* IMAGE */}
+            {/* IMAGES */}
             <div>
               <label
                 htmlFor="gallery-image"
                 className="mb-2 block text-sm font-bold text-slate-800"
               >
-                Image {!editingId && "*"}
+                Images {!editingId && "*"}
               </label>
 
-              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
-                <input
-                  id="gallery-image"
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) =>
-                    setImageFile(e.target.files?.[0] || null)
-                  }
-                  className="block w-full cursor-pointer text-sm font-medium text-slate-700 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-700 file:px-4 file:py-2 file:font-semibold file:text-white hover:file:bg-blue-800"
-                />
-
-                <p className="mt-2 text-xs text-slate-500">
-                  Select an image from your computer.
-                </p>
-              </div>
-
-              {/* CURRENT IMAGE */}
-              {currentImage && !imageFile && (
-                <div className="mt-5">
-                  <p className="mb-2 text-sm font-semibold text-slate-700">
-                    Current Image
-                  </p>
-
-                  <img
-                    src={currentImage}
-                    alt="Current gallery"
-                    className="h-48 w-full max-w-sm rounded-xl object-cover ring-1 ring-slate-200"
-                  />
-                </div>
-              )}
-
-              {/* SELECTED IMAGE */}
-              {imageFile && (
-                <div className="mt-3 rounded-lg bg-green-50 px-4 py-3">
-                  <p className="text-sm font-semibold text-green-700">
-                    Selected: {imageFile.name}
-                  </p>
-                </div>
-              )}
+              <MultiImageUploader
+                value={imageUrls}
+                onChange={setImageUrls}
+                folder="gallery"
+                inputId="gallery-image"
+              />
             </div>
 
             {/* FORM BUTTONS */}
@@ -439,85 +366,97 @@ export default function AdminGalleryPage() {
             </div>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {items.map((item) => (
-                <article
-                  key={item.id}
-                  className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200"
-                >
-                  {/* IMAGE */}
-                  <img
-                    src={item.image_url}
-                    alt={item.title || "Gallery image"}
-                    className="h-56 w-full object-cover"
-                  />
+              {items.map((item) => {
+                const urls = parseImageList(item.image_url);
 
-                  <div className="p-5">
+                return (
+                  <article
+                    key={item.id}
+                    className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200"
+                  >
+                    {/* IMAGE(S) */}
+                    <div className="relative">
+                      <img
+                        src={urls[0]}
+                        alt={item.title || "Gallery image"}
+                        className="h-56 w-full object-cover"
+                      />
 
-                    {/* CATEGORY */}
-                    {item.category && (
-                      <span className="inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800">
-                        {item.category}
-                      </span>
-                    )}
-
-                    {/* TITLE */}
-                    <h3 className="mt-3 text-lg font-bold text-slate-900">
-                      {item.title || "Untitled"}
-                    </h3>
-
-                    {/* EVENT */}
-                    {item.event_name && (
-                      <p className="mt-2 text-sm text-slate-700">
-                        <span className="font-bold">Event:</span>{" "}
-                        {item.event_name}
-                      </p>
-                    )}
-
-                    {/* DATE */}
-                    {item.event_date && (
-                      <p className="mt-1 text-sm text-slate-600">
-                        <span className="font-bold">Date:</span>{" "}
-                        {new Date(item.event_date).toLocaleDateString(
-                          "en-US",
-                          {
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
-                          }
-                        )}
-                      </p>
-                    )}
-
-                    {/* DESCRIPTION */}
-                    {item.description && (
-                      <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-600">
-                        {item.description}
-                      </p>
-                    )}
-
-                    {/* ACTIONS */}
-                    <div className="mt-5 flex gap-2 border-t border-slate-200 pt-4">
-
-                      <button
-                        type="button"
-                        onClick={() => editItem(item)}
-                        className="rounded-lg bg-blue-100 px-4 py-2 text-sm font-bold text-blue-800 transition hover:bg-blue-200"
-                      >
-                        Edit
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => deleteItem(item.id)}
-                        className="rounded-lg bg-red-100 px-4 py-2 text-sm font-bold text-red-800 transition hover:bg-red-200"
-                      >
-                        Delete
-                      </button>
-
+                      {urls.length > 1 && (
+                        <span className="absolute right-3 top-3 rounded-full bg-black/70 px-3 py-1 text-xs font-bold text-white">
+                          📷 {urls.length} photos
+                        </span>
+                      )}
                     </div>
-                  </div>
-                </article>
-              ))}
+
+                    <div className="p-5">
+
+                      {/* CATEGORY */}
+                      {item.category && (
+                        <span className="inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800">
+                          {item.category}
+                        </span>
+                      )}
+
+                      {/* TITLE */}
+                      <h3 className="mt-3 text-lg font-bold text-slate-900">
+                        {item.title || "Untitled"}
+                      </h3>
+
+                      {/* EVENT */}
+                      {item.event_name && (
+                        <p className="mt-2 text-sm text-slate-700">
+                          <span className="font-bold">Event:</span>{" "}
+                          {item.event_name}
+                        </p>
+                      )}
+
+                      {/* DATE */}
+                      {item.event_date && (
+                        <p className="mt-1 text-sm text-slate-600">
+                          <span className="font-bold">Date:</span>{" "}
+                          {new Date(item.event_date).toLocaleDateString(
+                            "en-US",
+                            {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            }
+                          )}
+                        </p>
+                      )}
+
+                      {/* DESCRIPTION */}
+                      {item.description && (
+                        <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-600">
+                          {item.description}
+                        </p>
+                      )}
+
+                      {/* ACTIONS */}
+                      <div className="mt-5 flex gap-2 border-t border-slate-200 pt-4">
+
+                        <button
+                          type="button"
+                          onClick={() => editItem(item)}
+                          className="rounded-lg bg-blue-100 px-4 py-2 text-sm font-bold text-blue-800 transition hover:bg-blue-200"
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => deleteItem(item.id)}
+                          className="rounded-lg bg-red-100 px-4 py-2 text-sm font-bold text-red-800 transition hover:bg-red-200"
+                        >
+                          Delete
+                        </button>
+
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>

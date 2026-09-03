@@ -115,10 +115,15 @@ export default function Navbar() {
           className="
             ml-auto
             hidden
+            min-w-0
+            flex-1
             items-center
-            gap-4
+            justify-end
+            gap-3
+            overflow-x-auto
+            no-scrollbar
             lg:flex
-            xl:gap-5
+            xl:gap-4
           "
         >
           {links.map((link) => {
@@ -138,9 +143,10 @@ export default function Navbar() {
                   pc-navlink
                   whitespace-nowrap
                   rounded-lg
-                  px-2.5
+                  px-2
                   py-1.5
                   text-sm
+                  xl:px-2.5
                   font-medium
                   text-slate-700
                   no-underline

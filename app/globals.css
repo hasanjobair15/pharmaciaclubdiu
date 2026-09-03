@@ -446,6 +446,15 @@ a:hover .pc-icon3d { transform: perspective(500px) rotateY(-16deg) rotateX(8deg)
 }
 .pc-img3d:hover::after { transform: translateX(140%) skewX(-20deg); }
 
+
+@keyframes pc-upload-slide {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(240%); }
+}
+
+/* hide scrollbars where nav lists overflow (desktop nav) */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
 /* ---------- animated stat underline ---------- */
 .pc-stat-bar { position: relative; height: 4px; border-radius: 999px; overflow: hidden; }
 .pc-stat-bar::after {
@@ -460,7 +469,7 @@ a:hover .pc-icon3d { transform: perspective(500px) rotateY(-16deg) rotateX(8deg)
 /* reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .reveal, .pc-marquee, .pc-rainbow, .pc-flame, .pc-mesh .blob, .pc-glow-border::before,
-  .pc-flip-inner, .pc-ring::after, .pc-spin-slow, .pc-spin-slower, .pc-img3d img, .pc-img3d::after {
+  .pc-flip-inner, .pc-ring::after, .pc-spin-slow, .pc-spin-slower, .pc-img3d img, .pc-img3d::after, [class*='pc-upload-slide'] {
     animation: none !important;
     transition: none !important;
   }

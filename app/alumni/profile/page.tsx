@@ -67,6 +67,11 @@ export default function AlumniProfilePage() {
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
+  /* true when the auth user exists but no alumni_profiles row yet
+     (e.g. just confirmed the sign-up email) — the form then INSERTs */
+  const [needsProfile, setNeedsProfile] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
+
   useEffect(() => {
     async function loadProfile() {
       setLoading(true);
@@ -92,14 +97,37 @@ export default function AlumniProfilePage() {
 
         if (error) {
           if (error.code === "PGRST116") {
-            setErrorMessage(
-              "Your alumni profile has not been created yet. Please create your alumni account first."
-            );
-          } else {
-            throw error;
+            /* Auth user exists but the profile row does not (email
+               confirmation flow). Complete the profile here instead of
+               sending the member in circles. */
+            setUserEmail(user.email || "");
+            setNeedsProfile(true);
+
+            try {
+              const draft = JSON.parse(
+                localStorage.getItem("pharmacia_alumni_draft") || "{}"
+              );
+
+              setFullName(draft.full_name || user.user_metadata?.full_name || "");
+              setBatch(draft.batch || user.user_metadata?.batch || "");
+              setSection(draft.section || user.user_metadata?.section || "");
+              setGraduationYear(draft.graduation_year || "");
+              setCurrentPosition(draft.current_position || "");
+              setOrganization(draft.organization || "");
+              setBio(draft.bio || "");
+              setLinkedinUrl(draft.linkedin_url || "");
+              setFacebookUrl(draft.facebook_url || "");
+              setInstagramUrl(draft.instagram_url || "");
+              setIsPublic(draft.is_public ?? true);
+            } catch {
+              /* no draft — start with an empty form */
+            }
+
+            setLoading(false);
+            return;
           }
 
-          return;
+          throw error;
         }
 
         const alumni = data as AlumniProfile;
@@ -299,37 +327,72 @@ export default function AlumniProfilePage() {
         finalPhotoUrl = await uploadPhoto();
       }
 
-      const { data, error } = await supabase
-        .from("alumni_profiles")
-        .update({
-          full_name: fullName.trim(),
-          batch,
-          section,
-          graduation_year: graduationYear
-            ? Number(graduationYear)
-            : null,
-          profile_photo_url: finalPhotoUrl,
-          current_position: currentPosition.trim() || null,
-          organization: organization.trim() || null,
-          bio: bio.trim() || null,
-          linkedin_url: linkedinUrl.trim() || null,
-          facebook_url: facebookUrl.trim() || null,
-          instagram_url: instagramUrl.trim() || null,
-          is_public: isPublic,
-        })
-        .eq("id", userId)
-        .select()
-        .single();
+      const profileFields = {
+        full_name: fullName.trim(),
+        batch,
+        section,
+        graduation_year: graduationYear
+          ? Number(graduationYear)
+          : null,
+        profile_photo_url: finalPhotoUrl,
+        current_position: currentPosition.trim() || null,
+        organization: organization.trim() || null,
+        bio: bio.trim() || null,
+        linkedin_url: linkedinUrl.trim() || null,
+        facebook_url: facebookUrl.trim() || null,
+        instagram_url: instagramUrl.trim() || null,
+        is_public: isPublic,
+      };
+
+      let request;
+
+      if (needsProfile) {
+        request = supabase
+          .from("alumni_profiles")
+          .insert({
+            id: userId,
+            email: userEmail || (profile?.email as string | null) || null,
+            ...profileFields,
+          })
+          .select()
+          .single();
+      } else {
+        request = supabase
+          .from("alumni_profiles")
+          .update(profileFields)
+          .eq("id", userId)
+          .select()
+          .single();
+      }
+
+      const { data, error } = await request;
 
       if (error) {
+        if (error.code === "42501" || /row-level security/i.test(error.message || "")) {
+          throw new Error(
+            "Your profile could not be saved by the server permissions. Please contact the club admin for help."
+          );
+        }
         throw error;
+      }
+
+      setNeedsProfile(false);
+
+      try {
+        localStorage.removeItem("pharmacia_alumni_draft");
+      } catch {
+        /* ignore */
       }
 
       setProfile(data as AlumniProfile);
       setPhotoUrl(finalPhotoUrl || "");
       setSelectedPhoto(null);
 
-      setMessage("Your alumni profile has been updated successfully.");
+      setMessage(
+        needsProfile
+          ? "Your alumni profile has been created successfully."
+          : "Your alumni profile has been updated successfully."
+      );
     } catch (error) {
       console.error("Save alumni profile error:", error);
 
@@ -550,13 +613,23 @@ export default function AlumniProfilePage() {
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
             <div>
               <h2 className="text-2xl font-extrabold text-[#0b1736] dark:text-white">
-                Edit Profile
+                {needsProfile ? "Complete Your Profile" : "Edit Profile"}
               </h2>
 
               <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                You can update your alumni information anytime.
+                {needsProfile
+                  ? "Welcome! Finish setting up your alumni profile — it takes a minute."
+                  : "You can update your alumni information anytime."}
               </p>
             </div>
+
+            {needsProfile && (
+              <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm leading-6 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200">
+                🎉 <strong>Your email is verified and you are signed in.</strong>{" "}
+                Just complete the details below to publish your alumni profile. Your
+                sign-up details have been filled in for you.
+              </div>
+            )}
 
             <form onSubmit={handleSave} className="mt-8 space-y-6">
               {/* NAME */}
@@ -588,7 +661,7 @@ export default function AlumniProfilePage() {
 
                 <input
                   id="email"
-                  value={profile?.email || ""}
+                  value={profile?.email || userEmail}
                   disabled
                   className="w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
                 />

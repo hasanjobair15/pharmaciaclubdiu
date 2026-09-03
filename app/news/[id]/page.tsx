@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import NewsImages from "@/app/components/news-images";
 
 type NewsItem = {
   id: number;
@@ -121,20 +122,8 @@ export default function NewsDetailsPage() {
       <section className="mx-auto max-w-5xl px-6 py-10">
         <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md dark:border-slate-700 dark:bg-[#111827] dark:shadow-none">
 
-          {/* Featured Image */}
-          {news.image_url ? (
-            <img
-              src={news.image_url}
-              alt={news.title}
-              className="max-h-[600px] w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-72 items-center justify-center bg-gradient-to-br from-blue-800 to-indigo-700 text-white dark:from-[#12383c] dark:to-[#172554]">
-              <span className="text-2xl font-bold">
-                Pharmacia Club DIU
-              </span>
-            </div>
-          )}
+          {/* Featured Image / Image Grid */}
+          <NewsImages imageUrl={news.image_url} title={news.title} />
 
           <div className="p-6 md:p-10">
 
