@@ -54,6 +54,7 @@ export default function AdminDashboard() {
 
         {/* MANAGEMENT CARDS */}
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+
           <AdminCard
             title="Committee"
             description="Manage committee members, positions, batches, photos and bios."
@@ -65,31 +66,37 @@ export default function AdminDashboard() {
             title="Events"
             description="Add and manage upcoming and previous club events."
             icon="📅"
+            onClick={() => router.push("/admin/events")}
           />
 
           <AdminCard
             title="News"
             description="Publish and manage club news and announcements."
             icon="📰"
+            onClick={() => router.push("/admin/news")}
           />
 
           <AdminCard
             title="Research"
             description="Manage research projects and research-related content."
             icon="🔬"
+            onClick={() => router.push("/admin/research")}
           />
 
           <AdminCard
             title="Publications"
             description="Manage papers, magazines, reports and publications."
             icon="📚"
+            onClick={() => router.push("/admin/publications")}
           />
 
           <AdminCard
             title="Gallery"
             description="Manage photos, albums and event galleries."
             icon="🖼️"
+            onClick={() => router.push("/admin/gallery")}
           />
+
         </div>
       </section>
     </main>
@@ -117,7 +124,9 @@ function AdminCard({
         {icon}
       </div>
 
-      <h3 className="text-xl font-black">{title}</h3>
+      <h3 className="text-xl font-black">
+        {title}
+      </h3>
 
       <p className="mt-3 text-sm leading-6 text-slate-500">
         {description}
