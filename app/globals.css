@@ -146,3 +146,146 @@ textarea::placeholder {
   background: #475569;
 }input, textarea, select { color: #0f172a !important; -webkit-text-fill-color: #0f172a !important; }
 
+
+/* ============================================================
+ * 3D DEPTH LAYER — tilt cards, parallax orbs, transitions
+ * ============================================================ */
+
+@keyframes pc-page-in {
+  0% { opacity: 0; transform: perspective(1200px) translateY(20px) scale(0.985); }
+  100% { opacity: 1; transform: perspective(1200px) translateY(0) scale(1); }
+}
+@keyframes pc-pop-3d {
+  0% { opacity: 0; transform: perspective(1100px) rotateX(12deg) scale(0.92) translateY(28px); }
+  60% { opacity: 1; transform: perspective(1100px) rotateX(-2deg) scale(1.015) translateY(-4px); }
+  100% { opacity: 1; transform: perspective(1100px) rotateX(0) scale(1) translateY(0); }
+}
+@keyframes pc-rise {
+  0% { opacity: 0; transform: translateY(24px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes pc-orb-a {
+  0%, 100% { transform: translate3d(0,0,0) scale(1); }
+  33% { transform: translate3d(70px,-56px,40px) scale(1.18); }
+  66% { transform: translate3d(-48px,44px,-30px) scale(0.9); }
+}
+@keyframes pc-orb-b {
+  0%, 100% { transform: translate3d(0,0,0) scale(1); }
+  40% { transform: translate3d(-80px,36px,-40px) scale(1.22); }
+  75% { transform: translate3d(56px,-64px,50px) scale(0.88); }
+}
+@keyframes pc-gradient-x {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+@keyframes pc-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+/* interactive tilt card — JS sets --pc-rx / --pc-ry / --pc-gx / --pc-gy */
+.pc-tilt {
+  transform: perspective(950px) rotateX(var(--pc-rx, 0deg)) rotateY(var(--pc-ry, 0deg)) translateZ(0);
+  transition: transform 0.18s ease-out, box-shadow 0.25s ease, background-color 0.25s ease;
+  will-change: transform;
+}
+.pc-tilt:hover { z-index: 5; }
+.pc-glare {
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  background: radial-gradient(380px circle at var(--pc-gx, 50%) var(--pc-gy, 50%), rgba(255,255,255,0.45), rgba(255,255,255,0.1) 38%, transparent 65%);
+}
+.pc-tilt:hover > .pc-glare { opacity: 1; }
+
+/* resting 3D shadows */
+.pc-depth {
+  box-shadow: 0 2px 4px rgb(2 12 27 / 0.06), 0 14px 30px -10px rgb(8 127 140 / 0.16), 0 36px 80px -24px rgb(34 211 238 / 0.18), 0 0 0 1px rgb(255 255 255 / 0.5) inset;
+}
+.pc-tilt:hover, .pc-card3d:hover {
+  box-shadow: 0 3px 6px rgb(2 12 27 / 0.08), 0 24px 48px -14px rgb(8 127 140 / 0.28), 0 56px 110px -32px rgb(34 211 238 / 0.28), 0 0 0 1px rgb(255 255 255 / 0.7) inset;
+}
+.pc-card3d {
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease;
+  will-change: transform;
+}
+.pc-card3d:hover { transform: translateY(-6px) rotateX(0.6deg) scale(1.012); }
+
+/* sweeping shine on buttons / highlighted cards */
+.pc-shine { position: relative; overflow: hidden; }
+.pc-shine::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-140%) skewX(-18deg);
+  background: linear-gradient(105deg, transparent 38%, rgba(255,255,255,0.5) 50%, transparent 62%);
+  transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+.pc-shine:hover::after { transform: translateX(140%) skewX(-18deg); }
+
+/* staggered entrance — parent carries .pc-stagger, or set --pc-d per element */
+.pc-rise { animation: pc-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: var(--pc-d, 0ms); }
+.pc-stagger > * { animation: pc-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.pc-stagger > *:nth-child(1) { animation-delay: 50ms; }
+.pc-stagger > *:nth-child(2) { animation-delay: 105ms; }
+.pc-stagger > *:nth-child(3) { animation-delay: 160ms; }
+.pc-stagger > *:nth-child(4) { animation-delay: 215ms; }
+.pc-stagger > *:nth-child(5) { animation-delay: 270ms; }
+.pc-stagger > *:nth-child(6) { animation-delay: 325ms; }
+.pc-stagger > *:nth-child(n+7) { animation-delay: 380ms; }
+
+/* page transition wrapper */
+.pc-page-anim { animation: pc-page-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* floating 3D parallax orbs */
+.pc-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  pointer-events: none;
+  will-change: transform;
+}
+.pc-orb-a { animation: pc-orb-a 26s ease-in-out infinite; }
+.pc-orb-b { animation: pc-orb-b 32s ease-in-out infinite; }
+.pc-float { animation: pc-float 7s ease-in-out infinite; }
+
+/* animated gradient text (hero) */
+.pc-gradient-text {
+  background: linear-gradient(92deg, #22d3ee 0%, #67e8f9 30%, #2dd4bf 60%, #22d3ee 100%);
+  background-size: 220% 220%;
+  animation: pc-gradient-x 7s ease infinite;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* 3D icon pop */
+.pc-icon3d { display: inline-block; transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1); transform-style: preserve-3d; }
+.group:hover .pc-icon3d { transform: perspective(500px) rotateY(-16deg) rotateX(8deg) translateZ(16px); }
+a:hover .pc-icon3d { transform: perspective(500px) rotateY(-16deg) rotateX(8deg) translateZ(16px); }
+
+/* smooth nav underline */
+.pc-navlink { position: relative; }
+.pc-navlink::after {
+  content: '';
+  position: absolute;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: 0.35rem;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #22d3ee, #2dd4bf);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.pc-navlink:hover::after { transform: scaleX(1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-tilt, .pc-card3d, .pc-orb, .pc-rise, .pc-stagger > *, .pc-page-anim, .pc-shine::after, .pc-icon3d, .pc-float, .pc-gradient-text {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "./components/navbar";
+import PageTransition from "./components/page-transition";
+import FloatingOrbs from "./components/floating-orbs";
 import { ThemeProvider } from "./components/theme-provider";
 
 const geistSans = Geist({
@@ -36,12 +38,13 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable}`}
     >
-      <body className="min-h-screen bg-white text-[#0b1736] antialiased dark:bg-[#0a0f1a] dark:text-slate-100">
+      <body className="min-h-screen overflow-x-clip bg-white text-[#0b1736] antialiased dark:bg-[#0a0f1a] dark:text-slate-100">
         <ThemeProvider>
+          <FloatingOrbs />
           <Navbar />
 
-          <main className="min-h-screen bg-white dark:bg-[#0a0f1a]">
-            {children}
+          <main className="relative z-10 min-h-screen bg-white dark:bg-[#0a0f1a]">
+            <PageTransition>{children}</PageTransition>
           </main>
 
           <footer className="border-t border-slate-200 bg-white transition-colors dark:border-slate-800 dark:bg-[#0a0f1a]">

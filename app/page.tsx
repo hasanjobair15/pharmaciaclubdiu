@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
+import Tilt3D from "./components/tilt-3d";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -57,39 +58,63 @@ export default async function HomePage() {
 
       {/* ================= HERO ================= */}
       <section className="relative overflow-hidden bg-[#071633] text-white">
-        <div className="mx-auto max-w-7xl px-6 py-28 lg:px-8 lg:py-36">
+        {/* hero-contained 3D parallax orbs + glow */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="pc-orb pc-orb-a left-[-6%] top-[-20%] h-96 w-96 bg-gradient-to-br from-cyan-400/25 to-teal-300/20" />
+          <div className="pc-orb pc-orb-b right-[-8%] top-[30%] h-80 w-80 bg-gradient-to-bl from-teal-400/20 to-cyan-300/15" />
+        </div>
+
+        <div className="relative mx-auto max-w-7xl px-6 py-28 lg:px-8 lg:py-36">
           <div className="max-w-4xl">
-            <p className="mb-5 text-sm font-semibold uppercase tracking-[0.25em] text-cyan-300">
+            <p
+              className="pc-rise mb-5 text-sm font-semibold uppercase tracking-[0.25em] text-cyan-300"
+              style={{ ["--pc-d" as string]: "0ms" }}
+            >
               Pharmacia Club DIU
             </p>
 
-            <h1 className="text-4xl font-bold leading-tight sm:text-5xl lg:text-7xl">
-              Connect.
+            <h1
+              className="pc-rise text-4xl font-bold leading-tight sm:text-5xl lg:text-7xl"
+              style={{ ["--pc-d" as string]: "90ms" }}
+            >
+              <span className="pc-gradient-text">Connect.</span>
               <br />
-              Compete.
+              <span className="pc-gradient-text" style={{ animationDelay: "0.4s" }}>
+                Compete.
+              </span>
               <br />
-              Create.
+              <span className="pc-gradient-text" style={{ animationDelay: "0.8s" }}>
+                Create.
+              </span>
               <br />
-              Celebrate.
+              <span className="pc-gradient-text" style={{ animationDelay: "1.2s" }}>
+                Celebrate.
+              </span>
             </h1>
 
-            <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-300">
+            <p
+              className="pc-rise mt-7 max-w-2xl text-lg leading-8 text-slate-300"
+              style={{ ["--pc-d" as string]: "180ms" }}
+            >
               The official platform of Pharmacia Club, Department of Pharmacy,
               Daffodil International University — connecting students,
               knowledge, research, leadership and professional opportunities.
             </p>
 
-            <div className="mt-9 flex flex-wrap gap-4">
+            <div
+              className="pc-rise mt-9 flex flex-wrap gap-4"
+              style={{ ["--pc-d" as string]: "270ms" }}
+            >
               <Link
                 href="/events"
-                className="rounded-full bg-cyan-400 px-6 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300"
+                className="pc-shine rounded-full bg-cyan-400 px-6 py-3 font-semibold text-slate-950 transition-all duration-300 hover:-translate-y-0.5 hover:bg-cyan-300 hover:shadow-[0_16px_40px_-12px_rgba(34,211,238,.6)]"
               >
                 Explore Events
               </Link>
 
               <Link
                 href="/magazine"
-                className="rounded-full border border-white/30 px-6 py-3 font-semibold transition hover:bg-white/10"
+                className="pc-shine rounded-full border border-white/30 px-6 py-3 font-semibold transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/10"
               >
                 Explore Magazine
               </Link>
@@ -100,34 +125,25 @@ export default async function HomePage() {
 
       {/* ================= STATS ================= */}
       <section className="border-b border-slate-200 bg-white dark:border-white/10 dark:bg-[#07101f]">
-        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-6 py-12 sm:grid-cols-4 lg:px-8">
-          <div>
-            <p className="text-3xl font-bold">30+</p>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Batches Connected
-            </p>
-          </div>
-
-          <div>
-            <p className="text-3xl font-bold">100+</p>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Activities
-            </p>
-          </div>
-
-          <div>
-            <p className="text-3xl font-bold">500+</p>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Students
-            </p>
-          </div>
-
-          <div>
-            <p className="text-3xl font-bold">1</p>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Pharmacy Community
-            </p>
-          </div>
+        <div className="pc-stagger mx-auto grid max-w-7xl grid-cols-2 gap-4 px-6 py-12 sm:grid-cols-4 lg:px-8">
+          {[
+            { stat: "30+", label: "Batches Connected" },
+            { stat: "100+", label: "Activities" },
+            { stat: "500+", label: "Students" },
+            { stat: "1", label: "Pharmacy Community" },
+          ].map((item) => (
+            <div
+              key={item.label}
+              className="pc-card3d pc-depth rounded-2xl border border-slate-200/80 bg-gradient-to-b from-white to-slate-50 p-6 text-center dark:border-white/10 dark:from-[#0d1930] dark:to-[#0a0f1a]"
+            >
+              <p className="text-3xl font-bold text-[#0b1736] dark:text-white">
+                {item.stat}
+              </p>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                {item.label}
+              </p>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -192,13 +208,13 @@ export default async function HomePage() {
             </Link>
           </div>
 
-          <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="pc-stagger mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 
             {highlightedEvents.length > 0 ? (
               highlightedEvents.map((event) => (
+                <Tilt3D key={event.id} className="h-full" max={8} scale={1.02} lift={7}>
                 <article
-                  key={event.id}
-                  className="group overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur transition hover:-translate-y-1 hover:bg-white/10"
+                  className="group flex h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur transition duration-300 hover:bg-white/10"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -235,11 +251,12 @@ export default async function HomePage() {
 
                   <Link
                     href={`/events/${event.id}`}
-                    className="mt-6 inline-block font-semibold text-cyan-300 transition group-hover:text-cyan-200"
+                    className="mt-auto inline-block pt-6 font-semibold text-cyan-300 transition group-hover:translate-x-1 group-hover:text-cyan-200"
                   >
                     View details →
                   </Link>
                 </article>
+                </Tilt3D>
               ))
             ) : (
               <div className="rounded-2xl border border-white/10 bg-white/5 p-8 md:col-span-2 lg:col-span-3">
@@ -277,18 +294,24 @@ export default async function HomePage() {
             </h2>
           </div>
 
-          <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {areas.map((area) => (
-              <article
-                key={area.title}
-                className="rounded-2xl border border-slate-200 p-7 transition hover:-translate-y-1 hover:shadow-lg dark:border-white/10 dark:bg-white/5"
-              >
-                <h3 className="text-xl font-bold">{area.title}</h3>
+          <div className="pc-stagger mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {areas.map((area, i) => (
+              <Tilt3D key={area.title} className="h-full" max={7} scale={1.015} lift={6}>
+                <article
+                  className="group pc-depth flex h-full flex-col rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/60 p-7 transition duration-300 hover:border-[#087f8c]/40 dark:border-white/10 dark:from-[#0d1930] dark:to-[#0a0f1a]"
+                >
+                  <span className="pc-icon3d mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#087f8c] to-cyan-500 text-sm font-bold text-white shadow-[0_8px_20px_-6px_rgba(8,127,140,.5)]">
+                    0{i + 1}
+                  </span>
+                  <h3 className="text-xl font-bold transition-colors group-hover:text-[#087f8c] dark:group-hover:text-[#2dd4bf]">
+                    {area.title}
+                  </h3>
 
-                <p className="mt-3 leading-7 text-slate-600 dark:text-slate-400">
-                  {area.description}
-                </p>
-              </article>
+                  <p className="mt-3 leading-7 text-slate-600 dark:text-slate-400">
+                    {area.description}
+                  </p>
+                </article>
+              </Tilt3D>
             ))}
           </div>
         </div>
@@ -315,7 +338,7 @@ export default async function HomePage() {
           <div className="flex items-center lg:justify-end">
             <Link
               href="/research"
-              className="rounded-full bg-[#0b1736] px-7 py-3 font-semibold text-white transition hover:bg-[#122653] dark:bg-cyan-400 dark:text-slate-950 dark:hover:bg-cyan-300"
+              className="pc-shine rounded-full bg-[#0b1736] px-7 py-3 font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#122653] hover:shadow-[0_16px_40px_-12px_rgba(8,127,140,.5)] dark:bg-cyan-400 dark:text-slate-950 dark:hover:bg-cyan-300"
             >
               Explore Research →
             </Link>
@@ -326,56 +349,66 @@ export default async function HomePage() {
       {/* ================= MAGAZINE ================= */}
       <section className="bg-white py-24 dark:bg-[#07101f]">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="rounded-3xl bg-[#0b1736] p-8 text-white sm:p-12">
-            <div className="max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">
-                Magazine
-              </p>
+          <Tilt3D className="pc-depth" max={4} scale={1.008} lift={5} glare={false}>
+            <div className="pc-card3d relative overflow-hidden rounded-3xl bg-[#0b1736] p-8 text-white sm:p-12">
+              <div aria-hidden className="pointer-events-none absolute inset-0">
+                <div className="pc-orb pc-orb-a right-[-10%] top-[-30%] h-72 w-72 bg-gradient-to-br from-cyan-400/25 to-teal-300/15" />
+                <div className="pc-orb pc-orb-b bottom-[-40%] left-[-6%] h-80 w-80 bg-gradient-to-tr from-teal-400/20 to-cyan-300/10" />
+              </div>
+              <div className="relative max-w-3xl">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">
+                  Magazine
+                </p>
 
-              <h2 className="mt-3 text-4xl font-bold">
-                Read. Create. Share.
-              </h2>
+                <h2 className="mt-3 text-4xl font-bold">
+                  Read. Create. <span className="pc-gradient-text">Share.</span>
+                </h2>
 
-              <p className="mt-5 leading-8 text-slate-300">
-                Explore student writing, artwork, photography, pharmaceutical
-                knowledge and creative contributions through Pharmacia Club's
-                magazine.
-              </p>
+                <p className="mt-5 leading-8 text-slate-300">
+                  Explore student writing, artwork, photography, pharmaceutical
+                  knowledge and creative contributions through Pharmacia Club's
+                  magazine.
+                </p>
 
-              <Link
-                href="/magazine"
-                className="mt-7 inline-block rounded-full bg-cyan-400 px-6 py-3 font-semibold text-slate-950 hover:bg-cyan-300"
-              >
-                Visit Magazine →
-              </Link>
+                <Link
+                  href="/magazine"
+                  className="pc-shine mt-7 inline-block rounded-full bg-cyan-400 px-6 py-3 font-semibold text-slate-950 transition-all duration-300 hover:-translate-y-0.5 hover:bg-cyan-300 hover:shadow-[0_16px_40px_-12px_rgba(34,211,238,.6)]"
+                >
+                  Visit Magazine →
+                </Link>
+              </div>
             </div>
-          </div>
+          </Tilt3D>
         </div>
       </section>
 
       {/* ================= CTA ================= */}
-      <section className="bg-[#071633] py-20 text-white">
-        <div className="mx-auto max-w-5xl px-6 text-center">
-          <h2 className="text-4xl font-bold">
-            Be part of the Pharmacia community.
+      <section className="relative overflow-hidden bg-[#071633] py-20 text-white">
+        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="pc-orb pc-orb-a left-[-8%] top-[-30%] h-80 w-80 bg-gradient-to-br from-cyan-400/20 to-teal-300/15" />
+          <div className="pc-orb pc-orb-b right-[-8%] bottom-[-30%] h-80 w-80 bg-gradient-to-bl from-teal-400/20 to-cyan-300/12" />
+        </div>
+        <div className="relative mx-auto max-w-5xl px-6 text-center">
+          <h2 className="pc-rise text-4xl font-bold" style={{ ["--pc-d" as string]: "0ms" }}>
+            Be part of the <span className="pc-gradient-text">Pharmacia</span> community.
           </h2>
 
-          <p className="mx-auto mt-5 max-w-2xl leading-7 text-slate-300">
+          <p className="pc-rise mx-auto mt-5 max-w-2xl leading-7 text-slate-300" style={{ ["--pc-d" as string]: "120ms" }}>
             Stay connected with upcoming events, research activities,
             publications and opportunities.
           </p>
 
-          <div className="mt-8 flex flex-wrap justify-center gap-4">
+          <div className="pc-rise mt-8 flex flex-wrap justify-center gap-4" style={{ ["--pc-d" as string]: "240ms" }}>
             <Link
               href="/events"
-              className="rounded-full bg-cyan-400 px-6 py-3 font-semibold text-slate-950 hover:bg-cyan-300"
+              className="pc-shine rounded-full bg-cyan-400 px-6 py-3 font-semibold text-slate-950 transition-all duration-300 hover:-translate-y-0.5 hover:bg-cyan-300 hover:shadow-[0_16px_40px_-12px_rgba(34,211,238,.6)]"
             >
               Explore Events
             </Link>
 
             <Link
               href="/contact"
-              className="rounded-full border border-white/30 px-6 py-3 font-semibold hover:bg-white/10"
+              className="pc-shine rounded-full border border-white/30 px-6 py-3 font-semibold transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/10"
             >
               Contact Us
             </Link>

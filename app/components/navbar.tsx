@@ -52,6 +52,7 @@ export default function Navbar() {
           href="/"
           onClick={() => setMenuOpen(false)}
           className="
+            group
             flex min-w-0 shrink-0
             items-center gap-3
             no-underline
@@ -65,6 +66,9 @@ export default function Navbar() {
               rounded-xl
               bg-white
               ring-1 ring-slate-200
+              transition-all duration-300
+              group-hover:-rotate-6 group-hover:scale-110
+              group-hover:shadow-[0_10px_30px_-8px_rgba(8,127,140,.5)]
               sm:h-11 sm:w-11
               dark:bg-slate-900
               dark:ring-slate-700
@@ -131,12 +135,17 @@ export default function Navbar() {
                     : undefined
                 }
                 className="
+                  pc-navlink
                   whitespace-nowrap
+                  rounded-lg
+                  px-2.5
+                  py-1.5
                   text-sm
                   font-medium
                   text-slate-700
                   no-underline
-                  transition-colors duration-200
+                  transition-all duration-200
+                  hover:-translate-y-0.5
                   hover:text-[#087f8c]
                   dark:text-slate-200
                   dark:hover:text-[#2dd4bf]
