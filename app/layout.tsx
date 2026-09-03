@@ -18,6 +18,11 @@ export const metadata: Metadata = {
   title: "Pharmacia Club DIU",
   description:
     "Pharmacia Club DIU — Department of Pharmacy, Daffodil International University.",
+  icons: {
+    icon: "/pharmacialogo.png",
+    shortcut: "/pharmacialogo.png",
+    apple: "/pharmacialogo.png",
+  },
 };
 
 export default function RootLayout({
