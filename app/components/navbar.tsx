@@ -44,7 +44,7 @@ export default function Navbar() {
           items-center gap-3
           px-4 py-3
           sm:px-6
-          lg:gap-6 lg:px-8 lg:py-4
+          lg:gap-4 lg:px-8 lg:py-4
         "
       >
         {/* LOGO + CLUB NAME */}
