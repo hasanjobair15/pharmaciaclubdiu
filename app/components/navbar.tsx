@@ -9,6 +9,7 @@ const links = [
   { name: "Committee", href: "/committee" },
   { name: "Events", href: "/events" },
   { name: "Academic", href: "/academic" },
+  { name: "Routine", href: "https://pharmroutine-diu.vercel.app/" },
   { name: "Research", href: "/research" },
   { name: "Publications", href: "/publications" },
   { name: "Gallery", href: "/gallery" },
@@ -21,9 +22,11 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/95 backdrop-blur-xl dark:border-slate-700/70 dark:bg-[#0a0f1a]/95">
+      
+      {/* MAIN NAVBAR */}
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6 lg:gap-6 lg:px-8 lg:py-4">
-
-        {/* LOGO + CLUB NAME */}
+        
+        {/* LOGO */}
         <a
           href="/"
           className="flex min-w-0 shrink-0 items-center gap-3"
@@ -48,21 +51,31 @@ export default function Navbar() {
 
         {/* DESKTOP NAVIGATION */}
         <nav className="ml-auto hidden items-center gap-5 text-sm font-medium lg:flex">
-          {links.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className="transition hover:text-[#087f8c]"
-            >
-              {link.name}
-            </a>
-          ))}
+          {links.map((link) => {
+            const isExternal = link.href.startsWith("http");
+
+            return (
+              <a
+                key={link.href}
+                href={link.href}
+                target={isExternal ? "_blank" : undefined}
+                rel={isExternal ? "noopener noreferrer" : undefined}
+                className={`transition hover:text-[#087f8c] ${
+                  link.name === "Routine"
+                    ? "font-bold text-[#087f8c]"
+                    : ""
+                }`}
+              >
+                {link.name}
+              </a>
+            );
+          })}
         </nav>
 
         {/* THEME TOGGLE */}
         <ThemeToggle />
 
-        {/* DESKTOP JOIN BUTTON */}
+        {/* JOIN US - DESKTOP */}
         <a
           href="/contact"
           className="hidden shrink-0 rounded-full bg-[#0b1736] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#087f8c] lg:block"
@@ -112,21 +125,32 @@ export default function Navbar() {
         </button>
       </div>
 
-      {/* MOBILE MENU */}
+      {/* MOBILE NAVIGATION */}
       {menuOpen && (
         <div className="border-t border-slate-200 bg-white px-4 pb-4 pt-2 dark:border-slate-700 dark:bg-[#0a0f1a] lg:hidden">
           <nav className="mx-auto flex max-w-7xl flex-col">
-            {links.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                onClick={() => setMenuOpen(false)}
-                className="border-b border-slate-100 py-3 text-sm font-medium text-[#0b1736] transition hover:text-[#087f8c] dark:border-slate-800 dark:text-slate-100"
-              >
-                {link.name}
-              </a>
-            ))}
+            {links.map((link) => {
+              const isExternal = link.href.startsWith("http");
 
+              return (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  target={isExternal ? "_blank" : undefined}
+                  rel={isExternal ? "noopener noreferrer" : undefined}
+                  onClick={() => setMenuOpen(false)}
+                  className={`border-b border-slate-100 py-3 text-sm font-medium transition hover:text-[#087f8c] dark:border-slate-800 dark:text-slate-100 ${
+                    link.name === "Routine"
+                      ? "font-bold text-[#087f8c]"
+                      : "text-[#0b1736]"
+                  }`}
+                >
+                  {link.name}
+                </a>
+              );
+            })}
+
+            {/* JOIN US - MOBILE */}
             <a
               href="/contact"
               onClick={() => setMenuOpen(false)}

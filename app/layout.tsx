@@ -38,7 +38,6 @@ export default function RootLayout({
     >
       <body className="bg-white text-[#0b1736] dark:bg-[#0a0f1a] dark:text-slate-100">
         <ThemeProvider>
-
           {/* NAVBAR */}
           <Navbar />
 
@@ -48,8 +47,9 @@ export default function RootLayout({
           {/* FOOTER */}
           <footer className="border-t border-slate-200 bg-white dark:border-slate-700 dark:bg-[#0a0f1a]">
             <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
-              <div className="flex flex-col justify-between gap-5 md:flex-row md:items-center">
+              <div className="flex flex-col items-center justify-between gap-5 text-center md:flex-row md:text-left">
 
+                {/* CLUB INFO */}
                 <div>
                   <p className="font-bold text-[#0b1736] dark:text-white">
                     PHARMACIA CLUB DIU
@@ -60,14 +60,24 @@ export default function RootLayout({
                   </p>
                 </div>
 
-                <p className="text-xs text-slate-400">
-                  © 2026 Pharmacia Club DIU. All rights reserved.
-                </p>
+                {/* COPYRIGHT & WEBSITE CREDIT */}
+                <div className="text-center md:text-right">
+                  <p className="text-sm font-semibold text-[#0b1736] dark:text-slate-200">
+                    © 2026 Pharmacia Club DIU. All Rights Reserved.
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Website Designed & Developed by{" "}
+                    <span className="font-semibold text-[#087f8c]">
+                      Md. Hasan Jobair
+                    </span>{" "}
+                    — 30th Batch, Department of Pharmacy
+                  </p>
+                </div>
 
               </div>
             </div>
           </footer>
-
         </ThemeProvider>
       </body>
     </html>
