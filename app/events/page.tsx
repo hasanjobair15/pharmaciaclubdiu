@@ -27,12 +27,10 @@ type EventStatus =
 type FilterType = "All" | EventStatus;
 
 function getAutomaticStatus(event: EventItem): EventStatus {
-  // Manual cancellation always has priority
   if (event.status === "Cancelled") {
     return "Cancelled";
   }
 
-  // If there is no event date, treat it as Upcoming
   if (!event.event_date) {
     return "Upcoming";
   }
@@ -162,19 +160,19 @@ export default function EventsPage() {
   function getStatusClass(status: EventStatus) {
     switch (status) {
       case "Upcoming":
-        return "bg-blue-100 text-blue-700";
+        return "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300";
 
       case "Ongoing":
-        return "bg-green-100 text-green-700";
+        return "bg-green-100 text-green-700 dark:bg-green-950/60 dark:text-green-300";
 
       case "Completed":
-        return "bg-gray-100 text-gray-700";
+        return "bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-300";
 
       case "Cancelled":
-        return "bg-red-100 text-red-700";
+        return "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300";
 
       default:
-        return "bg-gray-100 text-gray-700";
+        return "bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-300";
     }
   }
 
@@ -187,15 +185,15 @@ export default function EventsPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="min-h-screen bg-gray-50 text-gray-900 transition-colors dark:bg-[#0a0f1a] dark:text-slate-100">
       {/* Header */}
-      <section className="bg-gradient-to-r from-blue-900 to-blue-700 text-white">
+      <section className="bg-gradient-to-r from-blue-900 to-blue-700 text-white dark:from-[#111827] dark:to-[#0f2f3a]">
         <div className="mx-auto max-w-7xl px-6 py-16">
           <h1 className="text-4xl font-bold md:text-5xl">
             Events
           </h1>
 
-          <p className="mt-4 max-w-2xl text-blue-100">
+          <p className="mt-4 max-w-2xl text-blue-100 dark:text-slate-300">
             Explore upcoming, ongoing, and past events organized by
             Pharmacia Club DIU.
           </p>
@@ -211,7 +209,7 @@ export default function EventsPage() {
             placeholder="Search events..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-xl border border-gray-300 bg-white px-5 py-3 text-gray-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            className="w-full rounded-xl border border-gray-300 bg-white px-5 py-3 text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:bg-[#111827] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-cyan-500 dark:focus:ring-cyan-900/40"
           />
         </div>
 
@@ -223,8 +221,8 @@ export default function EventsPage() {
               onClick={() => setFilter(item)}
               className={`rounded-full px-5 py-2 text-sm font-medium transition ${
                 filter === item
-                  ? "bg-blue-700 text-white"
-                  : "bg-white text-gray-700 shadow-sm hover:bg-gray-100"
+                  ? "bg-blue-700 text-white dark:bg-cyan-600"
+                  : "bg-white text-gray-700 shadow-sm hover:bg-gray-100 dark:bg-[#111827] dark:text-slate-300 dark:shadow-none dark:hover:bg-slate-800"
               }`}
             >
               {item} ({counts[item]})
@@ -235,18 +233,20 @@ export default function EventsPage() {
         {/* Loading */}
         {loading && (
           <div className="py-20 text-center">
-            <p className="text-gray-500">Loading events...</p>
+            <p className="text-gray-500 dark:text-slate-400">
+              Loading events...
+            </p>
           </div>
         )}
 
         {/* No Events */}
         {!loading && filteredEvents.length === 0 && (
-          <div className="rounded-2xl bg-white px-6 py-20 text-center shadow-sm">
-            <h2 className="text-2xl font-semibold text-gray-800">
+          <div className="rounded-2xl border border-gray-200 bg-white px-6 py-20 text-center shadow-sm dark:border-slate-700 dark:bg-[#111827] dark:shadow-none">
+            <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">
               No events found
             </h2>
 
-            <p className="mt-2 text-gray-500">
+            <p className="mt-2 text-gray-500 dark:text-slate-400">
               Try another search or filter.
             </p>
           </div>
@@ -258,7 +258,7 @@ export default function EventsPage() {
             {filteredEvents.map((event) => (
               <article
                 key={event.id}
-                className="overflow-hidden rounded-2xl bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+                className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg dark:border-slate-700 dark:bg-[#111827] dark:shadow-none dark:hover:shadow-xl"
               >
                 {/* Event Image */}
                 {event.image_url ? (
@@ -268,7 +268,7 @@ export default function EventsPage() {
                     className="h-56 w-full object-cover"
                   />
                 ) : (
-                  <div className="flex h-56 w-full items-center justify-center bg-gradient-to-br from-blue-800 to-blue-500 text-white">
+                  <div className="flex h-56 w-full items-center justify-center bg-gradient-to-br from-blue-800 to-blue-500 text-white dark:from-[#12383c] dark:to-[#164e63]">
                     <span className="text-lg font-semibold">
                       Pharmacia Club DIU
                     </span>
@@ -289,22 +289,22 @@ export default function EventsPage() {
                   </div>
 
                   {/* Title */}
-                  <h2 className="text-xl font-bold text-gray-900">
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                     {event.title}
                   </h2>
 
                   {/* Description */}
                   {event.description && (
-                    <p className="mt-3 line-clamp-3 text-sm leading-6 text-gray-600">
+                    <p className="mt-3 line-clamp-3 text-sm leading-6 text-gray-600 dark:text-slate-400">
                       {event.description}
                     </p>
                   )}
 
                   {/* Event Information */}
-                  <div className="mt-5 space-y-2 text-sm text-gray-600">
+                  <div className="mt-5 space-y-2 text-sm text-gray-600 dark:text-slate-400">
                     {event.event_date && (
                       <p>
-                        <span className="font-semibold text-gray-800">
+                        <span className="font-semibold text-gray-800 dark:text-slate-200">
                           Date:
                         </span>{" "}
                         {formatDate(event.event_date)}
@@ -313,7 +313,7 @@ export default function EventsPage() {
 
                     {(event.start_time || event.end_time) && (
                       <p>
-                        <span className="font-semibold text-gray-800">
+                        <span className="font-semibold text-gray-800 dark:text-slate-200">
                           Time:
                         </span>{" "}
                         {formatTime(event.start_time)}
@@ -324,7 +324,7 @@ export default function EventsPage() {
 
                     {event.venue && (
                       <p>
-                        <span className="font-semibold text-gray-800">
+                        <span className="font-semibold text-gray-800 dark:text-slate-200">
                           Venue:
                         </span>{" "}
                         {event.venue}
@@ -333,7 +333,7 @@ export default function EventsPage() {
 
                     {event.organizer && (
                       <p>
-                        <span className="font-semibold text-gray-800">
+                        <span className="font-semibold text-gray-800 dark:text-slate-200">
                           Organizer:
                         </span>{" "}
                         {event.organizer}
@@ -345,7 +345,7 @@ export default function EventsPage() {
                   <div className="mt-6 flex flex-wrap gap-3">
                     <Link
                       href={`/events/${event.id}`}
-                      className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800"
+                      className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800 dark:bg-cyan-600 dark:hover:bg-cyan-500"
                     >
                       View Details
                     </Link>
@@ -357,7 +357,7 @@ export default function EventsPage() {
                           href={event.registration_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="rounded-lg border border-blue-700 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+                          className="rounded-lg border border-blue-700 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 dark:border-cyan-500 dark:text-cyan-400 dark:hover:bg-cyan-950/40"
                         >
                           Register
                         </a>

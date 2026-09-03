@@ -82,10 +82,10 @@ export default function GalleryPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
+    <main className="min-h-screen bg-slate-50 text-slate-900 transition-colors dark:bg-[#0a0f1a] dark:text-slate-100">
 
       {/* HERO SECTION */}
-      <section className="bg-gradient-to-r from-slate-950 via-blue-950 to-slate-900 px-6 py-20 text-center text-white">
+      <section className="bg-gradient-to-r from-slate-950 via-blue-950 to-slate-900 px-6 py-20 text-center text-white dark:from-[#0b1736] dark:via-[#12383c] dark:to-[#111827]">
         <div className="mx-auto max-w-5xl">
 
           <p className="mb-3 text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300">
@@ -115,7 +115,7 @@ export default function GalleryPage() {
             placeholder="Search gallery..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 bg-white px-5 py-3 text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            className="w-full rounded-xl border border-slate-300 bg-white px-5 py-3 text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:bg-[#111827] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-cyan-500 dark:focus:ring-cyan-900/40"
           />
         </div>
 
@@ -129,8 +129,8 @@ export default function GalleryPage() {
                 onClick={() => setSelectedCategory(category)}
                 className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
                   selectedCategory === category
-                    ? "bg-blue-600 text-white shadow-md"
-                    : "bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-100"
+                    ? "bg-blue-600 text-white shadow-md dark:bg-cyan-600 dark:text-[#062a2d]"
+                    : "bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-[#111827] dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800"
                 }`}
               >
                 {category}
@@ -144,9 +144,9 @@ export default function GalleryPage() {
         {loading && (
           <div className="py-20 text-center">
 
-            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600"></div>
+            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600 dark:border-slate-700 dark:border-t-cyan-500"></div>
 
-            <p className="mt-4 text-slate-500">
+            <p className="mt-4 text-slate-500 dark:text-slate-400">
               Loading gallery...
             </p>
 
@@ -155,17 +155,17 @@ export default function GalleryPage() {
 
         {/* EMPTY STATE */}
         {!loading && filteredItems.length === 0 && (
-          <div className="rounded-2xl bg-white px-6 py-20 text-center shadow-sm ring-1 ring-slate-200">
+          <div className="rounded-2xl border border-slate-200 bg-white px-6 py-20 text-center shadow-sm dark:border-slate-700 dark:bg-[#111827] dark:shadow-none">
 
             <div className="mb-4 text-5xl">
               📷
             </div>
 
-            <h2 className="text-2xl font-bold text-slate-900">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
               No photos found
             </h2>
 
-            <p className="mt-2 text-slate-500">
+            <p className="mt-2 text-slate-500 dark:text-slate-400">
               Try another search or category.
             </p>
 
@@ -179,11 +179,11 @@ export default function GalleryPage() {
             {filteredItems.map((item) => (
               <article
                 key={item.id}
-                className="group overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 transition duration-300 hover:-translate-y-1 hover:shadow-xl"
+                className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-200 transition duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-slate-700 dark:bg-[#111827] dark:ring-slate-700 dark:shadow-none dark:hover:shadow-xl"
               >
 
                 {/* IMAGE */}
-                <div className="relative aspect-[4/3] overflow-hidden bg-slate-200">
+                <div className="relative aspect-[4/3] overflow-hidden bg-slate-200 dark:bg-slate-800">
 
                   {item.image_url ? (
                     <img
@@ -192,7 +192,7 @@ export default function GalleryPage() {
                       className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                     />
                   ) : (
-                    <div className="flex h-full items-center justify-center text-5xl text-slate-400">
+                    <div className="flex h-full items-center justify-center text-5xl text-slate-400 dark:text-slate-600">
                       📷
                     </div>
                   )}
@@ -223,24 +223,24 @@ export default function GalleryPage() {
                 {/* CARD DETAILS */}
                 <div className="p-5">
 
-                  <h2 className="line-clamp-2 text-xl font-bold text-slate-900">
+                  <h2 className="line-clamp-2 text-xl font-bold text-slate-900 dark:text-white">
                     {item.title}
                   </h2>
 
                   {item.event_name && (
-                    <p className="mt-2 font-medium text-blue-600">
+                    <p className="mt-2 font-medium text-blue-600 dark:text-cyan-400">
                       {item.event_name}
                     </p>
                   )}
 
                   {item.event_date && (
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                       {formatDate(item.event_date)}
                     </p>
                   )}
 
                   {item.description && (
-                    <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-600">
+                    <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-600 dark:text-slate-400">
                       {item.description}
                     </p>
                   )}
@@ -248,7 +248,7 @@ export default function GalleryPage() {
                   {item.image_url && (
                     <button
                       onClick={() => setSelectedImage(item)}
-                      className="mt-5 w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+                      className="mt-5 w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 dark:bg-cyan-600 dark:text-[#062a2d] dark:hover:bg-cyan-500"
                     >
                       View Photo
                     </button>
@@ -274,7 +274,7 @@ export default function GalleryPage() {
           {/* CLOSE BUTTON */}
           <button
             onClick={() => setSelectedImage(null)}
-            className="absolute right-5 top-5 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white text-2xl font-bold text-slate-900 shadow-lg hover:bg-slate-200"
+            className="absolute right-5 top-5 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white text-2xl font-bold text-slate-900 shadow-lg transition hover:bg-slate-200"
             aria-label="Close"
           >
             ×

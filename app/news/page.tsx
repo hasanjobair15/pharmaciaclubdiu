@@ -95,9 +95,11 @@ export default function NewsPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 px-6 py-16">
+      <main className="min-h-screen bg-slate-50 px-6 py-16 text-slate-900 transition-colors dark:bg-[#0a0f1a] dark:text-slate-100">
         <div className="mx-auto max-w-6xl text-center">
-          <p className="text-slate-600">Loading news...</p>
+          <p className="text-slate-600 dark:text-slate-400">
+            Loading news...
+          </p>
         </div>
       </main>
     );
@@ -105,13 +107,13 @@ export default function NewsPage() {
 
   if (error) {
     return (
-      <main className="min-h-screen bg-slate-50 px-6 py-16">
+      <main className="min-h-screen bg-slate-50 px-6 py-16 text-slate-900 transition-colors dark:bg-[#0a0f1a] dark:text-slate-100">
         <div className="mx-auto max-w-6xl text-center">
-          <h1 className="text-2xl font-bold text-red-600">
+          <h1 className="text-2xl font-bold text-red-600 dark:text-red-400">
             Unable to load news
           </h1>
 
-          <p className="mt-3 text-slate-600">
+          <p className="mt-3 text-slate-600 dark:text-slate-400">
             {error}
           </p>
         </div>
@@ -120,11 +122,12 @@ export default function NewsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
+    <main className="min-h-screen bg-slate-50 text-slate-900 transition-colors dark:bg-[#0a0f1a] dark:text-slate-100">
+
       {/* Hero */}
-      <section className="bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 px-6 py-16 text-white">
+      <section className="bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 px-6 py-16 text-white dark:from-[#111827] dark:via-[#12383c] dark:to-[#172554]">
         <div className="mx-auto max-w-6xl">
-          <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-blue-200">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-blue-200 dark:text-cyan-300">
             Pharmacia Club DIU
           </p>
 
@@ -132,7 +135,7 @@ export default function NewsPage() {
             News & Announcements
           </h1>
 
-          <p className="mt-4 max-w-2xl text-lg text-blue-100">
+          <p className="mt-4 max-w-2xl text-lg text-blue-100 dark:text-slate-300">
             Stay updated with the latest news, announcements, achievements,
             seminars, activities, and events of Pharmacia Club DIU.
           </p>
@@ -149,7 +152,7 @@ export default function NewsPage() {
             placeholder="Search news..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 bg-white px-5 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            className="w-full rounded-xl border border-slate-300 bg-white px-5 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-[#111827] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-cyan-500 dark:focus:ring-cyan-900/40"
           />
         </div>
 
@@ -163,8 +166,8 @@ export default function NewsPage() {
                 onClick={() => setCategory(item)}
                 className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
                   category === item
-                    ? "bg-blue-600 text-white"
-                    : "bg-white text-slate-700 shadow-sm hover:bg-slate-100"
+                    ? "bg-blue-600 text-white dark:bg-cyan-600 dark:text-[#062a2d]"
+                    : "bg-white text-slate-700 shadow-sm hover:bg-slate-100 dark:bg-[#111827] dark:text-slate-300 dark:shadow-none dark:hover:bg-slate-800"
                 }`}
               >
                 {item}
@@ -175,22 +178,22 @@ export default function NewsPage() {
 
         {/* No News */}
         {news.length === 0 ? (
-          <div className="rounded-2xl bg-white p-12 text-center shadow-sm">
-            <h2 className="text-2xl font-bold">
+          <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm dark:border-slate-700 dark:bg-[#111827] dark:shadow-none">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
               No News Available
             </h2>
 
-            <p className="mt-3 text-slate-600">
+            <p className="mt-3 text-slate-600 dark:text-slate-400">
               New announcements and updates will be published here soon.
             </p>
           </div>
         ) : filteredNews.length === 0 ? (
-          <div className="rounded-2xl bg-white p-12 text-center shadow-sm">
-            <h2 className="text-2xl font-bold">
+          <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm dark:border-slate-700 dark:bg-[#111827] dark:shadow-none">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
               No Matching News
             </h2>
 
-            <p className="mt-3 text-slate-600">
+            <p className="mt-3 text-slate-600 dark:text-slate-400">
               Try another search term or category.
             </p>
 
@@ -200,7 +203,7 @@ export default function NewsPage() {
                 setSearch("");
                 setCategory("All");
               }}
-              className="mt-5 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+              className="mt-5 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 dark:bg-cyan-600 dark:text-[#062a2d] dark:hover:bg-cyan-500"
             >
               Clear Filters
             </button>
@@ -209,7 +212,7 @@ export default function NewsPage() {
           <>
             {/* Result Count */}
             <div className="mb-6">
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
                 Showing {filteredNews.length} news item
                 {filteredNews.length !== 1 ? "s" : ""}
               </p>
@@ -220,7 +223,7 @@ export default function NewsPage() {
               {filteredNews.map((item) => (
                 <article
                   key={item.id}
-                  className="overflow-hidden rounded-2xl bg-white shadow-md transition hover:-translate-y-1 hover:shadow-xl"
+                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md transition hover:-translate-y-1 hover:shadow-xl dark:border-slate-700 dark:bg-[#111827] dark:shadow-none dark:hover:shadow-xl"
                 >
                   {/* Image */}
                   {item.image_url ? (
@@ -230,7 +233,7 @@ export default function NewsPage() {
                       className="h-56 w-full object-cover"
                     />
                   ) : (
-                    <div className="flex h-56 items-center justify-center bg-gradient-to-br from-blue-800 to-indigo-700 text-white">
+                    <div className="flex h-56 items-center justify-center bg-gradient-to-br from-blue-800 to-indigo-700 text-white dark:from-[#12383c] dark:to-[#172554]">
                       <span className="text-lg font-semibold">
                         Pharmacia Club DIU
                       </span>
@@ -241,33 +244,33 @@ export default function NewsPage() {
 
                     {/* Category */}
                     {item.category && (
-                      <span className="inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                      <span className="inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
                         {item.category}
                       </span>
                     )}
 
                     {/* Title */}
-                    <h2 className="mt-4 text-xl font-bold leading-7 text-slate-900">
+                    <h2 className="mt-4 text-xl font-bold leading-7 text-slate-900 dark:text-white">
                       {item.title}
                     </h2>
 
                     {/* Date */}
                     {item.published_date && (
-                      <p className="mt-3 text-sm font-medium text-slate-500">
+                      <p className="mt-3 text-sm font-medium text-slate-500 dark:text-slate-400">
                         📅 {formatDate(item.published_date)}
                       </p>
                     )}
 
                     {/* Author */}
                     {item.author && (
-                      <p className="mt-2 text-sm text-slate-500">
+                      <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
                         By {item.author}
                       </p>
                     )}
 
                     {/* Excerpt */}
                     {item.excerpt && (
-                      <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-600">
+                      <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-600 dark:text-slate-400">
                         {item.excerpt}
                       </p>
                     )}
@@ -276,11 +279,12 @@ export default function NewsPage() {
                     <div className="mt-6">
                       <Link
                         href={`/news/${item.id}`}
-                        className="inline-flex rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+                        className="inline-flex rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 dark:bg-cyan-600 dark:text-[#062a2d] dark:hover:bg-cyan-500"
                       >
                         Read More
                       </Link>
                     </div>
+
                   </div>
                 </article>
               ))}

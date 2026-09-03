@@ -34,21 +34,19 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable}`}
     >
-      <body className="bg-white text-[#0b1736] dark:bg-[#0a0f1a] dark:text-slate-100">
+      <body className="min-h-screen bg-white text-[#0b1736] antialiased dark:bg-[#0a0f1a] dark:text-slate-100">
         <ThemeProvider>
-          {/* NAVBAR */}
           <Navbar />
 
-          {/* PAGE CONTENT */}
-          {children}
+          <main className="min-h-screen bg-white dark:bg-[#0a0f1a]">
+            {children}
+          </main>
 
-          {/* FOOTER */}
-          <footer className="border-t border-slate-200 bg-white dark:border-slate-700 dark:bg-[#0a0f1a]">
+          <footer className="border-t border-slate-200 bg-white transition-colors dark:border-slate-800 dark:bg-[#0a0f1a]">
             <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
               <div className="flex flex-col items-center justify-between gap-5 text-center md:flex-row md:text-left">
-
                 {/* CLUB INFO */}
                 <div>
                   <p className="font-bold text-[#0b1736] dark:text-white">
@@ -56,11 +54,12 @@ export default function RootLayout({
                   </p>
 
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                    Department of Pharmacy · Daffodil International University
+                    Department of Pharmacy · Daffodil International
+                    University
                   </p>
                 </div>
 
-                {/* COPYRIGHT & WEBSITE CREDIT */}
+                {/* COPYRIGHT */}
                 <div className="text-center md:text-right">
                   <p className="text-sm font-semibold text-[#0b1736] dark:text-slate-200">
                     © 2026 Pharmacia Club DIU. All Rights Reserved.
@@ -68,13 +67,12 @@ export default function RootLayout({
 
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                     Website Designed & Developed by{" "}
-                    <span className="font-semibold text-[#087f8c]">
+                    <span className="font-semibold text-[#087f8c] dark:text-[#2dd4bf]">
                       Md. Hasan Jobair
                     </span>{" "}
                     — 30th Batch, Department of Pharmacy
                   </p>
                 </div>
-
               </div>
             </div>
           </footer>

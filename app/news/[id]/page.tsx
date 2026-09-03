@@ -70,28 +70,30 @@ export default function NewsDetailsPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50">
-        <p className="text-slate-600">Loading news...</p>
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-900 transition-colors dark:bg-[#0a0f1a] dark:text-slate-100">
+        <p className="text-slate-600 dark:text-slate-400">
+          Loading news...
+        </p>
       </main>
     );
   }
 
   if (!news || errorMessage) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6 text-slate-900 transition-colors dark:bg-[#0a0f1a] dark:text-slate-100">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-slate-900">
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
             News Not Found
           </h1>
 
-          <p className="mt-3 text-slate-600">
+          <p className="mt-3 text-slate-600 dark:text-slate-400">
             The news article you are looking for does not exist or is
             no longer published.
           </p>
 
           <Link
             href="/news"
-            className="mt-6 inline-block rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-700"
+            className="mt-6 inline-block rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-700 dark:bg-cyan-600 dark:text-[#062a2d] dark:hover:bg-cyan-500"
           >
             Back to News
           </Link>
@@ -101,13 +103,14 @@ export default function NewsDetailsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
+    <main className="min-h-screen bg-slate-50 text-slate-900 transition-colors dark:bg-[#0a0f1a] dark:text-slate-100">
+
       {/* Hero */}
-      <section className="bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 px-6 py-10 text-white">
+      <section className="bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 px-6 py-10 text-white dark:from-[#111827] dark:via-[#12383c] dark:to-[#172554]">
         <div className="mx-auto max-w-5xl">
           <Link
             href="/news"
-            className="inline-flex text-sm font-medium text-blue-100 transition hover:text-white"
+            className="inline-flex text-sm font-medium text-blue-100 transition hover:text-white dark:text-cyan-200 dark:hover:text-white"
           >
             ← Back to News
           </Link>
@@ -116,7 +119,7 @@ export default function NewsDetailsPage() {
 
       {/* Article */}
       <section className="mx-auto max-w-5xl px-6 py-10">
-        <article className="overflow-hidden rounded-2xl bg-white shadow-md">
+        <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md dark:border-slate-700 dark:bg-[#111827] dark:shadow-none">
 
           {/* Featured Image */}
           {news.image_url ? (
@@ -126,7 +129,7 @@ export default function NewsDetailsPage() {
               className="max-h-[600px] w-full object-cover"
             />
           ) : (
-            <div className="flex h-72 items-center justify-center bg-gradient-to-br from-blue-800 to-indigo-700 text-white">
+            <div className="flex h-72 items-center justify-center bg-gradient-to-br from-blue-800 to-indigo-700 text-white dark:from-[#12383c] dark:to-[#172554]">
               <span className="text-2xl font-bold">
                 Pharmacia Club DIU
               </span>
@@ -137,18 +140,18 @@ export default function NewsDetailsPage() {
 
             {/* Category */}
             {news.category && (
-              <span className="inline-block rounded-full bg-blue-100 px-4 py-1.5 text-sm font-semibold text-blue-700">
+              <span className="inline-block rounded-full bg-blue-100 px-4 py-1.5 text-sm font-semibold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
                 {news.category}
               </span>
             )}
 
             {/* Title */}
-            <h1 className="mt-5 text-3xl font-bold leading-tight text-slate-900 md:text-5xl">
+            <h1 className="mt-5 text-3xl font-bold leading-tight text-slate-900 dark:text-white md:text-5xl">
               {news.title}
             </h1>
 
             {/* Meta Information */}
-            <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-500">
+            <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-500 dark:text-slate-400">
               {news.published_date && (
                 <span>
                   📅 {formatDate(news.published_date)}
@@ -164,8 +167,8 @@ export default function NewsDetailsPage() {
 
             {/* Excerpt */}
             {news.excerpt && (
-              <div className="mt-8 rounded-xl bg-slate-50 p-5">
-                <p className="text-lg font-medium leading-8 text-slate-700">
+              <div className="mt-8 rounded-xl bg-slate-50 p-5 dark:bg-[#0f172a]">
+                <p className="text-lg font-medium leading-8 text-slate-700 dark:text-slate-300">
                   {news.excerpt}
                 </p>
               </div>
@@ -174,23 +177,23 @@ export default function NewsDetailsPage() {
             {/* Full Content */}
             {news.content ? (
               <div className="mt-10">
-                <div className="whitespace-pre-line text-base leading-8 text-slate-700 md:text-lg">
+                <div className="whitespace-pre-line text-base leading-8 text-slate-700 dark:text-slate-300 md:text-lg">
                   {news.content}
                 </div>
               </div>
             ) : (
               <div className="mt-10">
-                <p className="text-slate-500">
+                <p className="text-slate-500 dark:text-slate-400">
                   No additional content is available for this news article.
                 </p>
               </div>
             )}
 
             {/* Back Button */}
-            <div className="mt-12 border-t border-slate-200 pt-8">
+            <div className="mt-12 border-t border-slate-200 pt-8 dark:border-slate-700">
               <Link
                 href="/news"
-                className="inline-flex rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-700"
+                className="inline-flex rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-700 dark:bg-cyan-600 dark:text-[#062a2d] dark:hover:bg-cyan-500"
               >
                 ← Back to All News
               </Link>
