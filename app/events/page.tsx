@@ -24,8 +24,6 @@ type EventStatus =
   | "Completed"
   | "Cancelled";
 
-type FilterType = "All" | EventStatus;
-
 function getAutomaticStatus(event: EventItem): EventStatus {
   if (event.status === "Cancelled") {
     return "Cancelled";
@@ -56,229 +54,345 @@ function getAutomaticStatus(event: EventItem): EventStatus {
   return "Completed";
 }
 
-export default function EventsPage() {
+function formatDate(date: string | null) {
+  if (!date) return "Date TBA";
+
+  return new Date(`${date}T00:00:00`).toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+function formatTime(time: string | null) {
+  if (!time) return "";
+
+  const [hours, minutes] = time.split(":");
+  const date = new Date();
+
+  date.setHours(Number(hours), Number(minutes), 0, 0);
+
+  return date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function getStatusClass(status: EventStatus) {
+  switch (status) {
+    case "Upcoming":
+      return "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300";
+
+    case "Ongoing":
+      return "bg-green-100 text-green-700 dark:bg-green-950/60 dark:text-green-300";
+
+    case "Completed":
+      return "bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-300";
+
+    case "Cancelled":
+      return "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300";
+
+    default:
+      return "bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-300";
+  }
+}
+
+export default function HomePage() {
   const supabase = createClient();
 
   const [events, setEvents] = useState<EventItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<FilterType>("All");
+  const [loadingEvents, setLoadingEvents] = useState(true);
 
-  async function loadEvents() {
-    setLoading(true);
+  /*
+   * Load events from the SAME Supabase table used
+   * by the Events page.
+   */
+  useEffect(() => {
+    async function loadEvents() {
+      setLoadingEvents(true);
 
-    const { data, error } = await supabase
-      .from("events")
-      .select("*")
-      .order("event_date", { ascending: true })
-      .order("start_time", { ascending: true });
+      const { data, error } = await supabase
+        .from("events")
+        .select("*")
+        .order("event_date", { ascending: true })
+        .order("start_time", { ascending: true });
 
-    if (error) {
-      console.error("Error loading events:", error);
-      setEvents([]);
-    } else {
-      setEvents(data || []);
+      if (error) {
+        console.error("Error loading Home events:", error);
+        setEvents([]);
+      } else {
+        setEvents(data || []);
+      }
+
+      setLoadingEvents(false);
     }
 
-    setLoading(false);
-  }
-
-  useEffect(() => {
     loadEvents();
   }, []);
 
-  const eventsWithStatus = useMemo(() => {
-    return events.map((event) => ({
-      ...event,
-      automaticStatus: getAutomaticStatus(event),
-    }));
+  /*
+   * HOME HIGHLIGHTS
+   *
+   * Only Upcoming/Ongoing events are shown.
+   * Maximum 3 events on Home.
+   *
+   * The full list remains on /events.
+   */
+  const highlightedEvents = useMemo(() => {
+    return events
+      .map((event) => ({
+        ...event,
+        automaticStatus: getAutomaticStatus(event),
+      }))
+      .filter(
+        (event) =>
+          event.automaticStatus === "Upcoming" ||
+          event.automaticStatus === "Ongoing"
+      )
+      .slice(0, 3);
   }, [events]);
 
-  const filteredEvents = useMemo(() => {
-    return eventsWithStatus.filter((event) => {
-      const searchText = search.toLowerCase().trim();
-
-      const matchesSearch =
-        !searchText ||
-        event.title?.toLowerCase().includes(searchText) ||
-        event.description?.toLowerCase().includes(searchText) ||
-        event.venue?.toLowerCase().includes(searchText) ||
-        event.organizer?.toLowerCase().includes(searchText);
-
-      const matchesFilter =
-        filter === "All" || event.automaticStatus === filter;
-
-      return matchesSearch && matchesFilter;
-    });
-  }, [eventsWithStatus, search, filter]);
-
-  const counts = useMemo(() => {
-    return {
-      All: eventsWithStatus.length,
-      Upcoming: eventsWithStatus.filter(
-        (event) => event.automaticStatus === "Upcoming"
-      ).length,
-      Ongoing: eventsWithStatus.filter(
-        (event) => event.automaticStatus === "Ongoing"
-      ).length,
-      Completed: eventsWithStatus.filter(
-        (event) => event.automaticStatus === "Completed"
-      ).length,
-      Cancelled: eventsWithStatus.filter(
-        (event) => event.automaticStatus === "Cancelled"
-      ).length,
-    };
-  }, [eventsWithStatus]);
-
-  function formatDate(date: string | null) {
-    if (!date) return "Date TBA";
-
-    const formattedDate = new Date(`${date}T00:00:00`);
-
-    return formattedDate.toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  }
-
-  function formatTime(time: string | null) {
-    if (!time) return "";
-
-    const [hours, minutes] = time.split(":");
-    const date = new Date();
-
-    date.setHours(Number(hours), Number(minutes), 0, 0);
-
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  }
-
-  function getStatusClass(status: EventStatus) {
-    switch (status) {
-      case "Upcoming":
-        return "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300";
-
-      case "Ongoing":
-        return "bg-green-100 text-green-700 dark:bg-green-950/60 dark:text-green-300";
-
-      case "Completed":
-        return "bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-300";
-
-      case "Cancelled":
-        return "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300";
-
-      default:
-        return "bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-300";
-    }
-  }
-
-  const filters: FilterType[] = [
-    "All",
-    "Upcoming",
-    "Ongoing",
-    "Completed",
-    "Cancelled",
+  const areas = [
+    {
+      title: "Academic Excellence",
+      description:
+        "Supporting pharmacy students through academic activities, learning opportunities and professional development.",
+    },
+    {
+      title: "Research & Innovation",
+      description:
+        "Encouraging scientific thinking, research skills and innovation among future pharmacists.",
+    },
+    {
+      title: "Professional Development",
+      description:
+        "Connecting students with industry, alumni and professional opportunities.",
+    },
+    {
+      title: "Leadership",
+      description:
+        "Developing leadership, communication and teamwork skills through meaningful activities.",
+    },
+    {
+      title: "Community Engagement",
+      description:
+        "Creating positive social impact through awareness programs and community initiatives.",
+    },
+    {
+      title: "Creative Expression",
+      description:
+        "Providing students with opportunities to showcase creativity, ideas and talent.",
+    },
   ];
 
   return (
-    <main className="min-h-screen bg-gray-50 text-gray-900 transition-colors dark:bg-[#0a0f1a] dark:text-slate-100">
-      {/* Header */}
-      <section className="bg-gradient-to-r from-blue-900 to-blue-700 text-white dark:from-[#111827] dark:to-[#0f2f3a]">
-        <div className="mx-auto max-w-7xl px-6 py-16">
-          <h1 className="text-4xl font-bold md:text-5xl">
-            Events
-          </h1>
+    <main className="bg-white text-slate-900 dark:bg-[#050a13] dark:text-white">
 
-          <p className="mt-4 max-w-2xl text-blue-100 dark:text-slate-300">
-            Explore upcoming, ongoing, and past events organized by
-            Pharmacia Club DIU.
-          </p>
+      {/* ================= HERO ================= */}
+      <section className="relative overflow-hidden bg-[#071633] text-white">
+        <div className="mx-auto max-w-7xl px-6 py-28 lg:px-8 lg:py-36">
+          <div className="max-w-4xl">
+
+            <p className="mb-5 text-sm font-semibold uppercase tracking-[0.25em] text-cyan-300">
+              Pharmacia Club DIU
+            </p>
+
+            <h1 className="text-4xl font-bold leading-tight sm:text-5xl lg:text-7xl">
+              Connect.
+              <br />
+              Compete.
+              <br />
+              Create.
+              <br />
+              Celebrate.
+            </h1>
+
+            <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-300">
+              The official platform of Pharmacia Club, Department of Pharmacy,
+              Daffodil International University — connecting students,
+              knowledge, research, leadership and professional opportunities.
+            </p>
+
+            <div className="mt-9 flex flex-wrap gap-4">
+              <Link
+                href="/events"
+                className="rounded-full bg-cyan-400 px-6 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300"
+              >
+                Explore Events
+              </Link>
+
+              <Link
+                href="/magazine"
+                className="rounded-full border border-white/30 px-6 py-3 font-semibold transition hover:bg-white/10"
+              >
+                Explore Magazine
+              </Link>
+            </div>
+
+          </div>
         </div>
       </section>
 
-      {/* Main Content */}
-      <section className="mx-auto max-w-7xl px-6 py-10">
-        {/* Search */}
-        <div className="mb-6">
-          <input
-            type="text"
-            placeholder="Search events..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-xl border border-gray-300 bg-white px-5 py-3 text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:bg-[#111827] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-cyan-500 dark:focus:ring-cyan-900/40"
-          />
-        </div>
+      {/* ================= STATS ================= */}
+      <section className="border-b border-slate-200 bg-white dark:border-white/10 dark:bg-[#07101f]">
+        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-6 py-12 sm:grid-cols-4 lg:px-8">
 
-        {/* Filters */}
-        <div className="mb-8 flex flex-wrap gap-3">
-          {filters.map((item) => (
-            <button
-              key={item}
-              onClick={() => setFilter(item)}
-              className={`rounded-full px-5 py-2 text-sm font-medium transition ${
-                filter === item
-                  ? "bg-blue-700 text-white dark:bg-cyan-600"
-                  : "bg-white text-gray-700 shadow-sm hover:bg-gray-100 dark:bg-[#111827] dark:text-slate-300 dark:shadow-none dark:hover:bg-slate-800"
-              }`}
-            >
-              {item} ({counts[item]})
-            </button>
-          ))}
-        </div>
-
-        {/* Loading */}
-        {loading && (
-          <div className="py-20 text-center">
-            <p className="text-gray-500 dark:text-slate-400">
-              Loading events...
+          <div>
+            <p className="text-3xl font-bold">30+</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Batches Connected
             </p>
           </div>
-        )}
 
-        {/* No Events */}
-        {!loading && filteredEvents.length === 0 && (
-          <div className="rounded-2xl border border-gray-200 bg-white px-6 py-20 text-center shadow-sm dark:border-slate-700 dark:bg-[#111827] dark:shadow-none">
-            <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">
-              No events found
+          <div>
+            <p className="text-3xl font-bold">100+</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Activities
+            </p>
+          </div>
+
+          <div>
+            <p className="text-3xl font-bold">500+</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Students
+            </p>
+          </div>
+
+          <div>
+            <p className="text-3xl font-bold">1</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Pharmacy Community
+            </p>
+          </div>
+
+        </div>
+      </section>
+
+      {/* ================= ABOUT ================= */}
+      <section className="bg-slate-50 py-24 dark:bg-[#050a13]">
+        <div className="mx-auto grid max-w-7xl gap-14 px-6 lg:grid-cols-2 lg:px-8">
+
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-600 dark:text-cyan-400">
+              About Us
+            </p>
+
+            <h2 className="mt-4 text-4xl font-bold">
+              Empowering the next generation of pharmacists.
             </h2>
-
-            <p className="mt-2 text-gray-500 dark:text-slate-400">
-              Try another search or filter.
-            </p>
           </div>
-        )}
 
-        {/* Event Grid */}
-        {!loading && filteredEvents.length > 0 && (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredEvents.map((event) => (
-              <article
-                key={event.id}
-                className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg dark:border-slate-700 dark:bg-[#111827] dark:shadow-none dark:hover:shadow-xl"
+          <div>
+            <p className="text-lg leading-8 text-slate-600 dark:text-slate-300">
+              Pharmacia Club DIU is a student-focused platform dedicated to
+              academic excellence, research, professional development,
+              leadership, creativity and community engagement.
+            </p>
+
+            <Link
+              href="/about"
+              className="mt-6 inline-block font-semibold text-cyan-600 hover:text-cyan-500 dark:text-cyan-400"
+            >
+              Learn more →
+            </Link>
+          </div>
+
+        </div>
+      </section>
+
+      {/* ================= FEATURED EVENTS ================= */}
+      <section
+        id="events"
+        className="bg-[#0b1736] py-24 text-white dark:bg-[#050a13]"
+      >
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+
+          <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">
+                Highlights
+              </p>
+
+              <h2 className="mt-3 text-4xl font-bold">
+                Featured Events
+              </h2>
+
+              <p className="mt-4 max-w-2xl text-slate-300">
+                Discover some of the latest and upcoming activities of
+                Pharmacia Club DIU.
+              </p>
+            </div>
+
+            <Link
+              href="/events"
+              className="font-semibold text-cyan-300 hover:text-cyan-200"
+            >
+              View all events →
+            </Link>
+
+          </div>
+
+          {/* Event Loading */}
+          {loadingEvents && (
+            <div className="mt-12 rounded-2xl border border-white/10 bg-white/5 p-10 text-center">
+              <p className="text-slate-300">
+                Loading featured events...
+              </p>
+            </div>
+          )}
+
+          {/* No Upcoming Events */}
+          {!loadingEvents && highlightedEvents.length === 0 && (
+            <div className="mt-12 rounded-2xl border border-white/10 bg-white/5 p-10 text-center">
+
+              <h3 className="text-xl font-semibold">
+                No upcoming events
+              </h3>
+
+              <p className="mt-2 text-slate-400">
+                Please visit the Events page for previous activities.
+              </p>
+
+              <Link
+                href="/events"
+                className="mt-5 inline-block font-semibold text-cyan-300"
               >
-                {/* Event Image */}
-                {event.image_url ? (
-                  <img
-                    src={event.image_url}
-                    alt={event.title}
-                    className="h-56 w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-56 w-full items-center justify-center bg-gradient-to-br from-blue-800 to-blue-500 text-white dark:from-[#12383c] dark:to-[#164e63]">
-                    <span className="text-lg font-semibold">
-                      Pharmacia Club DIU
-                    </span>
-                  </div>
-                )}
+                View Events →
+              </Link>
 
-                {/* Content */}
-                <div className="p-6">
-                  {/* Status */}
-                  <div className="mb-4">
+            </div>
+          )}
+
+          {/* Featured Event Cards */}
+          {!loadingEvents && highlightedEvents.length > 0 && (
+            <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+
+              {highlightedEvents.map((event) => (
+                <article
+                  key={event.id}
+                  className="group overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur transition hover:-translate-y-1 hover:bg-white/10"
+                >
+
+                  {/* Image */}
+                  {event.image_url ? (
+                    <img
+                      src={event.image_url}
+                      alt={event.title}
+                      className="h-52 w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-52 w-full items-center justify-center bg-gradient-to-br from-blue-800 to-blue-500 text-white dark:from-[#12383c] dark:to-[#164e63]">
+                      <span className="text-lg font-semibold">
+                        Pharmacia Club DIU
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="p-6">
+
+                    {/* Status */}
                     <span
                       className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
                         event.automaticStatus
@@ -286,89 +400,196 @@ export default function EventsPage() {
                     >
                       {event.automaticStatus}
                     </span>
-                  </div>
 
-                  {/* Title */}
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                    {event.title}
-                  </h2>
+                    {/* Title */}
+                    <h3 className="mt-4 text-2xl font-bold">
+                      {event.title}
+                    </h3>
 
-                  {/* Description */}
-                  {event.description && (
-                    <p className="mt-3 line-clamp-3 text-sm leading-6 text-gray-600 dark:text-slate-400">
-                      {event.description}
-                    </p>
-                  )}
-
-                  {/* Event Information */}
-                  <div className="mt-5 space-y-2 text-sm text-gray-600 dark:text-slate-400">
-                    {event.event_date && (
-                      <p>
-                        <span className="font-semibold text-gray-800 dark:text-slate-200">
-                          Date:
-                        </span>{" "}
-                        {formatDate(event.event_date)}
+                    {/* Description */}
+                    {event.description && (
+                      <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-300">
+                        {event.description}
                       </p>
                     )}
 
+                    {/* Date */}
+                    {event.event_date && (
+                      <p className="mt-5 text-sm font-semibold text-white">
+                        📅 {formatDate(event.event_date)}
+                      </p>
+                    )}
+
+                    {/* Time */}
                     {(event.start_time || event.end_time) && (
-                      <p>
-                        <span className="font-semibold text-gray-800 dark:text-slate-200">
-                          Time:
-                        </span>{" "}
-                        {formatTime(event.start_time)}
+                      <p className="mt-2 text-sm text-slate-400">
+                        🕐 {formatTime(event.start_time)}
                         {event.end_time &&
                           ` - ${formatTime(event.end_time)}`}
                       </p>
                     )}
 
+                    {/* Venue */}
                     {event.venue && (
-                      <p>
-                        <span className="font-semibold text-gray-800 dark:text-slate-200">
-                          Venue:
-                        </span>{" "}
-                        {event.venue}
+                      <p className="mt-2 text-sm text-slate-400">
+                        📍 {event.venue}
                       </p>
                     )}
 
-                    {event.organizer && (
-                      <p>
-                        <span className="font-semibold text-gray-800 dark:text-slate-200">
-                          Organizer:
-                        </span>{" "}
-                        {event.organizer}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Buttons */}
-                  <div className="mt-6 flex flex-wrap gap-3">
+                    {/* Details */}
                     <Link
                       href={`/events/${event.id}`}
-                      className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800 dark:bg-cyan-600 dark:hover:bg-cyan-500"
+                      className="mt-6 inline-block font-semibold text-cyan-300 transition hover:text-cyan-200"
                     >
-                      View Details
+                      View details →
                     </Link>
 
-                    {event.registration_url &&
-                      event.automaticStatus !== "Completed" &&
-                      event.automaticStatus !== "Cancelled" && (
-                        <a
-                          href={event.registration_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="rounded-lg border border-blue-700 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 dark:border-cyan-500 dark:text-cyan-400 dark:hover:bg-cyan-950/40"
-                        >
-                          Register
-                        </a>
-                      )}
                   </div>
-                </div>
+                </article>
+              ))}
+
+            </div>
+          )}
+
+        </div>
+      </section>
+
+      {/* ================= AREAS ================= */}
+      <section className="bg-white py-24 dark:bg-[#07101f]">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+
+          <div className="max-w-3xl">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-600 dark:text-cyan-400">
+              What We Do
+            </p>
+
+            <h2 className="mt-3 text-4xl font-bold">
+              Building a stronger pharmacy community.
+            </h2>
+          </div>
+
+          <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+
+            {areas.map((area) => (
+              <article
+                key={area.title}
+                className="rounded-2xl border border-slate-200 p-7 transition hover:-translate-y-1 hover:shadow-lg dark:border-white/10 dark:bg-white/5"
+              >
+                <h3 className="text-xl font-bold">
+                  {area.title}
+                </h3>
+
+                <p className="mt-3 leading-7 text-slate-600 dark:text-slate-400">
+                  {area.description}
+                </p>
               </article>
             ))}
+
           </div>
-        )}
+        </div>
       </section>
+
+      {/* ================= RESEARCH ================= */}
+      <section className="bg-slate-50 py-24 dark:bg-[#050a13]">
+        <div className="mx-auto grid max-w-7xl gap-12 px-6 lg:grid-cols-2 lg:px-8">
+
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-600 dark:text-cyan-400">
+              Research
+            </p>
+
+            <h2 className="mt-3 text-4xl font-bold">
+              Explore. Research. Innovate.
+            </h2>
+
+            <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600 dark:text-slate-300">
+              Encouraging students to develop research skills and explore
+              emerging areas of pharmaceutical science.
+            </p>
+          </div>
+
+          <div className="flex items-center lg:justify-end">
+            <Link
+              href="/research"
+              className="rounded-full bg-[#0b1736] px-7 py-3 font-semibold text-white transition hover:bg-[#122653] dark:bg-cyan-400 dark:text-slate-950 dark:hover:bg-cyan-300"
+            >
+              Explore Research →
+            </Link>
+          </div>
+
+        </div>
+      </section>
+
+      {/* ================= MAGAZINE ================= */}
+      <section className="bg-white py-24 dark:bg-[#07101f]">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+
+          <div className="rounded-3xl bg-[#0b1736] p-8 text-white sm:p-12">
+
+            <div className="max-w-3xl">
+
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">
+                Magazine
+              </p>
+
+              <h2 className="mt-3 text-4xl font-bold">
+                Read. Create. Share.
+              </h2>
+
+              <p className="mt-5 leading-8 text-slate-300">
+                Explore student writing, artwork, photography, pharmaceutical
+                knowledge and creative contributions through Pharmacia Club's
+                magazine.
+              </p>
+
+              <Link
+                href="/magazine"
+                className="mt-7 inline-block rounded-full bg-cyan-400 px-6 py-3 font-semibold text-slate-950 hover:bg-cyan-300"
+              >
+                Visit Magazine →
+              </Link>
+
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
+      {/* ================= CTA ================= */}
+      <section className="bg-[#071633] py-20 text-white">
+        <div className="mx-auto max-w-5xl px-6 text-center">
+
+          <h2 className="text-4xl font-bold">
+            Be part of the Pharmacia community.
+          </h2>
+
+          <p className="mx-auto mt-5 max-w-2xl leading-7 text-slate-300">
+            Stay connected with upcoming events, research activities,
+            publications and opportunities.
+          </p>
+
+          <div className="mt-8 flex flex-wrap justify-center gap-4">
+
+            <Link
+              href="/events"
+              className="rounded-full bg-cyan-400 px-6 py-3 font-semibold text-slate-950 hover:bg-cyan-300"
+            >
+              Explore Events
+            </Link>
+
+            <Link
+              href="/contact"
+              className="rounded-full border border-white/30 px-6 py-3 font-semibold hover:bg-white/10"
+            >
+              Contact Us
+            </Link>
+
+          </div>
+
+        </div>
+      </section>
+
     </main>
   );
 }
