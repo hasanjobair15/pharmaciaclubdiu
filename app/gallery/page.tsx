@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import PageHero from "../components/page-hero";
+import Reveal from "../components/reveal";
 import { createClient } from "@/lib/supabase/client";
 
 type GalleryItem = {
@@ -84,26 +86,14 @@ export default function GalleryPage() {
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900 transition-colors dark:bg-[#0a0f1a] dark:text-slate-100">
 
-      {/* HERO SECTION */}
-      <section className="bg-gradient-to-r from-slate-950 via-blue-950 to-slate-900 px-6 py-20 text-center text-white dark:from-[#0b1736] dark:via-[#12383c] dark:to-[#111827]">
-        <div className="mx-auto max-w-5xl">
-
-          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300">
-            Pharmacia Club DIU
-          </p>
-
-          <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl md:text-6xl">
-            Gallery
-          </h1>
-
-          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-            Explore memorable moments, events, seminars, competitions, and
-            activities of Pharmacia Club, Department of Pharmacy,
-            Daffodil International University.
-          </p>
-
-        </div>
-      </section>
+      {/* HERO SECTION — colorful gradient banner */}
+      <PageHero
+        emoji="📸"
+        title="Gallery"
+        accent="& Moments"
+        index={3}
+        subtitle="Explore memorable moments, events, seminars, competitions and activities of Pharmacia Club, Department of Pharmacy, Daffodil International University."
+      />
 
       {/* MAIN CONTENT */}
       <section className="mx-auto max-w-7xl px-6 py-12">
@@ -174,22 +164,22 @@ export default function GalleryPage() {
 
         {/* GALLERY GRID */}
         {!loading && filteredItems.length > 0 && (
-          <div className="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="pc-stagger grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
 
             {filteredItems.map((item) => (
               <article
                 key={item.id}
-                className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-200 transition duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-slate-700 dark:bg-[#111827] dark:ring-slate-700 dark:shadow-none dark:hover:shadow-xl"
+                className="pc-card3d group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-200 dark:border-slate-700 dark:bg-[#111827] dark:ring-slate-700 dark:shadow-none"
               >
 
                 {/* IMAGE */}
-                <div className="relative aspect-[4/3] overflow-hidden bg-slate-200 dark:bg-slate-800">
+                <div className="pc-img3d relative aspect-[4/3] overflow-hidden bg-slate-200 dark:bg-slate-800">
 
                   {item.image_url ? (
                     <img
                       src={item.image_url}
                       alt={item.title}
-                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                      className="h-full w-full object-cover"
                     />
                   ) : (
                     <div className="flex h-full items-center justify-center text-5xl text-slate-400 dark:text-slate-600">

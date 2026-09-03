@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import PageHero from "../components/page-hero";
+import Reveal from "../components/reveal";
 
 type Panel =
   | "Faculty Advisory Panel"
@@ -135,22 +137,13 @@ export default function CommitteePage() {
   return (
     <main className="min-h-screen bg-[#f7faff] text-[#0b1736] transition-colors dark:bg-[#0a0f1a] dark:text-slate-100">
       {/* HERO */}
-      <section className="bg-[#0b1736] px-6 py-24 text-white dark:bg-[#111827]">
-        <div className="mx-auto max-w-7xl">
-          <p className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-300">
-            Leadership
-          </p>
-
-          <h1 className="mt-5 text-5xl font-black tracking-tight sm:text-6xl">
-            Committee
-          </h1>
-
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
-            Meet the leaders, advisors, and executive members of
-            Pharmacia Club DIU.
-          </p>
-        </div>
-      </section>
+      <PageHero
+        emoji="👑"
+        title="Committee"
+        accent="2026"
+        index={1}
+        subtitle="Meet the leaders, advisors, and executive members of Pharmacia Club DIU."
+      />
 
       {/* COMMITTEE */}
       <section

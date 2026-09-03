@@ -136,7 +136,7 @@ export default function ResearchPage() {
     <main className="min-h-screen bg-slate-50 text-slate-900 transition-colors dark:bg-[#0a0f1a] dark:text-slate-100">
 
       {/* Hero */}
-      <section className="bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 px-6 py-16 text-white dark:from-[#111827] dark:via-[#12383c] dark:to-[#172554]">
+      <section className="pc-mesh relative overflow-hidden bg-gradient-to-br from-cyan-600 via-blue-700 to-indigo-800 px-6 py-16 text-white">
         <div className="mx-auto max-w-6xl">
 
           <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-blue-200 dark:text-cyan-300">

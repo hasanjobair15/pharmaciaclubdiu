@@ -1,37 +1,32 @@
+import PageHero from "../components/page-hero";
+import Reveal from "../components/reveal";
+
 export default function AboutPage() {
   return (
     <main className="min-h-screen bg-[#f7faff] text-[#0b1736] transition-colors dark:bg-[#0a0f1a] dark:text-slate-100">
       {/* HERO */}
-      <section className="bg-[#0b1736] px-6 py-24 text-white dark:bg-[#111827]">
-        <div className="mx-auto max-w-7xl">
-          <p className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-300">
-            About Pharmacia Club DIU
-          </p>
-
-          <h1 className="mt-5 max-w-4xl text-5xl font-black tracking-tight sm:text-6xl">
-            Building the future of pharmacy, together.
-          </h1>
-
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
-            Pharmacia Club DIU is a student-centered platform of the
-            Department of Pharmacy at Daffodil International University.
-          </p>
-        </div>
-      </section>
+      <PageHero
+        emoji="💊"
+        title="About Pharmacia Club"
+        accent="DIU"
+        index={0}
+        subtitle="A student-centered platform of the Department of Pharmacy at Daffodil International University — building the future of pharmacy, together."
+      />
 
       {/* ABOUT */}
       <section className="mx-auto max-w-7xl px-6 py-20 lg:px-8">
         <div className="grid gap-12 lg:grid-cols-2">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#087f8c] dark:text-[#2dd4bf]">
+          <Reveal variant="left">
+            <p className="pc-flame text-sm font-bold uppercase tracking-[0.2em]">
               Who we are
             </p>
 
             <h2 className="mt-4 text-4xl font-black text-[#0b1736] dark:text-white">
-              A community for future pharmacists.
+              A community for future <span className="pc-rainbow">pharmacists.</span>
             </h2>
-          </div>
+          </Reveal>
 
+          <Reveal variant="right" delay={1}>
           <div className="text-lg leading-8 text-slate-600 dark:text-slate-300">
             <p>
               Pharmacia Club DIU brings together students with a shared
@@ -46,6 +41,7 @@ export default function AboutPage() {
               to learn and grow.
             </p>
           </div>
+          </Reveal>
         </div>
       </section>
 

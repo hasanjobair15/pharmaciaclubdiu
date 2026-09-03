@@ -44,7 +44,7 @@ export default function AcademicPage() {
     <main className="min-h-screen bg-[#f7faff] text-[#0b1736] transition-colors dark:bg-[#0a0f1a] dark:text-slate-100">
 
       {/* HERO */}
-      <section className="relative overflow-hidden bg-[#0b1736] px-6 py-24 text-white dark:bg-[#111827]">
+      <section className="relative overflow-hidden bg-[#071633] px-6 py-24 text-white dark:bg-[#111827]">
         <div className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-cyan-400/10 blur-3xl" />
 
         <div className="absolute -bottom-32 -left-24 h-80 w-80 rounded-full bg-cyan-400/5 blur-3xl" />

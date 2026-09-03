@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import PageHero from "../components/page-hero";
+import Reveal from "../components/reveal";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -186,111 +188,34 @@ export default function HomePage() {
     <main className="bg-white text-slate-900 dark:bg-[#050a13] dark:text-white">
 
       {/* ================= HERO ================= */}
+      <PageHero
+        emoji="🎟️"
+        title="Events"
+        accent="& Activities"
+        index={2}
+        subtitle="Seminars, competitions, workshops, fests and community programs — everything happening in Pharmacia Club DIU."
+      />
 
-      <section className="relative overflow-hidden bg-[#071633] text-white">
-        <div className="mx-auto max-w-7xl px-6 py-28 lg:px-8 lg:py-36">
-
-          <div className="max-w-4xl">
-
-            <p className="mb-5 text-sm font-semibold uppercase tracking-[0.25em] text-cyan-300">
-              Pharmacia Club DIU
-            </p>
-
-            <h1 className="text-4xl font-bold leading-tight sm:text-5xl lg:text-7xl">
-              Connect.
-              <br />
-              Compete.
-              <br />
-              Create.
-              <br />
-              Celebrate.
-            </h1>
-
-            <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-300">
-              The official platform of Pharmacia Club, Department of Pharmacy,
-              Daffodil International University — connecting students,
-              knowledge, research, leadership and professional opportunities.
-            </p>
-
-            <div className="mt-9 flex flex-wrap gap-4">
-
-              <Link
-                href="/events"
-                className="rounded-full bg-cyan-400 px-6 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300"
-              >
-                Explore Events
-              </Link>
-
-              <Link
-                href="/magazine"
-                className="rounded-full border border-white/30 px-6 py-3 font-semibold transition hover:bg-white/10"
-              >
-                Explore Magazine
-              </Link>
-
-            </div>
-
+      {/* ================= STATS (colorful) ================= */}
+      <section className="relative bg-white dark:bg-[#07101f]">
+        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-4 px-6 py-10 sm:grid-cols-4 lg:px-8">
+          <div className="pc-card3d rounded-3xl bg-gradient-to-br from-cyan-500 to-blue-600 p-6 text-center text-white shadow-[0_18px_40px_-14px_rgba(34,211,238,.4)]">
+            <p className="text-3xl font-black">37+</p>
+            <p className="mt-1 text-xs font-bold uppercase tracking-wider text-white/85">Batches Connected</p>
           </div>
-
+          <div className="pc-card3d rounded-3xl bg-gradient-to-br from-violet-500 to-fuchsia-600 p-6 text-center text-white shadow-[0_18px_40px_-14px_rgba(167,139,250,.4)]">
+            <p className="text-3xl font-black">10+</p>
+            <p className="mt-1 text-xs font-bold uppercase tracking-wider text-white/85">Activities</p>
+          </div>
+          <div className="pc-card3d rounded-3xl bg-gradient-to-br from-amber-400 to-orange-600 p-6 text-center text-white shadow-[0_18px_40px_-14px_rgba(251,191,36,.4)]">
+            <p className="text-3xl font-black">15,000+</p>
+            <p className="mt-1 text-xs font-bold uppercase tracking-wider text-white/85">Students</p>
+          </div>
+          <div className="pc-card3d rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 p-6 text-center text-white shadow-[0_18px_40px_-14px_rgba(52,211,153,.4)]">
+            <p className="text-3xl font-black">2</p>
+            <p className="mt-1 text-xs font-bold uppercase tracking-wider text-white/85">Pharmacy Communities</p>
+          </div>
         </div>
-      </section>
-
-      {/* ================= STATS ================= */}
-
-      <section className="border-b border-slate-200 bg-white dark:border-white/10 dark:bg-[#07101f]">
-
-        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-6 py-12 sm:grid-cols-4 lg:px-8">
-
-          {/* 37+ Batches Connected */}
-
-          <div>
-            <p className="text-3xl font-bold">
-              37+
-            </p>
-
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Batches Connected
-            </p>
-          </div>
-
-          {/* 10+ Activities */}
-
-          <div>
-            <p className="text-3xl font-bold">
-              10+
-            </p>
-
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Activities
-            </p>
-          </div>
-
-          {/* 15,000+ Students */}
-
-          <div>
-            <p className="text-3xl font-bold">
-              15,000+
-            </p>
-
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Students
-            </p>
-          </div>
-
-          {/* 2 Pharmacy Community */}
-
-          <div>
-            <p className="text-3xl font-bold">
-              2
-            </p>
-
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Pharmacy Community
-            </p>
-          </div>
-
-        </div>
-
       </section>
 
       {/* ================= ABOUT ================= */}
@@ -401,7 +326,7 @@ export default function HomePage() {
 
           {!loadingEvents && highlightedEvents.length > 0 && (
 
-            <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <div className="pc-stagger mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 
               {highlightedEvents.map((event) => (
 
@@ -518,7 +443,7 @@ export default function HomePage() {
 
           </div>
 
-          <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="pc-stagger mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 
             {areas.map((area) => (
 

@@ -289,3 +289,180 @@ a:hover .pc-icon3d { transform: perspective(500px) rotateY(-16deg) rotateX(8deg)
     transform: none !important;
   }
 }
+
+/* ============================================================
+ * COLOR + SCROLL-REVEAL + 3D FLIP LAYER (v2)
+ * ============================================================ */
+
+/* ---------- scroll reveal (JS toggles .revealed) ---------- */
+.reveal {
+  opacity: 0;
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.7s ease;
+  will-change: opacity, transform;
+}
+.reveal-up { transform: translateY(46px); }
+.reveal-left { transform: translateX(-52px); }
+.reveal-right { transform: translateX(52px); }
+.reveal-zoom { transform: scale(0.86); }
+.reveal-flip { transform: perspective(900px) rotateX(-22deg) translateY(30px); }
+.reveal-blur { filter: blur(10px); transform: translateY(24px); }
+.reveal.revealed {
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+.reveal[data-delay="1"] { transition-delay: 90ms; }
+.reveal[data-delay="2"] { transition-delay: 180ms; }
+.reveal[data-delay="3"] { transition-delay: 280ms; }
+.reveal[data-delay="4"] { transition-delay: 380ms; }
+.reveal[data-delay="5"] { transition-delay: 480ms; }
+
+/* ---------- marquee ticker ---------- */
+@keyframes pc-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.pc-marquee {
+  display: flex;
+  width: max-content;
+  animation: pc-marquee 30s linear infinite;
+}
+.pc-marquee:hover { animation-play-state: paused; }
+.pc-marquee-wrap {
+  mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+}
+
+/* ---------- color-morphing gradient text ---------- */
+@keyframes pc-hue {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.pc-rainbow {
+  background: linear-gradient(92deg, #22d3ee, #818cf8, #f472b6, #fbbf24, #34d399, #22d3ee);
+  background-size: 260% 260%;
+  animation: pc-hue 8s ease infinite;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.pc-flame {
+  background: linear-gradient(92deg, #38bdf8, #a78bfa, #fb7185, #fb923c, #fbbf24);
+  background-size: 240% 240%;
+  animation: pc-hue 6s ease infinite;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ---------- animated gradient mesh backgrounds ---------- */
+@keyframes pc-mesh-a { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(60px,-40px) scale(1.15); } }
+@keyframes pc-mesh-b { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-70px,50px) scale(1.1); } }
+@keyframes pc-mesh-c { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(40px,60px) scale(0.9); } }
+.pc-mesh { position: relative; overflow: hidden; }
+.pc-mesh .blob { position: absolute; border-radius: 9999px; filter: blur(80px); pointer-events: none; }
+.pc-mesh .blob-1 { animation: pc-mesh-a 18s ease-in-out infinite; }
+.pc-mesh .blob-2 { animation: pc-mesh-b 22s ease-in-out infinite; }
+.pc-mesh .blob-3 { animation: pc-mesh-c 26s ease-in-out infinite; }
+
+/* ---------- animated gradient border ---------- */
+@keyframes pc-border-run { to { --pc-bg: 0deg; } }
+@property --pc-bg { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+.pc-glow-border {
+  position: relative;
+  border-radius: 1.25rem;
+}
+.pc-glow-border::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(from var(--pc-bg), #22d3ee, #818cf8, #f472b6, #fbbf24, #34d399, #22d3ee);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: pc-border-run 6s linear infinite;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.pc-glow-border:hover::before, .pc-glow-border.pc-glow-on::before { opacity: 1; }
+
+/* ---------- 3D flip card ---------- */
+.pc-flip { perspective: 1200px; }
+.pc-flip-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-style: preserve-3d;
+}
+.pc-flip:hover .pc-flip-inner,
+.pc-flip:focus-within .pc-flip-inner { transform: rotateY(180deg); }
+.pc-flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: 1.25rem;
+  overflow: hidden;
+}
+.pc-flip-back { transform: rotateY(180deg); }
+
+/* ---------- pulse ring / orbit ring ---------- */
+@keyframes pc-ring { 0% { transform: scale(0.6); opacity: 0.7; } 100% { transform: scale(1.9); opacity: 0; } }
+.pc-ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid rgba(34, 211, 238, 0.6);
+  animation: pc-ring 2.6s ease-out infinite;
+}
+@keyframes pc-spin-slow { to { transform: rotate(360deg); } }
+.pc-spin-slow { animation: pc-spin-slow 24s linear infinite; }
+.pc-spin-slower { animation: pc-spin-slow 40s linear infinite; }
+
+/* ---------- wave section divider ---------- */
+.pc-wave { display: block; width: 100%; height: 56px; }
+.pc-wave svg { display: block; width: 100%; height: 100%; }
+
+/* ---------- image hover (3D zoom + shine) ---------- */
+.pc-img3d { overflow: hidden; position: relative; }
+.pc-img3d img { transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1); }
+.pc-img3d:hover img { transform: scale(1.12) rotate(1.5deg); }
+.pc-img3d::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-140%) skewX(-20deg);
+  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.35) 50%, transparent 60%);
+  transition: transform 0.7s ease;
+  pointer-events: none;
+}
+.pc-img3d:hover::after { transform: translateX(140%) skewX(-20deg); }
+
+/* ---------- animated stat underline ---------- */
+.pc-stat-bar { position: relative; height: 4px; border-radius: 999px; overflow: hidden; }
+.pc-stat-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.9), transparent);
+  animation: pc-marquee 1.8s linear infinite;
+  width: 40%;
+}
+
+/* reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .pc-marquee, .pc-rainbow, .pc-flame, .pc-mesh .blob, .pc-glow-border::before,
+  .pc-flip-inner, .pc-ring::after, .pc-spin-slow, .pc-spin-slower, .pc-img3d img, .pc-img3d::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .reveal { opacity: 1 !important; transform: none !important; filter: none !important; }
+}

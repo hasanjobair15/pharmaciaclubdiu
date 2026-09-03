@@ -28,13 +28,13 @@ export default function Navbar() {
     <header
       className="
         sticky top-0 z-50
-        border-b
-        border-slate-200/80
+        border-b-2
+        border-transparent
+        [border-image:linear-gradient(90deg,#22d3ee,#818cf8,#f472b6,#fbbf24,#34d399)_1]
         bg-white/95
         shadow-sm
         backdrop-blur-xl
         transition-colors duration-300
-        dark:border-slate-800
         dark:bg-[#0a0f1a]/95
       "
     >

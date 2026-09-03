@@ -56,12 +56,12 @@ export default function ContactPage() {
 
         {/* HEADER */}
         <div className="text-center">
-          <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#087f8c]">
+          <p className="pc-flame text-sm font-black uppercase tracking-[0.2em]">
             Get In Touch
           </p>
 
-          <h1 className="mt-3 text-4xl font-bold text-[#0b1736] dark:text-white sm:text-5xl">
-            Contact Pharmacia Club DIU
+          <h1 className="mt-3 text-4xl font-black text-[#0b1736] dark:text-white sm:text-5xl">
+            Contact <span className="pc-rainbow">Pharmacia Club DIU</span>
           </h1>
 
           <p className="mx-auto mt-5 max-w-2xl text-slate-600 dark:text-slate-300">

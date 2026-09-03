@@ -97,7 +97,7 @@ export default function PublicationsPage() {
   return (
     <main className="min-h-screen bg-slate-50">
       {/* Hero */}
-      <section className="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-900 px-6 py-16 text-white">
+      <section className="pc-mesh relative overflow-hidden bg-gradient-to-br from-amber-500 via-orange-600 to-rose-600 px-6 py-16 text-white">
         <div className="mx-auto max-w-6xl">
           <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-blue-200">
             Pharmacia Club DIU

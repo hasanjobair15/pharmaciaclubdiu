@@ -57,11 +57,11 @@ export default function MagazinePage() {
         <div className="relative mx-auto max-w-7xl px-6 py-20 lg:px-8 lg:py-28">
           <div className="max-w-3xl">
 
-            <p className="mb-4 text-sm font-bold uppercase tracking-[0.2em] text-[#087f8c] dark:text-[#2dd4bf]">
+            <p className="pc-flame mb-4 text-sm font-black uppercase tracking-[0.2em]">
               Pharmacia Club DIU
             </p>
 
-            <h1 className="text-4xl font-black tracking-tight text-[#0b1736] dark:text-white sm:text-5xl lg:text-6xl">
+            <h1 className="pc-rainbow text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
               Magazine
             </h1>
 
