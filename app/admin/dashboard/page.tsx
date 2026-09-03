@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -7,14 +8,14 @@ import { createClient } from "@/lib/supabase/client";
 const dashboardItems = [
   {
     title: "Home",
-    description: "Manage the public homepage content.",
-    href: "/admin/home",
+    description: "Open and manage the public homepage.",
+    href: "/",
     icon: "⌂",
   },
   {
     title: "About",
-    description: "Manage club and department information.",
-    href: "/admin/about",
+    description: "Open and manage the club and department information.",
+    href: "/about",
     icon: "ℹ",
   },
   {
@@ -68,13 +69,15 @@ const dashboardItems = [
   },
   {
     title: "Alumni Association",
-    description: "Manage Alumni Association executive committee members.",
+    description:
+      "Manage Alumni Association executive committee members.",
     href: "/admin/alumni-association",
     icon: "🏛️",
   },
   {
     title: "Contact",
-    description: "View and manage messages submitted through Contact.",
+    description:
+      "View and manage messages submitted through Contact.",
     href: "/admin/contact",
     icon: "✉️",
   },
@@ -122,7 +125,7 @@ export default function AdminDashboardPage() {
 
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-[#070b14]">
-      {/* Header */}
+      {/* ================= HEADER ================= */}
       <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-[#0b1120]">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
           <div>
@@ -161,7 +164,7 @@ export default function AdminDashboardPage() {
         </div>
       </header>
 
-      {/* Dashboard */}
+      {/* ================= DASHBOARD ================= */}
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-7">
           <h2 className="text-lg font-bold text-[#0b1736] dark:text-white">
@@ -200,6 +203,7 @@ export default function AdminDashboardPage() {
               </>
             );
 
+            /* External website */
             if (item.external) {
               return (
                 <a
@@ -214,15 +218,20 @@ export default function AdminDashboardPage() {
               );
             }
 
+            /* Internal website pages */
             return (
-              <a key={item.href} href={item.href} className={cardClassName}>
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cardClassName}
+              >
                 {content}
-              </a>
+              </Link>
             );
           })}
         </div>
 
-        {/* Quick information */}
+        {/* ================= QUICK INFORMATION ================= */}
         <div className="mt-8 rounded-2xl border border-[#087f8c]/20 bg-[#087f8c]/5 p-5 dark:border-[#087f8c]/20 dark:bg-[#087f8c]/10">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -236,12 +245,12 @@ export default function AdminDashboardPage() {
               </p>
             </div>
 
-            <a
+            <Link
               href="/admin/alumni-association"
               className="inline-flex shrink-0 items-center justify-center rounded-lg bg-[#087f8c] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#066d78]"
             >
               Manage Alumni Association
-            </a>
+            </Link>
           </div>
         </div>
       </section>
