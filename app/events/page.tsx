@@ -57,7 +57,9 @@ function getAutomaticStatus(event: EventItem): EventStatus {
 function formatDate(date: string | null) {
   if (!date) return "Date TBA";
 
-  return new Date(`${date}T00:00:00`).toLocaleDateString("en-US", {
+  const formattedDate = new Date(`${date}T00:00:00`);
+
+  return formattedDate.toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -104,10 +106,8 @@ export default function HomePage() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
 
-  /*
-   * Load events from the SAME Supabase table used
-   * by the Events page.
-   */
+  /* ================= LOAD EVENTS ================= */
+
   useEffect(() => {
     async function loadEvents() {
       setLoadingEvents(true);
@@ -119,7 +119,7 @@ export default function HomePage() {
         .order("start_time", { ascending: true });
 
       if (error) {
-        console.error("Error loading Home events:", error);
+        console.error("Error loading events:", error);
         setEvents([]);
       } else {
         setEvents(data || []);
@@ -129,16 +129,10 @@ export default function HomePage() {
     }
 
     loadEvents();
-  }, []);
+  }, [supabase]);
 
-  /*
-   * HOME HIGHLIGHTS
-   *
-   * Only Upcoming/Ongoing events are shown.
-   * Maximum 3 events on Home.
-   *
-   * The full list remains on /events.
-   */
+  /* ================= HOME EVENT HIGHLIGHTS ================= */
+
   const highlightedEvents = useMemo(() => {
     return events
       .map((event) => ({
@@ -152,6 +146,8 @@ export default function HomePage() {
       )
       .slice(0, 3);
   }, [events]);
+
+  /* ================= AREAS ================= */
 
   const areas = [
     {
@@ -190,8 +186,10 @@ export default function HomePage() {
     <main className="bg-white text-slate-900 dark:bg-[#050a13] dark:text-white">
 
       {/* ================= HERO ================= */}
+
       <section className="relative overflow-hidden bg-[#071633] text-white">
         <div className="mx-auto max-w-7xl px-6 py-28 lg:px-8 lg:py-36">
+
           <div className="max-w-4xl">
 
             <p className="mb-5 text-sm font-semibold uppercase tracking-[0.25em] text-cyan-300">
@@ -215,6 +213,7 @@ export default function HomePage() {
             </p>
 
             <div className="mt-9 flex flex-wrap gap-4">
+
               <Link
                 href="/events"
                 className="rounded-full bg-cyan-400 px-6 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300"
@@ -228,52 +227,80 @@ export default function HomePage() {
               >
                 Explore Magazine
               </Link>
+
             </div>
 
           </div>
+
         </div>
       </section>
 
       {/* ================= STATS ================= */}
+
       <section className="border-b border-slate-200 bg-white dark:border-white/10 dark:bg-[#07101f]">
+
         <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-6 py-12 sm:grid-cols-4 lg:px-8">
 
+          {/* 8 Batches */}
+
           <div>
-            <p className="text-3xl font-bold">30+</p>
+            <p className="text-3xl font-bold">
+              8
+            </p>
+
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Batches Connected
             </p>
           </div>
 
+          {/* 10+ Activities */}
+
           <div>
-            <p className="text-3xl font-bold">100+</p>
+            <p className="text-3xl font-bold">
+              10+
+            </p>
+
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Activities
             </p>
           </div>
 
+          {/* 800+ Students */}
+
           <div>
-            <p className="text-3xl font-bold">500+</p>
+            <p className="text-3xl font-bold">
+              800+
+            </p>
+
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Students
             </p>
           </div>
 
+          {/* 2 Pharmacy Communities */}
+
           <div>
-            <p className="text-3xl font-bold">1</p>
+            <p className="text-3xl font-bold">
+              2
+            </p>
+
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Pharmacy Community
+              Pharmacy Communities
             </p>
           </div>
 
         </div>
+
       </section>
 
       {/* ================= ABOUT ================= */}
+
       <section className="bg-slate-50 py-24 dark:bg-[#050a13]">
+
         <div className="mx-auto grid max-w-7xl gap-14 px-6 lg:grid-cols-2 lg:px-8">
 
           <div>
+
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-600 dark:text-cyan-400">
               About Us
             </p>
@@ -281,9 +308,11 @@ export default function HomePage() {
             <h2 className="mt-4 text-4xl font-bold">
               Empowering the next generation of pharmacists.
             </h2>
+
           </div>
 
           <div>
+
             <p className="text-lg leading-8 text-slate-600 dark:text-slate-300">
               Pharmacia Club DIU is a student-focused platform dedicated to
               academic excellence, research, professional development,
@@ -296,21 +325,28 @@ export default function HomePage() {
             >
               Learn more →
             </Link>
+
           </div>
 
         </div>
+
       </section>
 
       {/* ================= FEATURED EVENTS ================= */}
+
       <section
         id="events"
         className="bg-[#0b1736] py-24 text-white dark:bg-[#050a13]"
       >
+
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
+
+          {/* Heading */}
 
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
 
             <div>
+
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">
                 Highlights
               </p>
@@ -320,9 +356,9 @@ export default function HomePage() {
               </h2>
 
               <p className="mt-4 max-w-2xl text-slate-300">
-                Discover some of the latest and upcoming activities of
-                Pharmacia Club DIU.
+                Discover selected upcoming activities from Pharmacia Club DIU.
               </p>
+
             </div>
 
             <Link
@@ -334,16 +370,20 @@ export default function HomePage() {
 
           </div>
 
-          {/* Event Loading */}
+          {/* Loading */}
+
           {loadingEvents && (
             <div className="mt-12 rounded-2xl border border-white/10 bg-white/5 p-10 text-center">
+
               <p className="text-slate-300">
                 Loading featured events...
               </p>
+
             </div>
           )}
 
           {/* No Upcoming Events */}
+
           {!loadingEvents && highlightedEvents.length === 0 && (
             <div className="mt-12 rounded-2xl border border-white/10 bg-white/5 p-10 text-center">
 
@@ -352,7 +392,7 @@ export default function HomePage() {
               </h3>
 
               <p className="mt-2 text-slate-400">
-                Please visit the Events page for previous activities.
+                Please visit the Events page to explore previous activities.
               </p>
 
               <Link
@@ -365,34 +405,47 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* Featured Event Cards */}
+          {/* Event Cards */}
+
           {!loadingEvents && highlightedEvents.length > 0 && (
+
             <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 
               {highlightedEvents.map((event) => (
+
                 <article
                   key={event.id}
                   className="group overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur transition hover:-translate-y-1 hover:bg-white/10"
                 >
 
                   {/* Image */}
+
                   {event.image_url ? (
+
                     <img
                       src={event.image_url}
                       alt={event.title}
                       className="h-52 w-full object-cover"
                     />
+
                   ) : (
+
                     <div className="flex h-52 w-full items-center justify-center bg-gradient-to-br from-blue-800 to-blue-500 text-white dark:from-[#12383c] dark:to-[#164e63]">
+
                       <span className="text-lg font-semibold">
                         Pharmacia Club DIU
                       </span>
+
                     </div>
+
                   )}
+
+                  {/* Content */}
 
                   <div className="p-6">
 
                     {/* Status */}
+
                     <span
                       className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
                         event.automaticStatus
@@ -402,41 +455,56 @@ export default function HomePage() {
                     </span>
 
                     {/* Title */}
+
                     <h3 className="mt-4 text-2xl font-bold">
                       {event.title}
                     </h3>
 
                     {/* Description */}
+
                     {event.description && (
+
                       <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-300">
                         {event.description}
                       </p>
+
                     )}
 
                     {/* Date */}
+
                     {event.event_date && (
+
                       <p className="mt-5 text-sm font-semibold text-white">
-                        📅 {formatDate(event.event_date)}
+                        Date: {formatDate(event.event_date)}
                       </p>
+
                     )}
 
                     {/* Time */}
+
                     {(event.start_time || event.end_time) && (
+
                       <p className="mt-2 text-sm text-slate-400">
-                        🕐 {formatTime(event.start_time)}
+                        Time: {formatTime(event.start_time)}
+
                         {event.end_time &&
                           ` - ${formatTime(event.end_time)}`}
                       </p>
+
                     )}
 
                     {/* Venue */}
+
                     {event.venue && (
+
                       <p className="mt-2 text-sm text-slate-400">
-                        📍 {event.venue}
+                        Venue: {event.venue}
                       </p>
+
                     )}
 
                     {/* Details */}
+
                     <Link
                       href={`/events/${event.id}`}
                       className="mt-6 inline-block font-semibold text-cyan-300 transition hover:text-cyan-200"
@@ -445,20 +513,27 @@ export default function HomePage() {
                     </Link>
 
                   </div>
+
                 </article>
+
               ))}
 
             </div>
+
           )}
 
         </div>
+
       </section>
 
       {/* ================= AREAS ================= */}
+
       <section className="bg-white py-24 dark:bg-[#07101f]">
+
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
 
           <div className="max-w-3xl">
+
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-600 dark:text-cyan-400">
               What We Do
             </p>
@@ -466,15 +541,18 @@ export default function HomePage() {
             <h2 className="mt-3 text-4xl font-bold">
               Building a stronger pharmacy community.
             </h2>
+
           </div>
 
           <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 
             {areas.map((area) => (
+
               <article
                 key={area.title}
                 className="rounded-2xl border border-slate-200 p-7 transition hover:-translate-y-1 hover:shadow-lg dark:border-white/10 dark:bg-white/5"
               >
+
                 <h3 className="text-xl font-bold">
                   {area.title}
                 </h3>
@@ -482,18 +560,25 @@ export default function HomePage() {
                 <p className="mt-3 leading-7 text-slate-600 dark:text-slate-400">
                   {area.description}
                 </p>
+
               </article>
+
             ))}
 
           </div>
+
         </div>
+
       </section>
 
       {/* ================= RESEARCH ================= */}
+
       <section className="bg-slate-50 py-24 dark:bg-[#050a13]">
+
         <div className="mx-auto grid max-w-7xl gap-12 px-6 lg:grid-cols-2 lg:px-8">
 
           <div>
+
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-600 dark:text-cyan-400">
               Research
             </p>
@@ -506,22 +591,28 @@ export default function HomePage() {
               Encouraging students to develop research skills and explore
               emerging areas of pharmaceutical science.
             </p>
+
           </div>
 
           <div className="flex items-center lg:justify-end">
+
             <Link
               href="/research"
               className="rounded-full bg-[#0b1736] px-7 py-3 font-semibold text-white transition hover:bg-[#122653] dark:bg-cyan-400 dark:text-slate-950 dark:hover:bg-cyan-300"
             >
               Explore Research →
             </Link>
+
           </div>
 
         </div>
+
       </section>
 
       {/* ================= MAGAZINE ================= */}
+
       <section className="bg-white py-24 dark:bg-[#07101f]">
+
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
 
           <div className="rounded-3xl bg-[#0b1736] p-8 text-white sm:p-12">
@@ -554,10 +645,13 @@ export default function HomePage() {
           </div>
 
         </div>
+
       </section>
 
       {/* ================= CTA ================= */}
+
       <section className="bg-[#071633] py-20 text-white">
+
         <div className="mx-auto max-w-5xl px-6 text-center">
 
           <h2 className="text-4xl font-bold">
@@ -588,6 +682,7 @@ export default function HomePage() {
           </div>
 
         </div>
+
       </section>
 
     </main>
