@@ -102,6 +102,8 @@ export default function Navbar() {
                 uppercase tracking-[0.16em]
                 text-slate-500
                 sm:block
+                lg:hidden
+                xl:block
                 dark:text-slate-400
               "
             >
@@ -118,12 +120,11 @@ export default function Navbar() {
             min-w-0
             flex-1
             items-center
-            justify-end
-            gap-3
+            justify-start
+            gap-2
             overflow-x-auto
             no-scrollbar
             lg:flex
-            xl:gap-4
           "
         >
           {links.map((link) => {
@@ -143,10 +144,9 @@ export default function Navbar() {
                   pc-navlink
                   whitespace-nowrap
                   rounded-lg
-                  px-2
+                  px-1.5
                   py-1.5
                   text-sm
-                  xl:px-2.5
                   font-medium
                   text-slate-700
                   no-underline
