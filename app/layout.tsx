@@ -5,6 +5,7 @@ import Navbar from "./components/navbar";
 import PageTransition from "./components/page-transition";
 import FloatingOrbs from "./components/floating-orbs";
 import { ThemeProvider } from "./components/theme-provider";
+import { Analytics } from "@vercel/analytics/react";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -87,6 +88,7 @@ export default function RootLayout({
               </div>
             </div>
           </footer>
+          <Analytics />
         </ThemeProvider>
       </body>
     </html>
