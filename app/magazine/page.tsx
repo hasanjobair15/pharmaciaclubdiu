@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -13,9 +14,6 @@ type MagazineIssue = {
   is_current: boolean;
   is_published: boolean;
 };
-
-const GOOGLE_FORM_URL =
-  "https://docs.google.com/forms/d/e/1FAIpQLScpGkSU4Os6qzwEJ5IVehnOTUFis-nRuutC0zaLzwd2pLJhxg/viewform?usp=sharing&ouid=101072528785080516332";
 
 export default function MagazinePage() {
   const [issues, setIssues] = useState<MagazineIssue[]>([]);
@@ -74,34 +72,31 @@ export default function MagazinePage() {
 
               {/* READ CURRENT ISSUE → opens the magazine reader */}
               {targetIssue ? (
-                <a
+                <Link
                   href={`/magazine/${targetIssue.id}`}
                   className="rounded-full bg-[#0b1736] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#087f8c] dark:bg-[#2dd4bf] dark:text-[#062a2d] dark:hover:bg-[#5eead4]"
                 >
                   Read Current Issue
-                </a>
+                </Link>
               ) : (
-                <a
-                  href="#"
-                  onClick={(e) => e.preventDefault()}
-                  aria-disabled={loading}
+                <button
+                  type="button"
+                  disabled
                   className={`rounded-full bg-[#0b1736] px-6 py-3 text-sm font-bold text-white transition dark:bg-[#2dd4bf] dark:text-[#062a2d] ${
                     loading ? "cursor-wait opacity-70" : "opacity-70"
                   }`}
                 >
                   {loading ? "Loading..." : "Read Current Issue"}
-                </a>
+                </button>
               )}
 
-              {/* SUBMIT YOUR CONTENT - GOOGLE FORM */}
-              <a
-                href={GOOGLE_FORM_URL}
-                target="_blank"
-                rel="noopener noreferrer"
+              {/* SUBMIT YOUR CONTENT */}
+              <Link
+                href="/magazine/submit"
                 className="rounded-full border border-slate-300 px-6 py-3 text-sm font-bold text-[#0b1736] transition hover:border-[#087f8c] hover:text-[#087f8c] dark:border-slate-700 dark:text-slate-200 dark:hover:border-[#2dd4bf] dark:hover:text-[#2dd4bf]"
               >
                 Submit Your Content
-              </a>
+              </Link>
 
             </div>
           </div>
@@ -177,6 +172,34 @@ export default function MagazinePage() {
             </div>
           </div>
 
+        </div>
+      </section>
+
+      {/* SUBMISSION CTA */}
+      <section className="mx-auto max-w-7xl px-6 pb-20 lg:px-8">
+        <div className="overflow-hidden rounded-3xl bg-[#0b1736] p-8 text-white dark:bg-[#111827] sm:p-12">
+          <div className="max-w-3xl">
+            <p className="text-sm font-bold uppercase tracking-[0.18em] text-cyan-300">
+              Share Your Voice
+            </p>
+
+            <h2 className="mt-3 text-3xl font-black sm:text-4xl">
+              Submit Your Content
+            </h2>
+
+            <p className="mt-5 leading-8 text-slate-300">
+              Have a poem, story, article, research idea, reflection,
+              photography or creative work? Submit your contribution for
+              consideration in an upcoming semester magazine.
+            </p>
+
+            <Link
+              href="/magazine/submit"
+              className="mt-8 inline-flex rounded-full bg-white px-7 py-3.5 text-sm font-bold text-[#0b1736] transition hover:bg-cyan-300"
+            >
+              Submit Your Content →
+            </Link>
+          </div>
         </div>
       </section>
 

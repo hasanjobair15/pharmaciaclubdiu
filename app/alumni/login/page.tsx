@@ -47,10 +47,13 @@ export default function AlumniLoginPage() {
       }
 
       if (confirmed || window.location.hash.includes("access_token")) {
+        params.delete("confirmed");
+        const query = params.toString();
+
         window.history.replaceState(
           {},
           document.title,
-          window.location.pathname + window.location.search.replace(/[?&]confirmed=1&?/, "")
+          `${window.location.pathname}${query ? `?${query}` : ""}`
         );
       }
     }

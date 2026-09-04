@@ -88,7 +88,7 @@ export default function CreateAlumniAccountPage() {
     setPhotoPreview(previewUrl);
   }
 
-  async function uploadProfilePhoto(userId: string) {
+  async function prepareProfilePhotoData() {
     if (!selectedPhoto) {
       return null;
     }
@@ -106,34 +106,19 @@ export default function CreateAlumniAccountPage() {
         }
       );
 
-      const filePath = `alumni/${userId}/profile.webp`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("committee-photos")
-        .upload(filePath, compressedFile, {
-          contentType: "image/webp",
-          upsert: true,
-          cacheControl: "3600",
-        });
-
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage
-        .from("committee-photos")
-        .getPublicUrl(filePath);
-
-      return `${publicUrl}?v=${Date.now()}`;
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("Failed to read the selected photo."));
+        reader.readAsDataURL(compressedFile);
+      });
     } catch (error) {
-      console.error("Profile photo upload error:", error);
+      console.error("Profile photo processing error:", error);
 
       throw new Error(
         error instanceof Error
           ? error.message
-          : "Unable to upload profile photo."
+          : "Unable to process profile photo."
       );
     } finally {
       setUploadingPhoto(false);
@@ -211,7 +196,7 @@ export default function CreateAlumniAccountPage() {
 
       if (signUpError) {
         const raw = signUpError.message || "";
-        const code = String((signUpError as any)?.code || "");
+        const code = String((signUpError as { code?: string })?.code || "");
 
         if (raw.includes("already registered")) {
           setErrorMessage(
@@ -272,42 +257,40 @@ export default function CreateAlumniAccountPage() {
       }
 
       /*
-       * Session exists (account already confirmed). Upload the photo and
-       * create the alumni profile row, then continue to the profile page.
+       * Session exists (for projects where email confirmation is disabled).
+       * Save the profile through the server API so RLS/storage policies do
+       * not break account creation in production.
        */
-      let profilePhotoUrl: string | null = null;
+      const photoData = await prepareProfilePhotoData();
 
-      if (selectedPhoto) {
-        profilePhotoUrl = await uploadProfilePhoto(user.id);
-      }
-
-      const { error: profileError } = await supabase
-        .from("alumni_profiles")
-        .insert({
-          id: user.id,
+      const profileResponse = await fetch("/api/alumni/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
           full_name: fullName.trim(),
-          email: email.trim(),
           batch,
           section,
-          graduation_year: graduationYear
-            ? Number(graduationYear)
-            : null,
-          profile_photo_url: profilePhotoUrl,
-          current_position:
-            currentPosition.trim() || null,
-          organization: organization.trim() || null,
-          bio: bio.trim() || null,
-          linkedin_url:
-            linkedinUrl.trim() || null,
-          facebook_url:
-            facebookUrl.trim() || null,
-          instagram_url:
-            instagramUrl.trim() || null,
+          graduation_year: graduationYear,
+          current_position: currentPosition,
+          organization,
+          bio,
+          linkedin_url: linkedinUrl,
+          facebook_url: facebookUrl,
+          instagram_url: instagramUrl,
           is_public: isPublic,
-        });
+          photoData: photoData || undefined,
+        }),
+      });
 
-      if (profileError) {
-        throw profileError;
+      const profileResult = await profileResponse.json();
+
+      if (!profileResponse.ok) {
+        throw new Error(
+          profileResult.error || "Account created, but profile creation failed."
+        );
       }
 
       setMessage(

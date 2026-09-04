@@ -105,7 +105,7 @@ async function uploadPhoto(userId: string, dataUrl: string) {
   return `${publicUrl}?v=${Date.now()}`;
 }
 
-async function removePhoto(userId: string) {
+async function removeStoredPhoto(userId: string) {
   const { error: removeError } = await supabaseAdmin.storage
     .from("committee-photos")
     .remove([photoPath(userId)]);
@@ -381,7 +381,7 @@ export async function PATCH(request: NextRequest) {
         );
       }
     } else if (removePhoto) {
-      await removePhoto(id);
+      await removeStoredPhoto(id);
       profilePhotoUrl = null;
     }
 
@@ -495,7 +495,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     /* 1. Remove the profile photo (best effort — no data loss on failure) */
-    await removePhoto(id);
+    await removeStoredPhoto(id);
 
     /* 2. Remove the alumni_profiles row explicitly (no orphaned records) */
     const { error: profileDeleteError } = await supabaseAdmin

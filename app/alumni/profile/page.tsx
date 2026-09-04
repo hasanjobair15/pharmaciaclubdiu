@@ -72,86 +72,118 @@ export default function AlumniProfilePage() {
   const [needsProfile, setNeedsProfile] = useState(false);
   const [userEmail, setUserEmail] = useState("");
 
+  async function getAccessToken() {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      router.replace("/alumni/login");
+      return null;
+    }
+
+    return session.access_token;
+  }
+
+  function fillFormFromProfile(alumni: AlumniProfile) {
+    setProfile(alumni);
+    setNeedsProfile(false);
+
+    setFullName(alumni.full_name || "");
+    setBatch(alumni.batch || "");
+    setSection(alumni.section || "");
+    setGraduationYear(
+      alumni.graduation_year ? String(alumni.graduation_year) : ""
+    );
+    setCurrentPosition(alumni.current_position || "");
+    setOrganization(alumni.organization || "");
+    setBio(alumni.bio || "");
+    setLinkedinUrl(alumni.linkedin_url || "");
+    setFacebookUrl(alumni.facebook_url || "");
+    setInstagramUrl(alumni.instagram_url || "");
+    setIsPublic(alumni.is_public ?? true);
+
+    setPhotoUrl(alumni.profile_photo_url || "");
+    setPhotoPreview(alumni.profile_photo_url || "");
+  }
+
+  function fillNewProfileForm(metadata: Record<string, unknown>) {
+    try {
+      const draft = JSON.parse(
+        localStorage.getItem("pharmacia_alumni_draft") || "{}"
+      );
+
+      setFullName(
+        draft.full_name ||
+          (typeof metadata.full_name === "string" ? metadata.full_name : "")
+      );
+      setBatch(
+        draft.batch ||
+          (typeof metadata.batch === "string" ? metadata.batch : "")
+      );
+      setSection(
+        draft.section ||
+          (typeof metadata.section === "string" ? metadata.section : "")
+      );
+      setGraduationYear(draft.graduation_year || "");
+      setCurrentPosition(draft.current_position || "");
+      setOrganization(draft.organization || "");
+      setBio(draft.bio || "");
+      setLinkedinUrl(draft.linkedin_url || "");
+      setFacebookUrl(draft.facebook_url || "");
+      setInstagramUrl(draft.instagram_url || "");
+      setIsPublic(draft.is_public ?? true);
+    } catch {
+      setFullName(typeof metadata.full_name === "string" ? metadata.full_name : "");
+      setBatch(typeof metadata.batch === "string" ? metadata.batch : "");
+      setSection(typeof metadata.section === "string" ? metadata.section : "");
+    }
+  }
+
   useEffect(() => {
     async function loadProfile() {
       setLoading(true);
       setErrorMessage("");
 
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const token = await getAccessToken();
 
-        if (!user) {
-          router.replace("/alumni/login");
+        if (!token) {
           return;
         }
 
-        setUserId(user.id);
+        const response = await fetch("/api/alumni/profile", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-        const { data, error } = await supabase
-          .from("alumni_profiles")
-          .select("*")
-          .eq("id", user.id)
-          .single();
+        const result = await response.json();
 
-        if (error) {
-          if (error.code === "PGRST116") {
-            /* Auth user exists but the profile row does not (email
-               confirmation flow). Complete the profile here instead of
-               sending the member in circles. */
-            setUserEmail(user.email || "");
-            setNeedsProfile(true);
-
-            try {
-              const draft = JSON.parse(
-                localStorage.getItem("pharmacia_alumni_draft") || "{}"
-              );
-
-              setFullName(draft.full_name || user.user_metadata?.full_name || "");
-              setBatch(draft.batch || user.user_metadata?.batch || "");
-              setSection(draft.section || user.user_metadata?.section || "");
-              setGraduationYear(draft.graduation_year || "");
-              setCurrentPosition(draft.current_position || "");
-              setOrganization(draft.organization || "");
-              setBio(draft.bio || "");
-              setLinkedinUrl(draft.linkedin_url || "");
-              setFacebookUrl(draft.facebook_url || "");
-              setInstagramUrl(draft.instagram_url || "");
-              setIsPublic(draft.is_public ?? true);
-            } catch {
-              /* no draft — start with an empty form */
-            }
-
-            setLoading(false);
-            return;
-          }
-
-          throw error;
+        if (!response.ok) {
+          throw new Error(result.error || "Unable to load your alumni profile.");
         }
 
-        const alumni = data as AlumniProfile;
+        const authUser = result.user as {
+          id: string;
+          email: string | null;
+          metadata?: Record<string, unknown>;
+        };
 
-        setProfile(alumni);
+        setUserId(authUser.id);
+        setUserEmail(authUser.email || "");
 
-        setFullName(alumni.full_name || "");
-        setBatch(alumni.batch || "");
-        setSection(alumni.section || "");
-        setGraduationYear(
-          alumni.graduation_year
-            ? String(alumni.graduation_year)
-            : ""
-        );
-        setCurrentPosition(alumni.current_position || "");
-        setOrganization(alumni.organization || "");
-        setBio(alumni.bio || "");
-        setLinkedinUrl(alumni.linkedin_url || "");
-        setFacebookUrl(alumni.facebook_url || "");
-        setInstagramUrl(alumni.instagram_url || "");
-        setIsPublic(alumni.is_public ?? true);
+        if (!result.profile) {
+          /* Auth user exists but the profile row does not yet (normal after
+             email confirmation). Complete the row here through the server API
+             so Row Level Security / Storage policies cannot block the user. */
+          setProfile(null);
+          setNeedsProfile(true);
+          fillNewProfileForm(authUser.metadata || {});
+          return;
+        }
 
-        setPhotoUrl(alumni.profile_photo_url || "");
-        setPhotoPreview(alumni.profile_photo_url || "");
+        fillFormFromProfile(result.profile as AlumniProfile);
       } catch (error) {
         console.error("Load alumni profile error:", error);
 
@@ -166,6 +198,7 @@ export default function AlumniProfilePage() {
     }
 
     loadProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, supabase]);
 
   function handlePhotoSelect(event: ChangeEvent<HTMLInputElement>) {
@@ -192,9 +225,9 @@ export default function AlumniProfilePage() {
     setPhotoPreview(previewUrl);
   }
 
-  async function uploadPhoto(): Promise<string | null> {
-    if (!selectedPhoto || !userId) {
-      return photoUrl || null;
+  async function prepareSelectedPhotoData() {
+    if (!selectedPhoto) {
+      return null;
     }
 
     setUploadingPhoto(true);
@@ -207,34 +240,19 @@ export default function AlumniProfilePage() {
         fileType: "image/webp",
       });
 
-      const filePath = `alumni/${userId}/profile.webp`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("committee-photos")
-        .upload(filePath, compressedFile, {
-          contentType: "image/webp",
-          upsert: true,
-          cacheControl: "3600",
-        });
-
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage
-        .from("committee-photos")
-        .getPublicUrl(filePath);
-
-      return `${publicUrl}?v=${Date.now()}`;
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("Failed to read the selected photo."));
+        reader.readAsDataURL(compressedFile);
+      });
     } catch (error) {
-      console.error("Photo upload error:", error);
+      console.error("Photo processing error:", error);
 
       throw new Error(
         error instanceof Error
           ? error.message
-          : "Unable to upload profile photo."
+          : "Unable to process profile photo."
       );
     } finally {
       setUploadingPhoto(false);
@@ -249,38 +267,42 @@ export default function AlumniProfilePage() {
     setErrorMessage("");
 
     try {
-      const filePath = `alumni/${userId}/profile.webp`;
+      const token = await getAccessToken();
 
-      const { error: removeError } = await supabase.storage
-        .from("committee-photos")
-        .remove([filePath]);
-
-      if (removeError) {
-        console.warn("Photo removal warning:", removeError);
+      if (!token) {
+        return;
       }
 
-      const { error: updateError } = await supabase
-        .from("alumni_profiles")
-        .update({
-          profile_photo_url: null,
-        })
-        .eq("id", userId);
+      const response = await fetch("/api/alumni/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          full_name: fullName,
+          batch,
+          section,
+          graduation_year: graduationYear,
+          current_position: currentPosition,
+          organization,
+          bio,
+          linkedin_url: linkedinUrl,
+          facebook_url: facebookUrl,
+          instagram_url: instagramUrl,
+          is_public: isPublic,
+          removePhoto: true,
+        }),
+      });
 
-      if (updateError) {
-        throw updateError;
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Unable to remove profile photo.");
       }
 
-      setPhotoUrl("");
-      setPhotoPreview("");
+      fillFormFromProfile(result.profile as AlumniProfile);
       setSelectedPhoto(null);
-
-      if (profile) {
-        setProfile({
-          ...profile,
-          profile_photo_url: null,
-        });
-      }
-
       setMessage("Profile photo removed successfully.");
     } catch (error) {
       console.error("Remove photo error:", error);
@@ -321,62 +343,42 @@ export default function AlumniProfilePage() {
     }
 
     try {
-      let finalPhotoUrl = photoUrl || null;
+      const token = await getAccessToken();
 
-      if (selectedPhoto) {
-        finalPhotoUrl = await uploadPhoto();
+      if (!token) {
+        return;
       }
 
-      const profileFields = {
-        full_name: fullName.trim(),
-        batch,
-        section,
-        graduation_year: graduationYear
-          ? Number(graduationYear)
-          : null,
-        profile_photo_url: finalPhotoUrl,
-        current_position: currentPosition.trim() || null,
-        organization: organization.trim() || null,
-        bio: bio.trim() || null,
-        linkedin_url: linkedinUrl.trim() || null,
-        facebook_url: facebookUrl.trim() || null,
-        instagram_url: instagramUrl.trim() || null,
-        is_public: isPublic,
-      };
+      const wasCreatingProfile = needsProfile;
+      const photoData = await prepareSelectedPhotoData();
 
-      let request;
+      const response = await fetch("/api/alumni/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          full_name: fullName.trim(),
+          batch,
+          section,
+          graduation_year: graduationYear,
+          current_position: currentPosition,
+          organization,
+          bio,
+          linkedin_url: linkedinUrl,
+          facebook_url: facebookUrl,
+          instagram_url: instagramUrl,
+          is_public: isPublic,
+          photoData: photoData || undefined,
+        }),
+      });
 
-      if (needsProfile) {
-        request = supabase
-          .from("alumni_profiles")
-          .insert({
-            id: userId,
-            email: userEmail || (profile?.email as string | null) || null,
-            ...profileFields,
-          })
-          .select()
-          .single();
-      } else {
-        request = supabase
-          .from("alumni_profiles")
-          .update(profileFields)
-          .eq("id", userId)
-          .select()
-          .single();
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Unable to save your alumni profile.");
       }
-
-      const { data, error } = await request;
-
-      if (error) {
-        if (error.code === "42501" || /row-level security/i.test(error.message || "")) {
-          throw new Error(
-            "Your profile could not be saved by the server permissions. Please contact the club admin for help."
-          );
-        }
-        throw error;
-      }
-
-      setNeedsProfile(false);
 
       try {
         localStorage.removeItem("pharmacia_alumni_draft");
@@ -384,12 +386,11 @@ export default function AlumniProfilePage() {
         /* ignore */
       }
 
-      setProfile(data as AlumniProfile);
-      setPhotoUrl(finalPhotoUrl || "");
+      fillFormFromProfile(result.profile as AlumniProfile);
       setSelectedPhoto(null);
 
       setMessage(
-        needsProfile
+        wasCreatingProfile
           ? "Your alumni profile has been created successfully."
           : "Your alumni profile has been updated successfully."
       );
