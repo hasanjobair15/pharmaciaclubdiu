@@ -43,10 +43,26 @@ export default async function HomePage() {
     .select("*")
     .order("event_date", { ascending: true });
 
-  // Only show a few highlighted events on Home
-  // The full list remains available on /events
+  // Only show a few highlighted events on Home — date-aware, so past
+  // events never appear as "Upcoming". The full list is on /events.
+  const now = Date.now();
+
   const highlightedEvents = (allEvents || [])
-    .filter((event) => event.status === "Upcoming")
+    .filter((event) => {
+      if (event.status === "Cancelled") return false;
+
+      if (!event.event_date) return event.status !== "Completed";
+
+      const start = new Date(
+        `${event.event_date}T${event.start_time || "00:00"}`
+      ).getTime();
+      const end = new Date(
+        `${event.event_date}T${event.end_time || "23:59"}`
+      ).getTime();
+
+      /* upcoming (not started yet) or ongoing right now */
+      return start > now || (now >= start && now <= end);
+    })
     .slice(0, 3);
 
   const areas = [

@@ -133,21 +133,38 @@ export default function HomePage() {
     loadEvents();
   }, [supabase]);
 
-  /* ================= HOME EVENT HIGHLIGHTS ================= */
+  /* ================= EVENT LISTS ================= */
 
-  const highlightedEvents = useMemo(() => {
-    return events
-      .map((event) => ({
+  const withStatus = useMemo(
+    () =>
+      events.map((event) => ({
         ...event,
         automaticStatus: getAutomaticStatus(event),
-      }))
-      .filter(
+      })),
+    [events]
+  );
+
+  /* ALL upcoming / ongoing events — no limit */
+  const upcomingEvents = useMemo(
+    () =>
+      withStatus.filter(
         (event) =>
           event.automaticStatus === "Upcoming" ||
           event.automaticStatus === "Ongoing"
-      )
-      .slice(0, 3);
-  }, [events]);
+      ),
+    [withStatus]
+  );
+
+  /* Past events (completed or cancelled) below the main list */
+  const pastEvents = useMemo(
+    () =>
+      withStatus.filter(
+        (event) =>
+          event.automaticStatus === "Completed" ||
+          event.automaticStatus === "Cancelled"
+      ),
+    [withStatus]
+  );
 
   /* ================= AREAS ================= */
 
@@ -271,25 +288,25 @@ export default function HomePage() {
             <div>
 
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">
-                Highlights
+                Events
               </p>
 
               <h2 className="mt-3 text-4xl font-bold">
-                Featured Events
+                Upcoming Events
               </h2>
 
               <p className="mt-4 max-w-2xl text-slate-300">
-                Discover selected upcoming activities from Pharmacia Club DIU.
+                Every upcoming activity from Pharmacia Club DIU — bookmarked,
+                seminars, competitions and more.
               </p>
 
             </div>
 
-            <Link
-              href="/events"
-              className="font-semibold text-cyan-300 hover:text-cyan-200"
-            >
-              View all events →
-            </Link>
+            {!loadingEvents && (
+              <span className="w-fit rounded-full border border-cyan-300/40 bg-cyan-300/10 px-4 py-2 text-sm font-bold text-cyan-200">
+                {upcomingEvents.length} upcoming
+              </span>
+            )}
 
           </div>
 
@@ -303,118 +320,27 @@ export default function HomePage() {
             </div>
           )}
 
-          {!loadingEvents && highlightedEvents.length === 0 && (
+          {!loadingEvents && upcomingEvents.length === 0 && (
             <div className="mt-12 rounded-2xl border border-white/10 bg-white/5 p-10 text-center">
 
               <h3 className="text-xl font-semibold">
-                No upcoming events
+                No upcoming events right now
               </h3>
 
               <p className="mt-2 text-slate-400">
-                Please visit the Events page to explore previous activities.
+                New activities will appear here as soon as they are announced
+                by the club.
               </p>
-
-              <Link
-                href="/events"
-                className="mt-5 inline-block font-semibold text-cyan-300"
-              >
-                View Events →
-              </Link>
 
             </div>
           )}
 
-          {!loadingEvents && highlightedEvents.length > 0 && (
+          {!loadingEvents && upcomingEvents.length > 0 && (
 
             <div className="pc-stagger mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 
-              {highlightedEvents.map((event) => (
-
-                <article
-                  key={event.id}
-                  className="group overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur transition hover:-translate-y-1 hover:bg-white/10"
-                >
-
-                  {event.image_url ? (
-
-                    <img
-                      src={event.image_url}
-                      alt={event.title}
-                      className="h-52 w-full object-cover"
-                    />
-
-                  ) : (
-
-                    <div className="flex h-52 w-full items-center justify-center bg-gradient-to-br from-blue-800 to-blue-500 text-white dark:from-[#12383c] dark:to-[#164e63]">
-
-                      <span className="text-lg font-semibold">
-                        Pharmacia Club DIU
-                      </span>
-
-                    </div>
-
-                  )}
-
-                  <div className="p-6">
-
-                    <span
-                      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
-                        event.automaticStatus
-                      )}`}
-                    >
-                      {event.automaticStatus}
-                    </span>
-
-                    <h3 className="mt-4 text-2xl font-bold">
-                      {event.title}
-                    </h3>
-
-                    {event.description && (
-
-                      <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-300">
-                        {event.description}
-                      </p>
-
-                    )}
-
-                    {event.event_date && (
-
-                      <p className="mt-5 text-sm font-semibold text-white">
-                        Date: {formatDate(event.event_date)}
-                      </p>
-
-                    )}
-
-                    {(event.start_time || event.end_time) && (
-
-                      <p className="mt-2 text-sm text-slate-400">
-                        Time: {formatTime(event.start_time)}
-
-                        {event.end_time &&
-                          ` - ${formatTime(event.end_time)}`}
-                      </p>
-
-                    )}
-
-                    {event.venue && (
-
-                      <p className="mt-2 text-sm text-slate-400">
-                        Venue: {event.venue}
-                      </p>
-
-                    )}
-
-                    <Link
-                      href={`/events/${event.id}`}
-                      className="mt-6 inline-block font-semibold text-cyan-300 transition hover:text-cyan-200"
-                    >
-                      View details →
-                    </Link>
-
-                  </div>
-
-                </article>
-
+              {upcomingEvents.map((event) => (
+                <EventCard key={event.id} event={event} />
               ))}
 
             </div>
@@ -424,6 +350,40 @@ export default function HomePage() {
         </div>
 
       </section>
+
+      {/* ================= PAST EVENTS ================= */}
+
+      {pastEvents.length > 0 && (
+        <section className="bg-slate-50 py-20 dark:bg-[#050a13]">
+          <div className="mx-auto max-w-7xl px-6 lg:px-8">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                  Archive
+                </p>
+
+                <h2 className="mt-3 text-3xl font-bold text-[#0b1736] dark:text-white">
+                  Past Events
+                </h2>
+
+                <p className="mt-3 text-slate-500 dark:text-slate-400">
+                  Completed and cancelled activities from the club.
+                </p>
+              </div>
+
+              <span className="w-fit rounded-full border border-slate-300 px-4 py-2 text-sm font-bold text-slate-600 dark:border-slate-700 dark:text-slate-300">
+                {pastEvents.length} past
+              </span>
+            </div>
+
+            <div className="pc-stagger mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {pastEvents.map((event) => (
+                <EventCard key={event.id} event={event} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ================= AREAS ================= */}
 
@@ -585,5 +545,112 @@ export default function HomePage() {
       </section>
 
     </main>
+  );
+}
+/* ============================================================
+   Reusable event card (upcoming + past sections)
+============================================================ */
+
+type EventWithStatus = EventItem & { automaticStatus: EventStatus };
+
+function EventCard({ event }: { event: EventWithStatus }) {
+  const COMPLETED_TONE = event.automaticStatus === "Completed";
+
+  const cardClass = COMPLETED_TONE
+    ? "group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg dark:border-slate-800 dark:bg-[#0d1422]"
+    : "group overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur transition hover:-translate-y-1 hover:bg-white/10";
+
+  return (
+    <article className={cardClass}>
+      {event.image_url ? (
+        <img
+          src={event.image_url}
+          alt={event.title}
+          className="h-52 w-full object-cover"
+        />
+      ) : (
+        <div className="flex h-52 w-full items-center justify-center bg-gradient-to-br from-blue-800 to-blue-500 text-white dark:from-[#0e2a2e] dark:to-[#164e63]">
+          <span className="text-lg font-semibold">Pharmacia Club DIU</span>
+        </div>
+      )}
+
+      <div className="p-6">
+        <span
+          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
+            event.automaticStatus
+          )}`}
+        >
+          {event.automaticStatus}
+        </span>
+
+        <h3
+          className={`mt-4 text-2xl font-bold ${
+            COMPLETED_TONE
+              ? "text-[#0b1736] dark:text-white"
+              : "text-white"
+          }`}
+        >
+          {event.title}
+        </h3>
+
+        {event.description && (
+          <p
+            className={`mt-3 line-clamp-3 text-sm leading-6 ${
+              COMPLETED_TONE
+                ? "text-slate-600 dark:text-slate-400"
+                : "text-slate-300"
+            }`}
+          >
+            {event.description}
+          </p>
+        )}
+
+        {event.event_date && (
+          <p
+            className={`mt-5 text-sm font-semibold ${
+              COMPLETED_TONE ? "text-[#0b1736] dark:text-white" : "text-white"
+            }`}
+          >
+            Date: {formatDate(event.event_date)}
+          </p>
+        )}
+
+        {(event.start_time || event.end_time) && (
+          <p
+            className={`mt-2 text-sm ${
+              COMPLETED_TONE
+                ? "text-slate-500 dark:text-slate-400"
+                : "text-slate-400"
+            }`}
+          >
+            Time: {formatTime(event.start_time)}
+            {event.end_time && ` - ${formatTime(event.end_time)}`}
+          </p>
+        )}
+
+        {event.venue && (
+          <p
+            className={`mt-2 text-sm ${
+              COMPLETED_TONE
+                ? "text-slate-500 dark:text-slate-400"
+                : "text-slate-400"
+            }`}
+          >
+            Venue: {event.venue}
+          </p>
+        )}
+
+        <Link
+          href={`/events/${event.id}`}
+          className={`mt-6 inline-block font-semibold transition hover:text-cyan-200 ${
+            COMPLETED_TONE
+              ? "text-[#087f8c] dark:text-[#2dd4bf] hover:text-cyan-600 dark:hover:text-cyan-300"
+              : "text-cyan-300"
+          }`}
+        >
+          View details →
+        </Link>
+      </div>
+    </article>
   );
 }
