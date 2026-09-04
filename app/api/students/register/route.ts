@@ -1,7 +1,6 @@
-
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { getCurrentRunningBatches } from "@/app/lib/students/current-batches";
+import { getCurrentRunningBatches } from "@/lib/students/current-batches";
 
 export const runtime = "nodejs";
 
@@ -14,7 +13,13 @@ if (!supabaseUrl || !serviceRoleKey) {
 
 const supabaseAdmin = createClient(
   supabaseUrl,
-  serviceRoleKey
+  serviceRoleKey,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
 );
 
 export async function POST(request: Request) {
@@ -35,11 +40,17 @@ export async function POST(request: Request) {
       profile_photo_url,
     } = body;
 
-    // -----------------------------
+    // ----------------------------------------
     // Required field validation
-    // -----------------------------
+    // ----------------------------------------
 
-    if (!full_name || !email || !password || !batch || !section) {
+    if (
+      !full_name ||
+      !email ||
+      !password ||
+      !batch ||
+      !section
+    ) {
       return NextResponse.json(
         {
           error:
@@ -51,31 +62,57 @@ export async function POST(request: Request) {
 
     const cleanName = String(full_name).trim();
     const cleanEmail = String(email).trim().toLowerCase();
-    const cleanSection = String(section).trim().toUpperCase();
+    const cleanSection = String(section)
+      .trim()
+      .toUpperCase();
+
     const numericBatch = Number(batch);
+
+    // ----------------------------------------
+    // Name validation
+    // ----------------------------------------
 
     if (cleanName.length < 2) {
       return NextResponse.json(
-        { error: "Please enter a valid full name." },
-        { status: 400 }
-      );
-    }
-
-    if (password.length < 6) {
-      return NextResponse.json(
         {
-          error: "Password must be at least 6 characters.",
+          error: "Please enter a valid full name.",
         },
         { status: 400 }
       );
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    // ----------------------------------------
+    // Email validation
+    // ----------------------------------------
+
+    if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)
+    ) {
       return NextResponse.json(
-        { error: "Please enter a valid email address." },
+        {
+          error: "Please enter a valid email address.",
+        },
         { status: 400 }
       );
     }
+
+    // ----------------------------------------
+    // Password validation
+    // ----------------------------------------
+
+    if (password.length < 6) {
+      return NextResponse.json(
+        {
+          error:
+            "Password must be at least 6 characters.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // ----------------------------------------
+    // Section validation
+    // ----------------------------------------
 
     if (!["A", "B"].includes(cleanSection)) {
       return NextResponse.json(
@@ -86,9 +123,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // -----------------------------
-    // Current batch validation
-    // -----------------------------
+    // ----------------------------------------
+    // Batch validation
+    //
+    // Current batches are calculated automatically.
+    // July–December 2026:
+    // 29–36
+    //
+    // January–June 2027:
+    // 30–37
+    // ----------------------------------------
 
     const currentBatches = getCurrentRunningBatches();
 
@@ -102,105 +146,130 @@ export async function POST(request: Request) {
       );
     }
 
-    // -----------------------------
+    // ----------------------------------------
     // Create Supabase Auth account
-    // -----------------------------
     //
-    // email_confirm: true means:
-    // Student does NOT need to verify email.
+    // email_confirm: true
+    // means students do NOT need email verification.
     //
-    // This does NOT change Alumni verification.
-    //
+    // This only applies to this Student
+    // registration API.
+    // ----------------------------------------
 
     const {
       data: authData,
       error: authError,
-    } = await supabaseAdmin.auth.admin.createUser({
-      email: cleanEmail,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        full_name: cleanName,
-        batch: numericBatch,
-        section: cleanSection,
-      },
-    });
+    } =
+      await supabaseAdmin.auth.admin.createUser({
+        email: cleanEmail,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          full_name: cleanName,
+          batch: numericBatch,
+          section: cleanSection,
+        },
+      });
+
+    // ----------------------------------------
+    // Auth account creation error
+    // ----------------------------------------
 
     if (authError || !authData.user) {
       const message =
         authError?.message ||
         "Unable to create student account.";
 
+      const lowerMessage = message.toLowerCase();
+
       if (
-        message.toLowerCase().includes("already") ||
-        message.toLowerCase().includes("exists")
+        lowerMessage.includes("already") ||
+        lowerMessage.includes("exists") ||
+        lowerMessage.includes("registered")
       ) {
         return NextResponse.json(
           {
             error:
-              "An account with this email already exists.",
+              "An account with this email already exists. Please log in instead.",
           },
           { status: 409 }
         );
       }
 
       return NextResponse.json(
-        { error: message },
+        {
+          error: message,
+        },
         { status: 400 }
       );
     }
 
     const userId = authData.user.id;
 
-    // -----------------------------
-    // Create student profile
-    // -----------------------------
+    // ----------------------------------------
+    // Create Student Profile
+    // ----------------------------------------
 
     const { error: profileError } =
       await supabaseAdmin
         .from("student_profiles")
         .insert({
           id: userId,
+
           full_name: cleanName,
+
           email: cleanEmail,
+
           batch: numericBatch,
+
           section: cleanSection,
+
           student_id: student_id
             ? String(student_id).trim()
             : null,
+
           blood_group: blood_group
             ? String(blood_group).trim()
             : null,
+
           profile_photo_url:
             profile_photo_url || null,
-          linkedin_url:
-            linkedin_url
-              ? String(linkedin_url).trim()
-              : null,
-          instagram_url:
-            instagram_url
-              ? String(instagram_url).trim()
-              : null,
-          facebook_url:
-            facebook_url
-              ? String(facebook_url).trim()
-              : null,
+
+          linkedin_url: linkedin_url
+            ? String(linkedin_url).trim()
+            : null,
+
+          instagram_url: instagram_url
+            ? String(instagram_url).trim()
+            : null,
+
+          facebook_url: facebook_url
+            ? String(facebook_url).trim()
+            : null,
         });
 
-    // -----------------------------
-    // Roll back Auth user if
-    // profile creation failed
-    // -----------------------------
+    // ----------------------------------------
+    // If profile creation fails,
+    // delete the Auth account as rollback.
+    // ----------------------------------------
 
     if (profileError) {
+      console.error(
+        "Student profile creation error:",
+        profileError
+      );
+
       await supabaseAdmin.auth.admin.deleteUser(
         userId
       );
 
+      const profileMessage =
+        profileError.message.toLowerCase();
+
+      // Student ID duplicate
       if (
-        profileError.message
-          .toLowerCase()
-          .includes("student_id")
+        profileMessage.includes("student_id") ||
+        profileMessage.includes("duplicate")
       ) {
         return NextResponse.json(
           {
@@ -219,6 +288,10 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+
+    // ----------------------------------------
+    // Success
+    // ----------------------------------------
 
     return NextResponse.json(
       {
