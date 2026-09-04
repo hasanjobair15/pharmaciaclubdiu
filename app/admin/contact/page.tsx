@@ -13,43 +13,106 @@ type ContactMessage = {
   created_at: string;
 };
 
-type SocialLink = {
+type ContactItem = {
   id: number;
-  platform: string;
-  url: string;
+  section: string;
+  label: string;
+  value: string;
+  icon: string;
+  sort_order: number;
   created_at: string;
 };
 
-const CONTACT_PLATFORMS = [
-  "Official Email",
-  "Facebook Page",
-  "LinkedIn",
-  "Instagram",
-  "Department Facebook Page",
-  "Department Facebook Group",
-  "Department Website",
-  "Department Email",
+const DEFAULT_ITEMS = [
+  {
+    section: "About Us",
+    label: "Department",
+    value: "Department of Pharmacy, Daffodil International University",
+    icon: "🏫",
+  },
+  {
+    section: "About Us",
+    label: "Club",
+    value: "Pharmacia Club DIU",
+    icon: "💊",
+  },
+  {
+    section: "About Us",
+    label: "Batch",
+    value: "30th Batch",
+    icon: "🎓",
+  },
+  {
+    section: "Official",
+    label: "Official Email",
+    value: "diupc@diu.edu.bd",
+    icon: "📧",
+  },
+  {
+    section: "Official",
+    label: "Facebook Page",
+    value: "https://www.facebook.com/PharmaciaClubDIU",
+    icon: "📘",
+  },
+  {
+    section: "Official",
+    label: "LinkedIn",
+    value: "",
+    icon: "💼",
+  },
+  {
+    section: "Official",
+    label: "Instagram",
+    value: "",
+    icon: "📸",
+  },
+  {
+    section: "Department",
+    label: "Facebook Page",
+    value: "",
+    icon: "📘",
+  },
+  {
+    section: "Department",
+    label: "Facebook Group",
+    value: "",
+    icon: "👥",
+  },
+  {
+    section: "Department",
+    label: "Department Website",
+    value: "",
+    icon: "🌐",
+  },
+  {
+    section: "Department",
+    label: "Department Email",
+    value: "",
+    icon: "📧",
+  },
 ];
 
 export default function AdminContactPage() {
   const supabase = createClient();
 
   const [messages, setMessages] = useState<ContactMessage[]>([]);
-  const [socialLinks, setSocialLinks] = useState<SocialLink[]>([]);
+  const [items, setItems] = useState<ContactItem[]>([]);
 
   const [loading, setLoading] = useState(true);
-  const [socialLoading, setSocialLoading] = useState(true);
+  const [itemsLoading, setItemsLoading] = useState(true);
 
   const [error, setError] = useState("");
-  const [socialError, setSocialError] = useState("");
+  const [itemsError, setItemsError] = useState("");
 
-  const [showSocialForm, setShowSocialForm] = useState(false);
-  const [editingSocialId, setEditingSocialId] = useState<number | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
-  const [platform, setPlatform] = useState("");
-  const [url, setUrl] = useState("");
+  const [section, setSection] = useState("Official");
+  const [label, setLabel] = useState("");
+  const [value, setValue] = useState("");
+  const [icon, setIcon] = useState("🔗");
 
-  const [savingSocial, setSavingSocial] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   // ============================================================
   // LOAD CONTACT MESSAGES
@@ -75,70 +138,125 @@ export default function AdminContactPage() {
   }
 
   // ============================================================
-  // LOAD SOCIAL LINKS
+  // LOAD CONTACT ITEMS
   // ============================================================
 
-  async function loadSocialLinks() {
-    setSocialLoading(true);
-    setSocialError("");
+  async function loadItems() {
+    setItemsLoading(true);
+    setItemsError("");
 
     const { data, error } = await supabase
-      .from("social_links")
+      .from("contact_items")
       .select("*")
+      .order("sort_order", { ascending: true })
       .order("id", { ascending: true });
 
     if (error) {
-      setSocialError(error.message);
-      setSocialLinks([]);
+      setItemsError(error.message);
+      setItems([]);
     } else {
-      setSocialLinks(data || []);
+      setItems(data || []);
     }
 
-    setSocialLoading(false);
+    setItemsLoading(false);
   }
 
   useEffect(() => {
     loadMessages();
-    loadSocialLinks();
+    loadItems();
   }, []);
+
+  // ============================================================
+  // CREATE DEFAULT CONTACT ITEMS
+  // ============================================================
+
+  async function createDefaultItems() {
+    const confirmed = window.confirm(
+      "Create the existing Contact page information in the admin panel?"
+    );
+
+    if (!confirmed) return;
+
+    const records = DEFAULT_ITEMS.map((item, index) => ({
+      ...item,
+      sort_order: index + 1,
+    }));
+
+    const { error } = await supabase
+      .from("contact_items")
+      .insert(records);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    alert(
+      "All existing Contact page items have been added to the admin panel."
+    );
+
+    await loadItems();
+  }
 
   // ============================================================
   // RESET FORM
   // ============================================================
 
-  function resetSocialForm() {
-    setPlatform("");
-    setUrl("");
-    setEditingSocialId(null);
-    setShowSocialForm(false);
+  function resetForm() {
+    setEditingId(null);
+    setSection("Official");
+    setLabel("");
+    setValue("");
+    setIcon("🔗");
+    setShowForm(false);
   }
 
   // ============================================================
-  // ADD / UPDATE SOCIAL LINK
+  // EDIT ITEM
   // ============================================================
 
-  async function saveSocialLink() {
-    if (!platform.trim()) {
-      alert("Please select or enter a platform.");
+  function editItem(item: ContactItem) {
+    setEditingId(item.id);
+    setSection(item.section);
+    setLabel(item.label);
+    setValue(item.value);
+    setIcon(item.icon || "🔗");
+    setShowForm(true);
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }
+
+  // ============================================================
+  // ADD / UPDATE ITEM
+  // ============================================================
+
+  async function saveItem() {
+    if (!section.trim()) {
+      alert("Please select a section.");
       return;
     }
 
-    if (!url.trim()) {
-      alert("Please enter the value or URL.");
+    if (!label.trim()) {
+      alert("Please enter a label.");
       return;
     }
 
-    setSavingSocial(true);
+    setSaving(true);
 
     try {
-      if (editingSocialId !== null) {
+      if (editingId !== null) {
         const { error } = await supabase
-          .from("social_links")
+          .from("contact_items")
           .update({
-            platform: platform.trim(),
-            url: url.trim(),
+            section: section.trim(),
+            label: label.trim(),
+            value: value.trim(),
+            icon: icon.trim() || "🔗",
           })
-          .eq("id", editingSocialId);
+          .eq("id", editingId);
 
         if (error) {
           alert(error.message);
@@ -147,11 +265,19 @@ export default function AdminContactPage() {
 
         alert("Contact information updated successfully.");
       } else {
+        const maxSort =
+          items.length > 0
+            ? Math.max(...items.map((item) => item.sort_order || 0))
+            : 0;
+
         const { error } = await supabase
-          .from("social_links")
+          .from("contact_items")
           .insert({
-            platform: platform.trim(),
-            url: url.trim(),
+            section: section.trim(),
+            label: label.trim(),
+            value: value.trim(),
+            icon: icon.trim() || "🔗",
+            sort_order: maxSort + 1,
           });
 
         if (error) {
@@ -162,42 +288,26 @@ export default function AdminContactPage() {
         alert("Contact information added successfully.");
       }
 
-      resetSocialForm();
-      await loadSocialLinks();
+      resetForm();
+      await loadItems();
     } finally {
-      setSavingSocial(false);
+      setSaving(false);
     }
   }
 
   // ============================================================
-  // EDIT
+  // DELETE ITEM
   // ============================================================
 
-  function editSocialLink(item: SocialLink) {
-    setEditingSocialId(item.id);
-    setPlatform(item.platform);
-    setUrl(item.url);
-    setShowSocialForm(true);
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-  }
-
-  // ============================================================
-  // DELETE
-  // ============================================================
-
-  async function deleteSocialLink(id: number) {
+  async function deleteItem(id: number) {
     const confirmed = window.confirm(
-      "Are you sure you want to delete this contact/social information?"
+      "Are you sure you want to remove this item from the Contact page?"
     );
 
     if (!confirmed) return;
 
     const { error } = await supabase
-      .from("social_links")
+      .from("contact_items")
       .delete()
       .eq("id", id);
 
@@ -206,11 +316,11 @@ export default function AdminContactPage() {
       return;
     }
 
-    await loadSocialLinks();
+    await loadItems();
   }
 
   // ============================================================
-  // UPDATE MESSAGE STATUS
+  // MESSAGE STATUS
   // ============================================================
 
   async function updateStatus(id: number, status: string) {
@@ -252,20 +362,71 @@ export default function AdminContactPage() {
   }
 
   // ============================================================
-  // ICON
+  // GROUP ITEMS
   // ============================================================
 
-  function getIcon(platform: string) {
-    const value = platform.toLowerCase();
+  const aboutItems = items.filter(
+    (item) => item.section === "About Us"
+  );
 
-    if (value.includes("email")) return "📧";
-    if (value.includes("facebook")) return "📘";
-    if (value.includes("linkedin")) return "💼";
-    if (value.includes("instagram")) return "📸";
-    if (value.includes("website")) return "🌐";
-    if (value.includes("group")) return "👥";
+  const officialItems = items.filter(
+    (item) => item.section === "Official"
+  );
 
-    return "🔗";
+  const departmentItems = items.filter(
+    (item) => item.section === "Department"
+  );
+
+  // ============================================================
+  // ITEM CARD
+  // ============================================================
+
+  function ItemCard({ item }: { item: ContactItem }) {
+    return (
+      <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800 sm:flex-row sm:items-center sm:justify-between">
+
+        <div className="flex min-w-0 items-center gap-4">
+
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#087f8c]/10 text-xl">
+            {item.icon || "🔗"}
+          </div>
+
+          <div className="min-w-0">
+
+            <p className="font-bold text-[#0b1736] dark:text-white">
+              {item.label}
+            </p>
+
+            <p className="mt-1 break-all text-sm text-slate-500 dark:text-slate-400">
+              {item.value || "Coming Soon"}
+            </p>
+
+          </div>
+
+        </div>
+
+        <div className="flex shrink-0 gap-2">
+
+          <button
+            type="button"
+            onClick={() => editItem(item)}
+            className="rounded-lg bg-[#0b1736] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#087f8c]"
+          >
+            Edit
+          </button>
+
+          <button
+            type="button"
+            onClick={() => deleteItem(item.id)}
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+          >
+            Remove
+          </button>
+
+        </div>
+
+      </div>
+    );
   }
 
   // ============================================================
@@ -274,11 +435,13 @@ export default function AdminContactPage() {
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8 dark:bg-[#0a0f1a] sm:px-6 lg:px-8">
+
       <div className="mx-auto max-w-7xl">
 
         {/* HEADER */}
 
         <div className="mb-8">
+
           <a
             href="/admin/dashboard"
             className="text-sm font-medium text-[#087f8c] hover:underline"
@@ -287,111 +450,162 @@ export default function AdminContactPage() {
           </a>
 
           <h1 className="mt-4 text-3xl font-bold text-[#0b1736] dark:text-white">
-            Contact & Website Settings
+            Contact Page Management
           </h1>
 
           <p className="mt-2 text-slate-500 dark:text-slate-400">
-            Manage contact information, social media links, and contact
-            messages from one place.
+            Edit, add, or remove anything displayed on the public Contact
+            page.
           </p>
+
         </div>
 
-        {/* ============================================================
-            WEBSITE CONTACT INFORMATION
-        ============================================================ */}
+        {/* ======================================================
+            CONTACT PAGE CONTENT
+        ====================================================== */}
 
         <section className="mb-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
 
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
             <div>
+
               <h2 className="text-2xl font-bold text-[#0b1736] dark:text-white">
-                Website Contact Information
+                Contact Page Information
               </h2>
 
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                These details appear on the public Contact page. Edit them
-                here without changing the website code.
+                These are the editable items that appear on your public
+                Contact page.
               </p>
+
             </div>
 
             <button
               type="button"
               onClick={() => {
-                if (showSocialForm) {
-                  resetSocialForm();
+                if (showForm) {
+                  resetForm();
                 } else {
-                  setEditingSocialId(null);
-                  setPlatform("");
-                  setUrl("");
-                  setShowSocialForm(true);
+                  setEditingId(null);
+                  setSection("Official");
+                  setLabel("");
+                  setValue("");
+                  setIcon("🔗");
+                  setShowForm(true);
                 }
               }}
               className="rounded-lg bg-[#087f8c] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#066c76]"
             >
-              {showSocialForm ? "Cancel" : "+ Add Information"}
+              {showForm ? "Cancel" : "+ Add Item"}
             </button>
+
           </div>
 
           {/* FORM */}
 
-          {showSocialForm && (
+          {showForm && (
             <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800">
 
               <h3 className="mb-4 text-lg font-bold text-[#0b1736] dark:text-white">
-                {editingSocialId !== null
-                  ? "Edit Contact Information"
-                  : "Add Contact Information"}
+                {editingId !== null
+                  ? "Edit Contact Page Item"
+                  : "Add Contact Page Item"}
               </h3>
 
               <div className="grid gap-4 md:grid-cols-2">
 
-                {/* PLATFORM */}
+                {/* SECTION */}
 
                 <div>
+
                   <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-                    Type
+                    Section
                   </label>
 
                   <select
-                    value={platform}
-                    onChange={(e) => setPlatform(e.target.value)}
+                    value={section}
+                    onChange={(e) =>
+                      setSection(e.target.value)
+                    }
                     className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-[#087f8c] dark:border-slate-600 dark:bg-slate-900 dark:text-white"
                   >
-                    <option value="">
-                      Select contact/social platform
+
+                    <option value="About Us">
+                      About Us
                     </option>
 
-                    {CONTACT_PLATFORMS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
+                    <option value="Official">
+                      Official
+                    </option>
+
+                    <option value="Department">
+                      Department
+                    </option>
+
                   </select>
+
+                </div>
+
+                {/* LABEL */}
+
+                <div>
+
+                  <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    Label
+                  </label>
+
+                  <input
+                    type="text"
+                    value={label}
+                    onChange={(e) =>
+                      setLabel(e.target.value)
+                    }
+                    placeholder="Facebook Page"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-[#087f8c] dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                  />
+
                 </div>
 
                 {/* VALUE */}
 
                 <div>
+
                   <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-                    Email / URL
+                    Value / URL / Email
                   </label>
 
                   <input
-                    type={
-                      platform.toLowerCase().includes("email")
-                        ? "email"
-                        : "url"
+                    type="text"
+                    value={value}
+                    onChange={(e) =>
+                      setValue(e.target.value)
                     }
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    placeholder={
-                      platform.toLowerCase().includes("email")
-                        ? "example@diu.edu.bd"
-                        : "https://example.com"
-                    }
+                    placeholder="https://facebook.com/yourpage"
                     className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-[#087f8c] dark:border-slate-600 dark:bg-slate-900 dark:text-white"
                   />
+
+                </div>
+
+                {/* ICON */}
+
+                <div>
+
+                  <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    Icon
+                  </label>
+
+                  <input
+                    type="text"
+                    value={icon}
+                    onChange={(e) =>
+                      setIcon(e.target.value)
+                    }
+                    placeholder="📘"
+                    maxLength={5}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-[#087f8c] dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                  />
+
                 </div>
 
               </div>
@@ -400,121 +614,153 @@ export default function AdminContactPage() {
 
                 <button
                   type="button"
-                  onClick={saveSocialLink}
-                  disabled={savingSocial}
+                  onClick={saveItem}
+                  disabled={saving}
                   className="rounded-lg bg-[#0b1736] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#087f8c] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {savingSocial
+                  {saving
                     ? "Saving..."
-                    : editingSocialId !== null
-                    ? "Update Information"
-                    : "Save Information"}
+                    : editingId !== null
+                    ? "Update Item"
+                    : "Add Item"}
                 </button>
 
                 <button
                   type="button"
-                  onClick={resetSocialForm}
-                  disabled={savingSocial}
-                  className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                  onClick={resetForm}
+                  disabled={saving}
+                  className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
                 >
                   Cancel
                 </button>
 
               </div>
+
             </div>
           )}
 
-          {/* ERROR */}
+          {/* DATABASE ERROR */}
 
-          {socialError && (
-            <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-              <strong>Error:</strong> {socialError}
-            </div>
-          )}
+          {itemsError && (
+            <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
 
-          {/* LIST */}
+              <p className="font-bold">
+                Unable to load Contact page information.
+              </p>
 
-          {socialLoading ? (
-            <div className="mt-6 rounded-xl bg-slate-50 p-6 text-center text-sm text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-              Loading contact information...
-            </div>
-          ) : socialLinks.length === 0 ? (
-            <div className="mt-6 rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-600">
-
-              <div className="text-4xl">🔗</div>
-
-              <h3 className="mt-3 font-bold text-[#0b1736] dark:text-white">
-                No contact information added
-              </h3>
-
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Add your official email, Facebook, Instagram, department
-                links, and other information.
+              <p className="mt-1">
+                {itemsError}
               </p>
 
             </div>
-          ) : (
-            <div className="mt-6 space-y-3">
+          )}
 
-              {socialLinks.map((item) => (
+          {/* NO ITEMS */}
 
-                <div
-                  key={item.id}
-                  className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800 sm:flex-row sm:items-center sm:justify-between"
-                >
+          {!itemsLoading && !itemsError && items.length === 0 && (
+            <div className="mt-6 rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-600">
 
-                  <div className="flex min-w-0 items-center gap-4">
+              <div className="text-4xl">
+                📋
+              </div>
 
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#087f8c]/10 text-xl">
-                      {getIcon(item.platform)}
-                    </div>
+              <h3 className="mt-3 font-bold text-[#0b1736] dark:text-white">
+                Contact page items are not set up yet
+              </h3>
 
-                    <div className="min-w-0">
+              <p className="mx-auto mt-2 max-w-xl text-sm text-slate-500 dark:text-slate-400">
+                Your current Contact page contains several hard-coded
+                information items. Click the button below to import all of
+                those existing items into the admin panel.
+              </p>
 
-                      <p className="font-bold text-[#0b1736] dark:text-white">
-                        {item.platform}
-                      </p>
+              <button
+                type="button"
+                onClick={createDefaultItems}
+                className="mt-5 rounded-lg bg-[#087f8c] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#066c76]"
+              >
+                Import Existing Contact Items
+              </button>
 
-                      <p className="mt-1 break-all text-sm text-[#087f8c]">
-                        {item.url}
-                      </p>
+            </div>
+          )}
 
-                    </div>
+          {/* LOADING */}
 
-                  </div>
+          {itemsLoading && (
+            <div className="mt-6 rounded-xl bg-slate-50 p-6 text-center text-sm text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+              Loading Contact page information...
+            </div>
+          )}
 
-                  <div className="flex shrink-0 gap-2">
+          {/* ABOUT US */}
 
-                    <button
-                      type="button"
-                      onClick={() => editSocialLink(item)}
-                      className="rounded-lg bg-[#0b1736] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#087f8c]"
-                    >
-                      Edit
-                    </button>
+          {!itemsLoading && aboutItems.length > 0 && (
+            <div className="mt-8">
 
-                    <button
-                      type="button"
-                      onClick={() => deleteSocialLink(item.id)}
-                      className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
-                    >
-                      Delete
-                    </button>
+              <h3 className="mb-3 text-lg font-bold text-[#0b1736] dark:text-white">
+                About Us
+              </h3>
 
-                  </div>
+              <div className="space-y-3">
+                {aboutItems.map((item) => (
+                  <ItemCard
+                    key={item.id}
+                    item={item}
+                  />
+                ))}
+              </div>
 
-                </div>
+            </div>
+          )}
 
-              ))}
+          {/* OFFICIAL */}
+
+          {!itemsLoading && officialItems.length > 0 && (
+            <div className="mt-8">
+
+              <h3 className="mb-3 text-lg font-bold text-[#0b1736] dark:text-white">
+                Official
+              </h3>
+
+              <div className="space-y-3">
+                {officialItems.map((item) => (
+                  <ItemCard
+                    key={item.id}
+                    item={item}
+                  />
+                ))}
+              </div>
+
+            </div>
+          )}
+
+          {/* DEPARTMENT */}
+
+          {!itemsLoading && departmentItems.length > 0 && (
+            <div className="mt-8">
+
+              <h3 className="mb-3 text-lg font-bold text-[#0b1736] dark:text-white">
+                Department
+              </h3>
+
+              <div className="space-y-3">
+                {departmentItems.map((item) => (
+                  <ItemCard
+                    key={item.id}
+                    item={item}
+                  />
+                ))}
+              </div>
 
             </div>
           )}
 
         </section>
 
-        {/* ============================================================
+        {/* ======================================================
             CONTACT MESSAGES
-        ============================================================ */}
+        ====================================================== */}
 
         <section>
 
@@ -525,8 +771,7 @@ export default function AdminContactPage() {
             </h2>
 
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              View and manage messages submitted through the public Contact
-              page.
+              View and manage messages submitted through the Contact page.
             </p>
 
           </div>
@@ -578,7 +823,6 @@ export default function AdminContactPage() {
           {/* MESSAGES */}
 
           {!loading && !error && messages.length > 0 && (
-
             <div className="space-y-5">
 
               {messages.map((item) => {
@@ -587,7 +831,6 @@ export default function AdminContactPage() {
                   item.status?.toLowerCase() === "unread";
 
                 return (
-
                   <div
                     key={item.id}
                     className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900"
@@ -658,7 +901,9 @@ export default function AdminContactPage() {
                           onClick={() =>
                             updateStatus(
                               item.id,
-                              isUnread ? "Read" : "Unread"
+                              isUnread
+                                ? "Read"
+                                : "Unread"
                             )
                           }
                           className="rounded-lg bg-[#0b1736] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#087f8c]"
