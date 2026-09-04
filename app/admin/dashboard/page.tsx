@@ -68,6 +68,13 @@ const dashboardItems = [
     icon: "📰",
   },
   {
+    title: "Alumni",
+    description:
+      "Manage individual alumni accounts and public profiles.",
+    href: "/admin/alumni",
+    icon: "🎓",
+  },
+  {
     title: "Alumni Association",
     description:
       "Manage Alumni Association executive committee members.",
@@ -232,7 +239,30 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* ================= QUICK INFORMATION ================= */}
-        <div className="mt-8 rounded-2xl border border-[#087f8c]/20 bg-[#087f8c]/5 p-5 dark:border-[#087f8c]/20 dark:bg-[#087f8c]/10">
+        <div className="mt-8 grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border border-[#087f8c]/20 bg-[#087f8c]/5 p-5 dark:border-[#087f8c]/20 dark:bg-[#087f8c]/10">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="font-bold text-[#0b1736] dark:text-white">
+                  Alumni
+                </h3>
+
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                  View, search, add, edit and remove individual alumni
+                  accounts and profiles.
+                </p>
+              </div>
+
+              <Link
+                href="/admin/alumni"
+                className="inline-flex shrink-0 items-center justify-center rounded-lg bg-[#087f8c] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#066d78]"
+              >
+                Manage Alumni
+              </Link>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-[#087f8c]/20 bg-[#087f8c]/5 p-5 dark:border-[#087f8c]/20 dark:bg-[#087f8c]/10">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="font-bold text-[#0b1736] dark:text-white">
@@ -252,6 +282,7 @@ export default function AdminDashboardPage() {
               Manage Alumni Association
             </Link>
           </div>
+        </div>
         </div>
       </section>
     </main>

@@ -330,7 +330,13 @@ export default function AdminNewsPage() {
                 onChange={setImageUrls}
                 folder="news"
                 inputId="news-image"
+                enableCover
               />
+
+              <p className="mt-2 text-xs text-slate-500">
+                The ★ Cover photo is the first one shown on the news list and
+                in shared links.
+              </p>
             </div>
 
             {/* Published Status */}

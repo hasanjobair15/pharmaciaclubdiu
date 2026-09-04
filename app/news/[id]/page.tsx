@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import NewsImages from "@/app/components/news-images";
+import NewsShare from "@/app/components/news-share";
 
 type NewsItem = {
   id: number;
@@ -25,12 +26,6 @@ export default function NewsDetailsPage() {
   const [news, setNews] = useState<NewsItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-
-  useEffect(() => {
-    if (id) {
-      loadNews();
-    }
-  }, [id]);
 
   async function loadNews() {
     setLoading(true);
@@ -57,6 +52,13 @@ export default function NewsDetailsPage() {
 
     setLoading(false);
   }
+
+  useEffect(() => {
+    if (id) {
+      loadNews();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   function formatDate(date: string | null) {
     if (!date) return "Date not announced";
@@ -138,6 +140,31 @@ export default function NewsDetailsPage() {
             <h1 className="mt-5 text-3xl font-bold leading-tight text-slate-900 dark:text-white md:text-5xl">
               {news.title}
             </h1>
+
+            {/* Share */}
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+              <NewsShare
+                title={news.title}
+                imageUrl={
+                  news.image_url
+                    ? (() => {
+                        try {
+                          const parsed = JSON.parse(news.image_url);
+                          return Array.isArray(parsed) && parsed.length > 0
+                            ? parsed[0]
+                            : news.image_url;
+                        } catch {
+                          return news.image_url;
+                        }
+                      })()
+                    : null
+                }
+              />
+
+              <span className="text-xs font-medium text-slate-400 dark:text-slate-500">
+                Share this article with your friends
+              </span>
+            </div>
 
             {/* Meta Information */}
             <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-500 dark:text-slate-400">

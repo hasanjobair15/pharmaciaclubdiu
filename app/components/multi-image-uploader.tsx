@@ -29,12 +29,14 @@ type Props = {
   folder: string;
   /** Form id used to keyboard-focus the drop area */
   inputId?: string;
+  /** Show "set as cover" controls (first image is the share cover) */
+  enableCover?: boolean;
 };
 
 let itemCounter = 0;
 const nextKey = () => `img-${Date.now()}-${itemCounter++}`;
 
-export default function MultiImageUploader({ value, onChange, folder, inputId }: Props) {
+export default function MultiImageUploader({ value, onChange, folder, inputId, enableCover }: Props) {
   const supabase = createClient();
 
   const [items, setItems] = useState<Item[]>([]);
@@ -269,6 +271,20 @@ export default function MultiImageUploader({ value, onChange, folder, inputId }:
     });
   }
 
+  function makeCover(key: string) {
+    setItems((prev) => {
+      const target = prev.find((i) => i.key === key);
+      if (!target) return prev;
+
+      const next = [
+        target,
+        ...prev.filter((i) => i.key !== key),
+      ];
+      commitUrls(next);
+      return next;
+    });
+  }
+
   /* Global paste: Ctrl+V anywhere on the page with an image on the clipboard */
   useEffect(() => {
     function onPaste(e: ClipboardEvent) {
@@ -459,8 +475,28 @@ export default function MultiImageUploader({ value, onChange, folder, inputId }:
 
               <div className="flex items-center justify-between gap-2 p-2">
                 <p className="min-w-0 flex-1 truncate text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                  {item.fileName}
+                  {enableCover && items[0]?.key === item.key ? (
+                    <span className="font-bold text-amber-600 dark:text-amber-400">
+                      ★ Cover
+                    </span>
+                  ) : (
+                    item.fileName
+                  )}
                 </p>
+
+                {enableCover && items[0]?.key !== item.key && (
+                  <button
+                    type="button"
+                    onClick={() => makeCover(item.key)}
+                    disabled={item.status === "uploading"}
+                    title="Make this the cover photo (first in share links)"
+                    aria-label="Set as cover photo"
+                    className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 transition hover:bg-amber-100 disabled:opacity-40 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                  >
+                    ★ Cover
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => removeItem(item.key)}

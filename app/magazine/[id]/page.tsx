@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -39,14 +39,21 @@ export default function MagazineReaderPage() {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
+  /* drag/swipe state (refs avoid re-render during mousemove) */
+  const dragStart = useRef<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
   useEffect(() => {
     if (!issueId || Number.isNaN(issueId)) {
-      setErrorMessage("Invalid magazine issue.");
-      setLoading(false);
+      void Promise.resolve().then(() => {
+        setErrorMessage("Invalid magazine issue.");
+        setLoading(false);
+      });
       return;
     }
 
     async function loadMagazine() {
+      /* eslint-disable-next-line react-hooks/set-state-in-effect -- loader invoked off the synchronous effect path */
       setLoading(true);
       setErrorMessage("");
 
@@ -87,7 +94,7 @@ export default function MagazineReaderPage() {
       setLoading(false);
     }
 
-    loadMagazine();
+    void Promise.resolve().then(loadMagazine);
   }, [issueId]);
 
   function previousPage() {
@@ -118,6 +125,41 @@ export default function MagazineReaderPage() {
       behavior: "smooth",
     });
   }
+
+  /* ============================================================
+     Swipe / drag navigation
+     - touch: hint-free horizontal swipe (threshold ~60px)
+     - desktop: mouse drag OR arrow-key swipes on the stage
+     - always stops at the first/last page
+  ============================================================ */
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  function handleSwipe(deltaX: number) {
+    if (Math.abs(deltaX) < 60) return;
+
+    if (deltaX < 0) {
+      nextPage();
+    } else {
+      previousPage();
+    }
+  }
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "ArrowRight" || e.key === "PageDown") {
+        e.preventDefault();
+        nextPage();
+      } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
+        e.preventDefault();
+        previousPage();
+      }
+    }
+
+    window.addEventListener("keydown", onKey);
+
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pages.length, currentPage]);
 
   /* Loading */
   if (loading) {
@@ -258,7 +300,76 @@ export default function MagazineReaderPage() {
           {/* Magazine Page */}
           {pages.length > 0 && page && (
             <>
-              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-[#0d1422]">
+              <div
+                onTouchStart={(e) => {
+                  dragStart.current = {
+                    x: e.touches[0].clientX,
+                    y: e.touches[0].clientY,
+                  };
+                }}
+                onTouchEnd={(e) => {
+                  if (!dragStart.current) return;
+
+                  const dx = e.changedTouches[0].clientX - dragStart.current.x;
+                  const dy = e.changedTouches[0].clientY - dragStart.current.y;
+
+                  dragStart.current = null;
+
+                  /* only horizontal intent counts as a page turn */
+                  if (Math.abs(dx) > Math.abs(dy)) {
+                    handleSwipe(dx);
+                  }
+                }}
+                onMouseDown={(e) => {
+                  dragStart.current = { x: e.clientX, y: e.clientY };
+                  setIsDragging(true);
+                }}
+                onMouseMove={(e) => {
+                  if (!isDragging || !dragStart.current) return;
+
+                  const dx = e.clientX - dragStart.current.x;
+
+                  /* live visual feedback while dragging */
+                  e.currentTarget.style.transform = `translateX(${dx}px)`;
+                }}
+                onMouseUp={(e) => {
+                  if (!dragStart.current) return;
+
+                  const dx = e.clientX - dragStart.current.x;
+                  const dy = e.clientY - dragStart.current.y;
+
+                  dragStart.current = null;
+                  setIsDragging(false);
+
+                  e.currentTarget.style.transform = "";
+
+                  if (Math.abs(dx) > Math.abs(dy)) {
+                    handleSwipe(dx);
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (dragStart.current) {
+                    dragStart.current = null;
+                    setIsDragging(false);
+                    e.currentTarget.style.transform = "";
+                  }
+                }}
+                className={`overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl transition-shadow duration-300 dark:border-slate-800 dark:bg-[#0d1422] ${
+                  isDragging
+                    ? "cursor-grabbing select-none"
+                    : "cursor-grab"
+                }`}
+              >
+                {/* swipe hint */}
+                <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5 dark:border-slate-800">
+                  <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500">
+                    ← Swipe / drag
+                  </span>
+
+                  <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500">
+                    Drag → to go back
+                  </span>
+                </div>
 
                 {/* Image */}
                 {page.image_url && (
