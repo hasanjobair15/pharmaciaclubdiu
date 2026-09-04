@@ -6,6 +6,7 @@ import PageTransition from "./components/page-transition";
 import FloatingOrbs from "./components/floating-orbs";
 import { ThemeProvider } from "./components/theme-provider";
 import { Analytics } from "@vercel/analytics/react";
+import VisitorStats from "./components/visitor-stats";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -86,6 +87,11 @@ export default function RootLayout({
                 </div>
 
               </div>
+            </div>
+
+            {/* LIVE VISITOR STATS — bottom of every page */}
+            <div className="border-t border-slate-200 px-6 py-5 dark:border-slate-800">
+              <VisitorStats />
             </div>
           </footer>
           <Analytics />

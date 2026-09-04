@@ -32,12 +32,16 @@ const AREA_GRADIENTS = [
 
 const AREA_ICONS = ["🎓", "🔬", "🚀", "👑", "🤝", "🎨"];
 
+/* Render the homepage per-request so admin edits (events, etc.)
+   appear immediately instead of being baked at build time. */
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   // Get events from the same Supabase database
   const { data: allEvents } = await supabase
     .from("events")
     .select("*")
-    .order("date", { ascending: true });
+    .order("event_date", { ascending: true });
 
   // Only show a few highlighted events on Home
   // The full list remains available on /events
