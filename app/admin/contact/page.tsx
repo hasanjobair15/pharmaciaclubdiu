@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
+import { createClient } from "@supabase/supabase-js";
 
 type ContactMessage = {
   id: number;
@@ -22,18 +22,21 @@ type SocialLink = {
 
 type ContactType = "social" | "email" | "phone";
 
-export default function AdminContactPage() {
-  const supabase = createClient();
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // Contact messages
+const supabase =
+  supabaseUrl && supabaseAnonKey
+    ? createClient(supabaseUrl, supabaseAnonKey)
+    : null;
+
+export default function AdminContactPage() {
   const [messages, setMessages] = useState<ContactMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(true);
 
-  // Contact information
   const [contactInfo, setContactInfo] = useState<SocialLink[]>([]);
   const [contactLoading, setContactLoading] = useState(true);
 
-  // Contact form
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
@@ -48,10 +51,30 @@ export default function AdminContactPage() {
   const [success, setSuccess] = useState("");
 
   // --------------------------------------------------
+  // CHECK SUPABASE
+  // --------------------------------------------------
+
+  function checkSupabase() {
+    if (!supabase) {
+      setError(
+        "Supabase configuration is missing. Please check NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel."
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  // --------------------------------------------------
   // LOAD CONTACT MESSAGES
   // --------------------------------------------------
 
   async function loadMessages() {
+    if (!supabase) {
+      setMessagesLoading(false);
+      return;
+    }
+
     setMessagesLoading(true);
 
     const { data, error } = await supabase
@@ -61,6 +84,7 @@ export default function AdminContactPage() {
 
     if (error) {
       console.error("Error loading messages:", error);
+      setError(error.message);
     } else {
       setMessages(data || []);
     }
@@ -69,10 +93,15 @@ export default function AdminContactPage() {
   }
 
   // --------------------------------------------------
-  // LOAD SOCIAL / EMAIL / PHONE INFORMATION
+  // LOAD CONTACT INFORMATION
   // --------------------------------------------------
 
   async function loadContactInfo() {
+    if (!supabase) {
+      setContactLoading(false);
+      return;
+    }
+
     setContactLoading(true);
 
     const { data, error } = await supabase
@@ -131,6 +160,8 @@ export default function AdminContactPage() {
   // --------------------------------------------------
 
   async function saveContactInfo() {
+    if (!checkSupabase()) return;
+
     setError("");
     setSuccess("");
 
@@ -145,6 +176,15 @@ export default function AdminContactPage() {
     if (contactType === "social" && !cleanPlatform) {
       setError("Please enter the social platform name.");
       return;
+    }
+
+    if (contactType === "email") {
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      if (!emailPattern.test(cleanValue)) {
+        setError("Please enter a valid email address.");
+        return;
+      }
     }
 
     setSaving(true);
@@ -164,9 +204,9 @@ export default function AdminContactPage() {
       url: cleanValue,
     };
 
-    // UPDATE EXISTING
+    // UPDATE
     if (editingId !== null) {
-      const { error } = await supabase
+      const { error } = await supabase!
         .from("social_links")
         .update(payload)
         .eq("id", editingId);
@@ -181,9 +221,9 @@ export default function AdminContactPage() {
       }
     }
 
-    // ADD NEW
+    // INSERT
     else {
-      const { error } = await supabase
+      const { error } = await supabase!
         .from("social_links")
         .insert(payload);
 
@@ -240,10 +280,12 @@ export default function AdminContactPage() {
   }
 
   // --------------------------------------------------
-  // DELETE
+  // DELETE CONTACT INFORMATION
   // --------------------------------------------------
 
   async function deleteContactInfo(id: number) {
+    if (!checkSupabase()) return;
+
     const confirmed = window.confirm(
       "Are you sure you want to delete this information?"
     );
@@ -253,7 +295,7 @@ export default function AdminContactPage() {
     setError("");
     setSuccess("");
 
-    const { error } = await supabase
+    const { error } = await supabase!
       .from("social_links")
       .delete()
       .eq("id", id);
@@ -269,20 +311,23 @@ export default function AdminContactPage() {
   }
 
   // --------------------------------------------------
-  // CONTACT MESSAGE STATUS
+  // MESSAGE STATUS
   // --------------------------------------------------
 
   async function updateMessageStatus(
     id: number,
     status: string
   ) {
-    const { error } = await supabase
+    if (!checkSupabase()) return;
+
+    const { error } = await supabase!
       .from("contact_messages")
       .update({ status })
       .eq("id", id);
 
     if (error) {
       console.error("Status update error:", error);
+      setError(error.message);
       return;
     }
 
@@ -294,22 +339,26 @@ export default function AdminContactPage() {
   // --------------------------------------------------
 
   async function deleteMessage(id: number) {
+    if (!checkSupabase()) return;
+
     const confirmed = window.confirm(
       "Are you sure you want to delete this message?"
     );
 
     if (!confirmed) return;
 
-    const { error } = await supabase
+    const { error } = await supabase!
       .from("contact_messages")
       .delete()
       .eq("id", id);
 
     if (error) {
       console.error("Message delete error:", error);
+      setError(error.message);
       return;
     }
 
+    setSuccess("Message deleted successfully.");
     await loadMessages();
   }
 
@@ -346,13 +395,8 @@ export default function AdminContactPage() {
   function getIcon(item: SocialLink) {
     const type = getItemType(item);
 
-    if (type === "email") {
-      return "✉️";
-    }
-
-    if (type === "phone") {
-      return "📞";
-    }
+    if (type === "email") return "✉️";
+    if (type === "phone") return "📞";
 
     const name = item.platform.toLowerCase();
 
@@ -360,7 +404,7 @@ export default function AdminContactPage() {
     if (name.includes("instagram")) return "📸";
     if (name.includes("linkedin")) return "💼";
     if (name.includes("youtube")) return "▶️";
-    if (name.includes("twitter") || name.includes("x")) return "𝕏";
+    if (name.includes("twitter") || name === "x") return "𝕏";
     if (name.includes("tiktok")) return "🎵";
     if (name.includes("whatsapp")) return "💬";
     if (name.includes("telegram")) return "✈️";
@@ -377,19 +421,15 @@ export default function AdminContactPage() {
     const cleanValue = item.url.trim();
 
     if (type === "email") {
-      if (cleanValue.startsWith("mailto:")) {
-        return cleanValue;
-      }
-
-      return `mailto:${cleanValue}`;
+      return cleanValue.startsWith("mailto:")
+        ? cleanValue
+        : `mailto:${cleanValue}`;
     }
 
     if (type === "phone") {
-      if (cleanValue.startsWith("tel:")) {
-        return cleanValue;
-      }
-
-      return `tel:${cleanValue.replace(/\s+/g, "")}`;
+      return cleanValue.startsWith("tel:")
+        ? cleanValue
+        : `tel:${cleanValue.replace(/\s+/g, "")}`;
     }
 
     if (
@@ -436,7 +476,7 @@ export default function AdminContactPage() {
           </div>
         )}
 
-        {/* CONTACT INFORMATION SECTION */}
+        {/* CONTACT INFORMATION */}
         <section className="mb-10 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#0b1220] sm:p-6">
 
           <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -459,17 +499,15 @@ export default function AdminContactPage() {
             </button>
           </div>
 
-          {/* ADD / EDIT FORM */}
+          {/* FORM */}
           {showForm && (
             <div className="mb-8 rounded-xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-[#0f172a]">
 
-              <div className="mb-5">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  {editingId !== null
-                    ? "Edit Contact Information"
-                    : "Add Contact Information"}
-                </h3>
-              </div>
+              <h3 className="mb-5 text-lg font-bold text-slate-900 dark:text-white">
+                {editingId !== null
+                  ? "Edit Contact Information"
+                  : "Add Contact Information"}
+              </h3>
 
               {/* TYPE */}
               <div className="mb-5">
@@ -606,7 +644,7 @@ export default function AdminContactPage() {
             </div>
           )}
 
-          {/* EXISTING CONTACT INFORMATION */}
+          {/* EXISTING INFORMATION */}
           <div>
             <h3 className="mb-4 text-base font-bold text-slate-900 dark:text-white">
               Existing Information
@@ -632,12 +670,10 @@ export default function AdminContactPage() {
                     >
                       <div className="flex min-w-0 items-start gap-4">
 
-                        {/* ICON */}
                         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xl dark:bg-slate-800">
                           {getIcon(item)}
                         </div>
 
-                        {/* DETAILS */}
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <h4 className="font-bold text-slate-900 dark:text-white">
@@ -672,7 +708,6 @@ export default function AdminContactPage() {
                         </div>
                       </div>
 
-                      {/* ACTIONS */}
                       <div className="flex shrink-0 gap-2">
                         <button
                           type="button"
@@ -787,7 +822,7 @@ export default function AdminContactPage() {
                             "unread"
                           )
                         }
-                        className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                        className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
                       >
                         Mark as Unread
                       </button>
