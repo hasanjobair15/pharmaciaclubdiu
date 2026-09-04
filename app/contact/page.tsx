@@ -1,10 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+
+type ContactItem = {
+  id: number;
+  section: string;
+  label: string;
+  value: string | null;
+  icon: string | null;
+  sort_order: number;
+};
 
 export default function ContactPage() {
   const supabase = createClient();
+
+  const [contactItems, setContactItems] = useState<ContactItem[]>([]);
+  const [loadingItems, setLoadingItems] = useState(true);
+  const [contactError, setContactError] = useState("");
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -14,6 +27,44 @@ export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+
+  /*
+   * =========================================================
+   * LOAD CONTACT INFORMATION FROM SUPABASE
+   * =========================================================
+   */
+
+  useEffect(() => {
+    async function loadContactItems() {
+      setLoadingItems(true);
+      setContactError("");
+
+      const { data, error } = await supabase
+        .from("contact_items")
+        .select("*")
+        .order("section", { ascending: true })
+        .order("sort_order", { ascending: true })
+        .order("id", { ascending: true });
+
+      if (error) {
+        console.error("Contact items loading error:", error);
+        setContactError(error.message);
+        setLoadingItems(false);
+        return;
+      }
+
+      setContactItems((data || []) as ContactItem[]);
+      setLoadingItems(false);
+    }
+
+    loadContactItems();
+  }, [supabase]);
+
+  /*
+   * =========================================================
+   * CONTACT FORM
+   * =========================================================
+   */
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -44,11 +95,121 @@ export default function ContactPage() {
     setMessage("");
   }
 
+  /*
+   * =========================================================
+   * HELPERS
+   * =========================================================
+   */
+
+  function getSection(section: string) {
+    return contactItems
+      .filter(
+        (item) =>
+          item.section.trim().toLowerCase() === section.trim().toLowerCase()
+      )
+      .sort((a, b) => {
+        if (a.sort_order !== b.sort_order) {
+          return a.sort_order - b.sort_order;
+        }
+
+        return a.id - b.id;
+      });
+  }
+
+  function getValue(item: ContactItem) {
+    const value = item.value?.trim();
+
+    if (!value) {
+      return "Coming Soon";
+    }
+
+    return value;
+  }
+
+  function isEmail(value: string) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  }
+
+  function isUrl(value: string) {
+    return /^https?:\/\//i.test(value);
+  }
+
+  function getHref(item: ContactItem) {
+    const value = item.value?.trim();
+
+    if (!value) return null;
+
+    if (isEmail(value)) {
+      return `mailto:${value}`;
+    }
+
+    if (isUrl(value)) {
+      return value;
+    }
+
+    return null;
+  }
+
+  function getFriendlyDisplay(item: ContactItem) {
+    const value = item.value?.trim();
+
+    if (!value) {
+      return "Coming Soon";
+    }
+
+    /*
+     * Keep the Facebook display clean instead of showing
+     * the complete URL.
+     */
+    if (
+      item.label.toLowerCase().includes("facebook") &&
+      isUrl(value)
+    ) {
+      return "Pharmacia Club DIU";
+    }
+
+    return value;
+  }
+
   const inputClass =
     "w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-[#0b1736] placeholder:text-slate-400 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-400";
 
   const linkCardClass =
     "flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 transition hover:-translate-y-0.5 hover:border-[#087f8c] hover:shadow-sm dark:border-slate-700 dark:bg-slate-800/70";
+
+  const aboutItems = getSection("About Us");
+  const officialItems = getSection("Official");
+  const departmentItems = getSection("Department");
+
+  /*
+   * =========================================================
+   * LOADING
+   * =========================================================
+   */
+
+  if (loadingItems) {
+    return (
+      <main className="min-h-screen bg-white dark:bg-[#0a0f1a]">
+        <section className="mx-auto max-w-6xl px-6 py-16 lg:px-8">
+          <div className="flex min-h-[500px] items-center justify-center">
+            <div className="text-center">
+              <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-[#087f8c]" />
+
+              <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                Loading contact information...
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  /*
+   * =========================================================
+   * PAGE
+   * =========================================================
+   */
 
   return (
     <main className="min-h-screen bg-white dark:bg-[#0a0f1a]">
@@ -70,13 +231,33 @@ export default function ContactPage() {
           </p>
         </div>
 
+        {/* DATABASE ERROR */}
+        {contactError && (
+          <div className="mx-auto mt-8 max-w-3xl rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+            <p className="font-bold">
+              Unable to load Contact page information.
+            </p>
+
+            <p className="mt-1 break-words">
+              {contactError}
+            </p>
+          </div>
+        )}
+
         <div className="mt-12 grid gap-8 lg:grid-cols-2">
 
-          {/* LEFT SIDE */}
+          {/* =====================================================
+              LEFT SIDE
+              ===================================================== */}
+
           <div className="space-y-8">
 
-            {/* JOIN US */}
+            {/* =================================================
+                ABOUT US
+                ================================================= */}
+
             <div className="rounded-3xl border border-slate-200 bg-slate-50 p-8 dark:border-slate-700 dark:bg-slate-900">
+
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#087f8c]">
                 About Us
               </p>
@@ -91,32 +272,30 @@ export default function ContactPage() {
                 development.
               </p>
 
-              <div className="mt-8 space-y-4 text-sm">
-                <p className="text-slate-600 dark:text-slate-300">
-                  <strong className="text-[#0b1736] dark:text-white">
-                    Department:
-                  </strong>{" "}
-                  Department of Pharmacy, Daffodil International University
-                </p>
+              {aboutItems.length > 0 && (
+                <div className="mt-8 space-y-4 text-sm">
+                  {aboutItems.map((item) => (
+                    <p
+                      key={item.id}
+                      className="text-slate-600 dark:text-slate-300"
+                    >
+                      <strong className="text-[#0b1736] dark:text-white">
+                        {item.label}:
+                      </strong>{" "}
+                      {getValue(item)}
+                    </p>
+                  ))}
+                </div>
+              )}
 
-                <p className="text-slate-600 dark:text-slate-300">
-                  <strong className="text-[#0b1736] dark:text-white">
-                    Club:
-                  </strong>{" "}
-                  Pharmacia Club DIU
-                </p>
-
-                <p className="text-slate-600 dark:text-slate-300">
-                  <strong className="text-[#0b1736] dark:text-white">
-                    Batch:
-                  </strong>{" "}
-                  30th Batch
-                </p>
-              </div>
             </div>
 
-            {/* OFFICIAL CLUB CONTACT */}
+            {/* =================================================
+                OFFICIAL CLUB CONTACT
+                ================================================= */}
+
             <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-700 dark:bg-[#0f172a]">
+
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#087f8c]">
                 Official
               </p>
@@ -129,92 +308,89 @@ export default function ContactPage() {
                 Connect with the official Pharmacia Club DIU platforms.
               </p>
 
-              <div className="mt-6 space-y-3">
+              {officialItems.length > 0 && (
+                <div className="mt-6 space-y-3">
 
-                {/* EMAIL */}
-                <a
-                  href="mailto:diupc@diu.edu.bd"
-                  className={linkCardClass}
-                >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#087f8c]/10 text-xl">
-                    📧
-                  </span>
+                  {officialItems.map((item) => {
+                    const href = getHref(item);
+                    const value = getValue(item);
+                    const displayValue = getFriendlyDisplay(item);
+                    const comingSoon = !item.value?.trim();
 
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                      Official Email
-                    </p>
+                    const content = (
+                      <>
+                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#087f8c]/10 text-xl">
+                          {item.icon || "🔗"}
+                        </span>
 
-                    <p className="mt-1 break-all text-sm font-semibold text-[#0b1736] dark:text-white">
-                      diupc@diu.edu.bd
-                    </p>
-                  </div>
-                </a>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            {item.label}
+                          </p>
 
-                {/* FACEBOOK */}
-                <a
-                  href="https://www.facebook.com/PharmaciaClubDIU"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={linkCardClass}
-                >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#087f8c]/10 text-xl">
-                    📘
-                  </span>
+                          <p
+                            className={`mt-1 break-words text-sm font-semibold ${
+                              comingSoon
+                                ? "text-slate-500 dark:text-slate-400"
+                                : "text-[#0b1736] dark:text-white"
+                            }`}
+                          >
+                            {displayValue}
+                          </p>
+                        </div>
 
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                      Facebook Page
-                    </p>
+                        {href && (
+                          <span className="ml-auto shrink-0 text-slate-400">
+                            ↗
+                          </span>
+                        )}
+                      </>
+                    );
 
-                    <p className="mt-1 text-sm font-semibold text-[#0b1736] dark:text-white">
-                      Pharmacia Club DIU
-                    </p>
-                  </div>
+                    if (href) {
+                      return (
+                        <a
+                          key={item.id}
+                          href={href}
+                          target={
+                            isUrl(item.value?.trim() || "")
+                              ? "_blank"
+                              : undefined
+                          }
+                          rel={
+                            isUrl(item.value?.trim() || "")
+                              ? "noopener noreferrer"
+                              : undefined
+                          }
+                          className={linkCardClass}
+                        >
+                          {content}
+                        </a>
+                      );
+                    }
 
-                  <span className="ml-auto text-slate-400">
-                    ↗
-                  </span>
-                </a>
+                    return (
+                      <div key={item.id} className={linkCardClass}>
+                        {content}
+                      </div>
+                    );
+                  })}
 
-                {/* LINKEDIN */}
-                <div className={linkCardClass}>
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#087f8c]/10 text-xl">
-                    💼
-                  </span>
-
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                      LinkedIn
-                    </p>
-
-                    <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
-                      Coming Soon
-                    </p>
-                  </div>
                 </div>
+              )}
 
-                {/* INSTAGRAM */}
-                <div className={linkCardClass}>
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#087f8c]/10 text-xl">
-                    📸
-                  </span>
-
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                      Instagram
-                    </p>
-
-                    <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
-                      Coming Soon
-                    </p>
-                  </div>
+              {officialItems.length === 0 && (
+                <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                  No official contact information available.
                 </div>
+              )}
 
-              </div>
             </div>
 
-            {/* DEPARTMENT LINKS */}
+            {/* =================================================
+                DEPARTMENT LINKS
+                ================================================= */}
+
             <div className="rounded-3xl border border-slate-200 bg-slate-50 p-8 dark:border-slate-700 dark:bg-slate-900">
 
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#087f8c]">
@@ -229,81 +405,90 @@ export default function ContactPage() {
                 Official department contact platforms and resources.
               </p>
 
-              <div className="mt-6 space-y-3">
+              {departmentItems.length > 0 && (
+                <div className="mt-6 space-y-3">
 
-                {/* DEPARTMENT FACEBOOK PAGE */}
-                <div className={linkCardClass}>
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#087f8c]/10 text-xl">
-                    📘
-                  </span>
+                  {departmentItems.map((item) => {
+                    const href = getHref(item);
+                    const comingSoon = !item.value?.trim();
+                    const displayValue = getFriendlyDisplay(item);
 
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                      Facebook Page
-                    </p>
+                    const content = (
+                      <>
+                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#087f8c]/10 text-xl">
+                          {item.icon || "🔗"}
+                        </span>
 
-                    <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
-                      Coming Soon
-                    </p>
-                  </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            {item.label}
+                          </p>
+
+                          <p
+                            className={`mt-1 break-words text-sm font-semibold ${
+                              comingSoon
+                                ? "text-slate-500 dark:text-slate-400"
+                                : "text-[#0b1736] dark:text-white"
+                            }`}
+                          >
+                            {displayValue}
+                          </p>
+                        </div>
+
+                        {href && (
+                          <span className="ml-auto shrink-0 text-slate-400">
+                            ↗
+                          </span>
+                        )}
+                      </>
+                    );
+
+                    if (href) {
+                      return (
+                        <a
+                          key={item.id}
+                          href={href}
+                          target={
+                            isUrl(item.value?.trim() || "")
+                              ? "_blank"
+                              : undefined
+                          }
+                          rel={
+                            isUrl(item.value?.trim() || "")
+                              ? "noopener noreferrer"
+                              : undefined
+                          }
+                          className={linkCardClass}
+                        >
+                          {content}
+                        </a>
+                      );
+                    }
+
+                    return (
+                      <div key={item.id} className={linkCardClass}>
+                        {content}
+                      </div>
+                    );
+                  })}
+
                 </div>
+              )}
 
-                {/* DEPARTMENT FACEBOOK GROUP */}
-                <div className={linkCardClass}>
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#087f8c]/10 text-xl">
-                    👥
-                  </span>
-
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                      Facebook Group
-                    </p>
-
-                    <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
-                      Coming Soon
-                    </p>
-                  </div>
+              {departmentItems.length === 0 && (
+                <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                  No department contact information available.
                 </div>
+              )}
 
-                {/* DEPARTMENT WEBSITE */}
-                <div className={linkCardClass}>
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#087f8c]/10 text-xl">
-                    🌐
-                  </span>
-
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                      Department Website
-                    </p>
-
-                    <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
-                      Coming Soon
-                    </p>
-                  </div>
-                </div>
-
-                {/* DEPARTMENT EMAIL */}
-                <div className={linkCardClass}>
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#087f8c]/10 text-xl">
-                    📧
-                  </span>
-
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                      Department Email
-                    </p>
-
-                    <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
-                      Coming Soon
-                    </p>
-                  </div>
-                </div>
-
-              </div>
             </div>
+
           </div>
 
-          {/* RIGHT SIDE — FORM */}
+          {/* =====================================================
+              RIGHT SIDE — FORM
+              ===================================================== */}
+
           <div className="h-fit rounded-3xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-700 dark:bg-[#0f172a] lg:sticky lg:top-24">
 
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#087f8c]">
@@ -341,6 +526,7 @@ export default function ContactPage() {
                 >
                   Send Another Message
                 </button>
+
               </div>
             ) : (
               <form
@@ -435,6 +621,7 @@ export default function ContactPage() {
                 {/* ERROR */}
                 {error && (
                   <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+
                     <p className="font-bold">
                       Unable to send message.
                     </p>
@@ -442,6 +629,7 @@ export default function ContactPage() {
                     <p className="mt-1 break-words">
                       {error}
                     </p>
+
                   </div>
                 )}
 
@@ -461,7 +649,9 @@ export default function ContactPage() {
 
               </form>
             )}
+
           </div>
+
         </div>
       </section>
     </main>
