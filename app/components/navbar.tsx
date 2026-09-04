@@ -17,6 +17,7 @@ const links = [
   { name: "Magazine", href: "/magazine" },
   { name: "Gallery", href: "/gallery" },
   { name: "News", href: "/news" },
+  { name: "Students", href: "/students" },
   { name: "Alumni", href: "/alumni" },
   { name: "Contact", href: "/contact" },
 ];
