@@ -354,6 +354,7 @@ export default function MagazineReaderPage() {
                     e.currentTarget.style.transform = "";
                   }
                 }}
+                onDragStart={(e) => e.preventDefault()}
                 className={`overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl transition-shadow duration-300 dark:border-slate-800 dark:bg-[#0d1422] ${
                   isDragging
                     ? "cursor-grabbing select-none"
@@ -381,6 +382,7 @@ export default function MagazineReaderPage() {
                         page.title ||
                         `Magazine page ${page.page_number}`
                       }
+                      draggable={false}
                       className="mx-auto max-h-[850px] w-full object-contain"
                     />
 
