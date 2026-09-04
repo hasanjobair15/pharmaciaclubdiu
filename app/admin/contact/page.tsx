@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/client";
 
 type ContactMessage = {
   id: number;
   name: string;
   email: string;
-  subject: string | null;
+  subject: string;
   message: string;
   status: string;
   created_at: string;
@@ -20,62 +20,33 @@ type SocialLink = {
   created_at: string;
 };
 
-type ContactType = "social" | "email" | "phone";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-const supabase =
-  supabaseUrl && supabaseAnonKey
-    ? createClient(supabaseUrl, supabaseAnonKey)
-    : null;
-
 export default function AdminContactPage() {
+  const supabase = createClient();
+
   const [messages, setMessages] = useState<ContactMessage[]>([]);
-  const [messagesLoading, setMessagesLoading] = useState(true);
+  const [socialLinks, setSocialLinks] = useState<SocialLink[]>([]);
 
-  const [contactInfo, setContactInfo] = useState<SocialLink[]>([]);
-  const [contactLoading, setContactLoading] = useState(true);
-
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  const [contactType, setContactType] =
-    useState<ContactType>("social");
-
-  const [platform, setPlatform] = useState("");
-  const [value, setValue] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [socialLoading, setSocialLoading] = useState(true);
 
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [socialError, setSocialError] = useState("");
 
-  // --------------------------------------------------
-  // CHECK SUPABASE
-  // --------------------------------------------------
+  const [showSocialForm, setShowSocialForm] = useState(false);
+  const [editingSocialId, setEditingSocialId] = useState<number | null>(
+    null
+  );
 
-  function checkSupabase() {
-    if (!supabase) {
-      setError(
-        "Supabase configuration is missing. Please check NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel."
-      );
-      return false;
-    }
-
-    return true;
-  }
+  const [platform, setPlatform] = useState("");
+  const [url, setUrl] = useState("");
 
   // --------------------------------------------------
   // LOAD CONTACT MESSAGES
   // --------------------------------------------------
 
   async function loadMessages() {
-    if (!supabase) {
-      setMessagesLoading(false);
-      return;
-    }
-
-    setMessagesLoading(true);
+    setLoading(true);
+    setError("");
 
     const { data, error } = await supabase
       .from("contact_messages")
@@ -83,195 +54,113 @@ export default function AdminContactPage() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Error loading messages:", error);
       setError(error.message);
+      setMessages([]);
     } else {
       setMessages(data || []);
     }
 
-    setMessagesLoading(false);
+    setLoading(false);
   }
 
   // --------------------------------------------------
-  // LOAD CONTACT INFORMATION
+  // LOAD SOCIAL LINKS
   // --------------------------------------------------
 
-  async function loadContactInfo() {
-    if (!supabase) {
-      setContactLoading(false);
-      return;
-    }
-
-    setContactLoading(true);
+  async function loadSocialLinks() {
+    setSocialLoading(true);
+    setSocialError("");
 
     const { data, error } = await supabase
       .from("social_links")
       .select("*")
-      .order("created_at", { ascending: true });
+      .order("id", { ascending: true });
 
     if (error) {
-      console.error("Error loading contact information:", error);
-      setError(error.message);
+      setSocialError(error.message);
+      setSocialLinks([]);
     } else {
-      setContactInfo(data || []);
+      setSocialLinks(data || []);
     }
 
-    setContactLoading(false);
+    setSocialLoading(false);
   }
-
-  // --------------------------------------------------
-  // INITIAL LOAD
-  // --------------------------------------------------
 
   useEffect(() => {
     loadMessages();
-    loadContactInfo();
+    loadSocialLinks();
   }, []);
 
   // --------------------------------------------------
-  // RESET FORM
+  // RESET SOCIAL FORM
   // --------------------------------------------------
 
-  function resetForm() {
-    setEditingId(null);
-    setContactType("social");
+  function resetSocialForm() {
     setPlatform("");
-    setValue("");
-    setShowForm(false);
-    setError("");
+    setUrl("");
+    setEditingSocialId(null);
+    setShowSocialForm(false);
   }
 
   // --------------------------------------------------
-  // OPEN ADD FORM
+  // ADD / UPDATE SOCIAL LINK
   // --------------------------------------------------
 
-  function openAddForm() {
-    setEditingId(null);
-    setContactType("social");
-    setPlatform("");
-    setValue("");
-    setError("");
-    setSuccess("");
-    setShowForm(true);
-  }
-
-  // --------------------------------------------------
-  // SAVE CONTACT INFORMATION
-  // --------------------------------------------------
-
-  async function saveContactInfo() {
-    if (!checkSupabase()) return;
-
-    setError("");
-    setSuccess("");
-
-    const cleanValue = value.trim();
-    const cleanPlatform = platform.trim();
-
-    if (!cleanValue) {
-      setError("Please enter a value.");
+  async function saveSocialLink() {
+    if (!platform.trim()) {
+      alert("Please enter a social platform name.");
       return;
     }
 
-    if (contactType === "social" && !cleanPlatform) {
-      setError("Please enter the social platform name.");
+    if (!url.trim()) {
+      alert("Please enter the social media URL.");
       return;
     }
 
-    if (contactType === "email") {
-      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (editingSocialId !== null) {
+      const { error } = await supabase
+        .from("social_links")
+        .update({
+          platform: platform.trim(),
+          url: url.trim(),
+        })
+        .eq("id", editingSocialId);
 
-      if (!emailPattern.test(cleanValue)) {
-        setError("Please enter a valid email address.");
+      if (error) {
+        alert(error.message);
         return;
       }
-    }
 
-    setSaving(true);
-
-    let finalPlatform = cleanPlatform;
-
-    if (contactType === "email") {
-      finalPlatform = "Email";
-    }
-
-    if (contactType === "phone") {
-      finalPlatform = "Phone";
-    }
-
-    const payload = {
-      platform: finalPlatform,
-      url: cleanValue,
-    };
-
-    // UPDATE
-    if (editingId !== null) {
-      const { error } = await supabase!
+      alert("Social link updated successfully.");
+    } else {
+      const { error } = await supabase
         .from("social_links")
-        .update(payload)
-        .eq("id", editingId);
+        .insert({
+          platform: platform.trim(),
+          url: url.trim(),
+        });
 
       if (error) {
-        console.error("Update error:", error);
-        setError(error.message);
-      } else {
-        setSuccess("Information updated successfully.");
-        resetForm();
-        await loadContactInfo();
+        alert(error.message);
+        return;
       }
+
+      alert("Social link added successfully.");
     }
 
-    // INSERT
-    else {
-      const { error } = await supabase!
-        .from("social_links")
-        .insert(payload);
-
-      if (error) {
-        console.error("Insert error:", error);
-        setError(error.message);
-      } else {
-        setSuccess("Information added successfully.");
-        resetForm();
-        await loadContactInfo();
-      }
-    }
-
-    setSaving(false);
+    resetSocialForm();
+    loadSocialLinks();
   }
 
   // --------------------------------------------------
-  // EDIT
+  // EDIT SOCIAL LINK
   // --------------------------------------------------
 
-  function editContactInfo(item: SocialLink) {
-    setEditingId(item.id);
-
-    const lowerPlatform = item.platform.toLowerCase();
-
-    if (
-      lowerPlatform === "email" ||
-      lowerPlatform === "mail" ||
-      lowerPlatform === "email address"
-    ) {
-      setContactType("email");
-      setPlatform("");
-    } else if (
-      lowerPlatform === "phone" ||
-      lowerPlatform === "phone number" ||
-      lowerPlatform === "mobile"
-    ) {
-      setContactType("phone");
-      setPlatform("");
-    } else {
-      setContactType("social");
-      setPlatform(item.platform);
-    }
-
-    setValue(item.url);
-    setError("");
-    setSuccess("");
-    setShowForm(true);
+  function editSocialLink(item: SocialLink) {
+    setEditingSocialId(item.id);
+    setPlatform(item.platform);
+    setUrl(item.url);
+    setShowSocialForm(true);
 
     window.scrollTo({
       top: 0,
@@ -280,58 +169,45 @@ export default function AdminContactPage() {
   }
 
   // --------------------------------------------------
-  // DELETE CONTACT INFORMATION
+  // DELETE SOCIAL LINK
   // --------------------------------------------------
 
-  async function deleteContactInfo(id: number) {
-    if (!checkSupabase()) return;
-
+  async function deleteSocialLink(id: number) {
     const confirmed = window.confirm(
-      "Are you sure you want to delete this information?"
+      "Are you sure you want to delete this social link?"
     );
 
     if (!confirmed) return;
 
-    setError("");
-    setSuccess("");
-
-    const { error } = await supabase!
+    const { error } = await supabase
       .from("social_links")
       .delete()
       .eq("id", id);
 
     if (error) {
-      console.error("Delete error:", error);
-      setError(error.message);
+      alert(error.message);
       return;
     }
 
-    setSuccess("Information deleted successfully.");
-    await loadContactInfo();
+    loadSocialLinks();
   }
 
   // --------------------------------------------------
-  // MESSAGE STATUS
+  // UPDATE MESSAGE STATUS
   // --------------------------------------------------
 
-  async function updateMessageStatus(
-    id: number,
-    status: string
-  ) {
-    if (!checkSupabase()) return;
-
-    const { error } = await supabase!
+  async function updateStatus(id: number, status: string) {
+    const { error } = await supabase
       .from("contact_messages")
       .update({ status })
       .eq("id", id);
 
     if (error) {
-      console.error("Status update error:", error);
-      setError(error.message);
+      alert(error.message);
       return;
     }
 
-    await loadMessages();
+    loadMessages();
   }
 
   // --------------------------------------------------
@@ -339,510 +215,406 @@ export default function AdminContactPage() {
   // --------------------------------------------------
 
   async function deleteMessage(id: number) {
-    if (!checkSupabase()) return;
-
     const confirmed = window.confirm(
       "Are you sure you want to delete this message?"
     );
 
     if (!confirmed) return;
 
-    const { error } = await supabase!
+    const { error } = await supabase
       .from("contact_messages")
       .delete()
       .eq("id", id);
 
     if (error) {
-      console.error("Message delete error:", error);
-      setError(error.message);
+      alert(error.message);
       return;
     }
 
-    setSuccess("Message deleted successfully.");
-    await loadMessages();
+    loadMessages();
   }
-
-  // --------------------------------------------------
-  // GET TYPE
-  // --------------------------------------------------
-
-  function getItemType(item: SocialLink): ContactType {
-    const platformName = item.platform.toLowerCase();
-
-    if (
-      platformName === "email" ||
-      platformName === "mail" ||
-      platformName === "email address"
-    ) {
-      return "email";
-    }
-
-    if (
-      platformName === "phone" ||
-      platformName === "phone number" ||
-      platformName === "mobile"
-    ) {
-      return "phone";
-    }
-
-    return "social";
-  }
-
-  // --------------------------------------------------
-  // GET ICON
-  // --------------------------------------------------
-
-  function getIcon(item: SocialLink) {
-    const type = getItemType(item);
-
-    if (type === "email") return "✉️";
-    if (type === "phone") return "📞";
-
-    const name = item.platform.toLowerCase();
-
-    if (name.includes("facebook")) return "📘";
-    if (name.includes("instagram")) return "📸";
-    if (name.includes("linkedin")) return "💼";
-    if (name.includes("youtube")) return "▶️";
-    if (name.includes("twitter") || name === "x") return "𝕏";
-    if (name.includes("tiktok")) return "🎵";
-    if (name.includes("whatsapp")) return "💬";
-    if (name.includes("telegram")) return "✈️";
-
-    return "🔗";
-  }
-
-  // --------------------------------------------------
-  // GET HREF
-  // --------------------------------------------------
-
-  function getHref(item: SocialLink) {
-    const type = getItemType(item);
-    const cleanValue = item.url.trim();
-
-    if (type === "email") {
-      return cleanValue.startsWith("mailto:")
-        ? cleanValue
-        : `mailto:${cleanValue}`;
-    }
-
-    if (type === "phone") {
-      return cleanValue.startsWith("tel:")
-        ? cleanValue
-        : `tel:${cleanValue.replace(/\s+/g, "")}`;
-    }
-
-    if (
-      cleanValue.startsWith("http://") ||
-      cleanValue.startsWith("https://")
-    ) {
-      return cleanValue;
-    }
-
-    return `https://${cleanValue}`;
-  }
-
-  // --------------------------------------------------
-  // RENDER
-  // --------------------------------------------------
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-8 dark:bg-[#070b14] sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-slate-50 px-4 py-8 dark:bg-[#0a0f1a] sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
 
-        {/* HEADER */}
+        {/* --------------------------------------------------
+            HEADER
+        -------------------------------------------------- */}
+
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-            Website Contact & Social Links
+          <a
+            href="/admin/dashboard"
+            className="text-sm font-medium text-[#087f8c] hover:underline"
+          >
+            ← Back to Admin Dashboard
+          </a>
+
+          <h1 className="mt-4 text-3xl font-bold text-[#0b1736] dark:text-white">
+            Contact & Website Settings
           </h1>
 
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-            Manage social media links, email addresses and phone
-            numbers displayed on the website.
+          <p className="mt-2 text-slate-500 dark:text-slate-400">
+            Manage contact messages and website social media links.
           </p>
         </div>
 
-        {/* ERROR */}
-        {error && (
-          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-            {error}
-          </div>
-        )}
+        {/* ==================================================
+            SOCIAL LINKS MANAGEMENT
+        ================================================== */}
 
-        {/* SUCCESS */}
-        {success && (
-          <div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-300">
-            {success}
-          </div>
-        )}
+        <section className="mb-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
 
-        {/* CONTACT INFORMATION */}
-        <section className="mb-10 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#0b1220] sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
-          <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
             <div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                Contact Information
+              <h2 className="text-2xl font-bold text-[#0b1736] dark:text-white">
+                Social Media Links
               </h2>
 
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Add and manage your website contact details.
+                Add, edit, or remove your website social media links.
               </p>
             </div>
 
             <button
-              type="button"
-              onClick={openAddForm}
-              className="rounded-lg bg-[#087f8c] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#066b76]"
+              onClick={() => {
+                if (showSocialForm) {
+                  resetSocialForm();
+                } else {
+                  setShowSocialForm(true);
+                }
+              }}
+              className="rounded-lg bg-[#087f8c] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#066c76]"
             >
-              + Add Contact Information
+              {showSocialForm ? "Cancel" : "+ Add Social Link"}
             </button>
           </div>
 
-          {/* FORM */}
-          {showForm && (
-            <div className="mb-8 rounded-xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-[#0f172a]">
+          {/* SOCIAL FORM */}
 
-              <h3 className="mb-5 text-lg font-bold text-slate-900 dark:text-white">
-                {editingId !== null
-                  ? "Edit Contact Information"
-                  : "Add Contact Information"}
+          {showSocialForm && (
+            <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800">
+
+              <h3 className="mb-4 text-lg font-bold text-[#0b1736] dark:text-white">
+                {editingSocialId !== null
+                  ? "Edit Social Link"
+                  : "Add Social Link"}
               </h3>
 
-              {/* TYPE */}
-              <div className="mb-5">
-                <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-                  Information Type
-                </label>
+              <div className="grid gap-4 md:grid-cols-2">
 
-                <select
-                  value={contactType}
-                  onChange={(e) =>
-                    setContactType(
-                      e.target.value as ContactType
-                    )
-                  }
-                  className="block w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-medium !text-slate-900 outline-none focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 dark:border-slate-600 dark:bg-[#111827] dark:!text-white sm:max-w-md"
-                >
-                  <option value="social">
-                    🌐 Social Link
-                  </option>
+                {/* PLATFORM */}
 
-                  <option value="email">
-                    ✉️ Email Address
-                  </option>
-
-                  <option value="phone">
-                    📞 Phone Number
-                  </option>
-                </select>
-              </div>
-
-              {/* SOCIAL PLATFORM */}
-              {contactType === "social" && (
-                <div className="mb-5">
+                <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-                    Social Platform
+                    Platform
                   </label>
 
                   <input
                     type="text"
                     value={platform}
-                    onChange={(e) =>
-                      setPlatform(e.target.value)
-                    }
-                    placeholder="Example: Facebook, Instagram, LinkedIn, YouTube"
-                    autoComplete="off"
-                    className="block w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-medium !text-slate-900 caret-[#087f8c] outline-none placeholder:!text-slate-400 focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 dark:border-slate-600 dark:bg-[#111827] dark:!text-white dark:placeholder:!text-slate-500"
+                    onChange={(e) => setPlatform(e.target.value)}
+                    placeholder="Facebook"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-[#087f8c] dark:border-slate-600 dark:bg-slate-900 dark:text-white"
                   />
                 </div>
-              )}
 
-              {/* EMAIL */}
-              {contactType === "email" && (
-                <div className="mb-5">
+                {/* URL */}
+
+                <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-                    Email Address
+                    Social Media URL
                   </label>
 
                   <input
-                    type="email"
-                    value={value}
-                    onChange={(e) =>
-                      setValue(e.target.value)
-                    }
-                    placeholder="Example: diupc@diu.edu.bd"
-                    autoComplete="email"
-                    className="block w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-medium !text-slate-900 caret-[#087f8c] outline-none placeholder:!text-slate-400 focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 dark:border-slate-600 dark:bg-[#111827] dark:!text-white dark:placeholder:!text-slate-500"
+                    type="url"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="https://facebook.com/yourpage"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-[#087f8c] dark:border-slate-600 dark:bg-slate-900 dark:text-white"
                   />
                 </div>
-              )}
+              </div>
 
-              {/* PHONE */}
-              {contactType === "phone" && (
-                <div className="mb-5">
-                  <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-                    Phone Number
-                  </label>
+              <div className="mt-5 flex flex-wrap gap-3">
 
-                  <input
-                    type="tel"
-                    value={value}
-                    onChange={(e) =>
-                      setValue(e.target.value)
-                    }
-                    placeholder="Example: +8801XXXXXXXXX"
-                    autoComplete="tel"
-                    className="block w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-medium !text-slate-900 caret-[#087f8c] outline-none placeholder:!text-slate-400 focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 dark:border-slate-600 dark:bg-[#111827] dark:!text-white dark:placeholder:!text-slate-500"
-                  />
-                </div>
-              )}
-
-              {/* SOCIAL URL */}
-              {contactType === "social" && (
-                <div className="mb-5">
-                  <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-                    Social Link
-                  </label>
-
-                  <input
-                    type="text"
-                    value={value}
-                    onChange={(e) =>
-                      setValue(e.target.value)
-                    }
-                    placeholder="Example: https://facebook.com/yourpage"
-                    autoComplete="off"
-                    className="block w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-medium !text-slate-900 caret-[#087f8c] outline-none placeholder:!text-slate-400 focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 dark:border-slate-600 dark:bg-[#111827] dark:!text-white dark:placeholder:!text-slate-500"
-                  />
-                </div>
-              )}
-
-              {/* BUTTONS */}
-              <div className="flex flex-wrap gap-3">
                 <button
-                  type="button"
-                  onClick={saveContactInfo}
-                  disabled={saving}
-                  className="rounded-lg bg-[#087f8c] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#066b76] disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={saveSocialLink}
+                  className="rounded-lg bg-[#0b1736] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#087f8c]"
                 >
-                  {saving
-                    ? "Saving..."
-                    : editingId !== null
-                    ? "Update Information"
-                    : "Save Information"}
+                  {editingSocialId !== null
+                    ? "Update Link"
+                    : "Save Link"}
                 </button>
 
                 <button
-                  type="button"
-                  onClick={resetForm}
-                  className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  onClick={resetSocialForm}
+                  className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                   Cancel
                 </button>
+
               </div>
             </div>
           )}
 
-          {/* EXISTING INFORMATION */}
-          <div>
-            <h3 className="mb-4 text-base font-bold text-slate-900 dark:text-white">
-              Existing Information
-            </h3>
+          {/* SOCIAL ERROR */}
 
-            {contactLoading ? (
-              <div className="rounded-lg border border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                Loading...
-              </div>
-            ) : contactInfo.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                No contact information added yet.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {contactInfo.map((item) => {
-                  const type = getItemType(item);
+          {socialError && (
+            <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+              <strong>Error:</strong> {socialError}
+            </div>
+          )}
 
-                  return (
-                    <div
-                      key={item.id}
-                      className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-[#111827] sm:flex-row sm:items-center sm:justify-between"
+          {/* SOCIAL LINKS */}
+
+          {socialLoading ? (
+            <div className="mt-6 rounded-xl bg-slate-50 p-6 text-center text-sm text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+              Loading social links...
+            </div>
+          ) : socialLinks.length === 0 ? (
+            <div className="mt-6 rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-600">
+              <div className="text-4xl">🔗</div>
+
+              <h3 className="mt-3 font-bold text-[#0b1736] dark:text-white">
+                No social links added
+              </h3>
+
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Click "Add Social Link" to create your first link.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-6 space-y-3">
+
+              {socialLinks.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800 sm:flex-row sm:items-center sm:justify-between"
+                >
+
+                  <div className="min-w-0">
+
+                    <p className="font-bold text-[#0b1736] dark:text-white">
+                      {item.platform}
+                    </p>
+
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 block truncate text-sm text-[#087f8c] hover:underline"
                     >
-                      <div className="flex min-w-0 items-start gap-4">
+                      {item.url}
+                    </a>
 
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xl dark:bg-slate-800">
-                          {getIcon(item)}
-                        </div>
+                  </div>
 
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h4 className="font-bold text-slate-900 dark:text-white">
-                              {item.platform}
-                            </h4>
+                  <div className="flex shrink-0 gap-2">
 
-                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                              {type === "social"
-                                ? "Social Link"
-                                : type === "email"
-                                ? "Email"
-                                : "Phone"}
-                            </span>
-                          </div>
+                    <button
+                      onClick={() => editSocialLink(item)}
+                      className="rounded-lg bg-[#0b1736] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#087f8c]"
+                    >
+                      Edit
+                    </button>
 
-                          <a
-                            href={getHref(item)}
-                            target={
-                              type === "social"
-                                ? "_blank"
-                                : undefined
-                            }
-                            rel={
-                              type === "social"
-                                ? "noopener noreferrer"
-                                : undefined
-                            }
-                            className="mt-1 block truncate text-sm font-medium text-[#087f8c] hover:underline"
-                          >
-                            {item.url}
-                          </a>
-                        </div>
-                      </div>
+                    <button
+                      onClick={() => deleteSocialLink(item.id)}
+                      className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+                    >
+                      Delete
+                    </button>
 
-                      <div className="flex shrink-0 gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            editContactInfo(item)
-                          }
-                          className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                        >
-                          Edit
-                        </button>
+                  </div>
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            deleteContactInfo(item.id)
-                          }
-                          className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                </div>
+              ))}
+
+            </div>
+          )}
         </section>
 
-        {/* CONTACT MESSAGES */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#0b1220] sm:p-6">
+        {/* ==================================================
+            CONTACT MESSAGES
+        ================================================== */}
+
+        <section>
 
           <div className="mb-6">
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+            <h2 className="text-2xl font-bold text-[#0b1736] dark:text-white">
               Contact Messages
             </h2>
 
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Messages submitted through the website contact form.
+              View and manage messages submitted through the website contact
+              form.
             </p>
           </div>
 
-          {messagesLoading ? (
-            <div className="rounded-lg border border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+          {/* LOADING */}
+
+          {loading && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-900">
               Loading messages...
             </div>
-          ) : messages.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-              No contact messages found.
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className="rounded-xl border border-slate-200 p-5 dark:border-slate-700"
-                >
-                  <div className="flex flex-col justify-between gap-4 sm:flex-row">
+          )}
 
-                    <div>
-                      <h3 className="font-bold text-slate-900 dark:text-white">
-                        {message.subject || "No Subject"}
-                      </h3>
+          {/* ERROR */}
 
-                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                        From: {message.name} ({message.email})
-                      </p>
+          {error && (
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+              <p className="font-semibold">
+                Error loading messages
+              </p>
 
-                      <p className="mt-1 text-xs text-slate-400">
-                        {new Date(
-                          message.created_at
-                        ).toLocaleString()}
-                      </p>
-                    </div>
-
-                    <span
-                      className={`inline-flex h-fit rounded-full px-3 py-1 text-xs font-semibold ${
-                        message.status === "read"
-                          ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400"
-                          : "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-400"
-                      }`}
-                    >
-                      {message.status || "unread"}
-                    </span>
-                  </div>
-
-                  <div className="mt-4 rounded-lg bg-slate-50 p-4 text-sm leading-6 text-slate-700 dark:bg-[#111827] dark:text-slate-300">
-                    {message.message}
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-
-                    {message.status !== "read" ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateMessageStatus(
-                            message.id,
-                            "read"
-                          )
-                        }
-                        className="rounded-lg bg-[#087f8c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#066b76]"
-                      >
-                        Mark as Read
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateMessageStatus(
-                            message.id,
-                            "unread"
-                          )
-                        }
-                        className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
-                      >
-                        Mark as Unread
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        deleteMessage(message.id)
-                      }
-                      className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
+              <p className="mt-1 text-sm">
+                {error}
+              </p>
             </div>
           )}
+
+          {/* EMPTY */}
+
+          {!loading && !error && messages.length === 0 && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center dark:border-slate-700 dark:bg-slate-900">
+
+              <div className="text-4xl">
+                📭
+              </div>
+
+              <h2 className="mt-4 text-xl font-bold text-[#0b1736] dark:text-white">
+                No messages yet
+              </h2>
+
+              <p className="mt-2 text-slate-500 dark:text-slate-400">
+                Messages submitted through the Contact page will appear here.
+              </p>
+
+            </div>
+          )}
+
+          {/* MESSAGES */}
+
+          {!loading && !error && messages.length > 0 && (
+            <div className="space-y-5">
+
+              {messages.map((item) => {
+
+                const isUnread =
+                  item.status?.toLowerCase() === "unread";
+
+                return (
+                  <div
+                    key={item.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                  >
+
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+
+                      <div className="min-w-0">
+
+                        <div className="flex flex-wrap items-center gap-2">
+
+                          <h2 className="text-xl font-bold text-[#0b1736] dark:text-white">
+                            {item.subject || "No subject"}
+                          </h2>
+
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-bold ${
+                              isUnread
+                                ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                                : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                            }`}
+                          >
+                            {item.status || "Unread"}
+                          </span>
+
+                        </div>
+
+                        <div className="mt-3 space-y-1 text-sm text-slate-500 dark:text-slate-400">
+
+                          <p>
+                            <strong className="text-slate-700 dark:text-slate-300">
+                              From:
+                            </strong>{" "}
+                            {item.name}
+                          </p>
+
+                          <p>
+                            <strong className="text-slate-700 dark:text-slate-300">
+                              Email:
+                            </strong>{" "}
+
+                            <a
+                              href={`mailto:${item.email}`}
+                              className="text-[#087f8c] hover:underline"
+                            >
+                              {item.email}
+                            </a>
+                          </p>
+
+                          <p>
+                            <strong className="text-slate-700 dark:text-slate-300">
+                              Date:
+                            </strong>{" "}
+
+                            {new Date(
+                              item.created_at
+                            ).toLocaleString()}
+                          </p>
+
+                        </div>
+
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+
+                        <button
+                          onClick={() =>
+                            updateStatus(
+                              item.id,
+                              isUnread ? "Read" : "Unread"
+                            )
+                          }
+                          className="rounded-lg bg-[#0b1736] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#087f8c]"
+                        >
+                          {isUnread
+                            ? "Mark as Read"
+                            : "Mark as Unread"}
+                        </button>
+
+                        <button
+                          onClick={() =>
+                            deleteMessage(item.id)
+                          }
+                          className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+                        >
+                          Delete
+                        </button>
+
+                      </div>
+
+                    </div>
+
+                    <div className="mt-5 rounded-xl bg-slate-50 p-5 dark:bg-slate-800/70">
+
+                      <p className="whitespace-pre-wrap text-sm leading-7 text-slate-700 dark:text-slate-200">
+                        {item.message}
+                      </p>
+
+                    </div>
+
+                  </div>
+                );
+              })}
+
+            </div>
+          )}
+
         </section>
+
       </div>
     </main>
   );
