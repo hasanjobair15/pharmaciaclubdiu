@@ -20,6 +20,17 @@ type SocialLink = {
   created_at: string;
 };
 
+const CONTACT_PLATFORMS = [
+  "Official Email",
+  "Facebook Page",
+  "LinkedIn",
+  "Instagram",
+  "Department Facebook Page",
+  "Department Facebook Group",
+  "Department Website",
+  "Department Email",
+];
+
 export default function AdminContactPage() {
   const supabase = createClient();
 
@@ -33,16 +44,16 @@ export default function AdminContactPage() {
   const [socialError, setSocialError] = useState("");
 
   const [showSocialForm, setShowSocialForm] = useState(false);
-  const [editingSocialId, setEditingSocialId] = useState<number | null>(
-    null
-  );
+  const [editingSocialId, setEditingSocialId] = useState<number | null>(null);
 
   const [platform, setPlatform] = useState("");
   const [url, setUrl] = useState("");
 
-  // --------------------------------------------------
+  const [savingSocial, setSavingSocial] = useState(false);
+
+  // ============================================================
   // LOAD CONTACT MESSAGES
-  // --------------------------------------------------
+  // ============================================================
 
   async function loadMessages() {
     setLoading(true);
@@ -63,9 +74,9 @@ export default function AdminContactPage() {
     setLoading(false);
   }
 
-  // --------------------------------------------------
+  // ============================================================
   // LOAD SOCIAL LINKS
-  // --------------------------------------------------
+  // ============================================================
 
   async function loadSocialLinks() {
     setSocialLoading(true);
@@ -91,9 +102,9 @@ export default function AdminContactPage() {
     loadSocialLinks();
   }, []);
 
-  // --------------------------------------------------
-  // RESET SOCIAL FORM
-  // --------------------------------------------------
+  // ============================================================
+  // RESET FORM
+  // ============================================================
 
   function resetSocialForm() {
     setPlatform("");
@@ -102,59 +113,65 @@ export default function AdminContactPage() {
     setShowSocialForm(false);
   }
 
-  // --------------------------------------------------
+  // ============================================================
   // ADD / UPDATE SOCIAL LINK
-  // --------------------------------------------------
+  // ============================================================
 
   async function saveSocialLink() {
     if (!platform.trim()) {
-      alert("Please enter a social platform name.");
+      alert("Please select or enter a platform.");
       return;
     }
 
     if (!url.trim()) {
-      alert("Please enter the social media URL.");
+      alert("Please enter the value or URL.");
       return;
     }
 
-    if (editingSocialId !== null) {
-      const { error } = await supabase
-        .from("social_links")
-        .update({
-          platform: platform.trim(),
-          url: url.trim(),
-        })
-        .eq("id", editingSocialId);
+    setSavingSocial(true);
 
-      if (error) {
-        alert(error.message);
-        return;
+    try {
+      if (editingSocialId !== null) {
+        const { error } = await supabase
+          .from("social_links")
+          .update({
+            platform: platform.trim(),
+            url: url.trim(),
+          })
+          .eq("id", editingSocialId);
+
+        if (error) {
+          alert(error.message);
+          return;
+        }
+
+        alert("Contact information updated successfully.");
+      } else {
+        const { error } = await supabase
+          .from("social_links")
+          .insert({
+            platform: platform.trim(),
+            url: url.trim(),
+          });
+
+        if (error) {
+          alert(error.message);
+          return;
+        }
+
+        alert("Contact information added successfully.");
       }
 
-      alert("Social link updated successfully.");
-    } else {
-      const { error } = await supabase
-        .from("social_links")
-        .insert({
-          platform: platform.trim(),
-          url: url.trim(),
-        });
-
-      if (error) {
-        alert(error.message);
-        return;
-      }
-
-      alert("Social link added successfully.");
+      resetSocialForm();
+      await loadSocialLinks();
+    } finally {
+      setSavingSocial(false);
     }
-
-    resetSocialForm();
-    loadSocialLinks();
   }
 
-  // --------------------------------------------------
-  // EDIT SOCIAL LINK
-  // --------------------------------------------------
+  // ============================================================
+  // EDIT
+  // ============================================================
 
   function editSocialLink(item: SocialLink) {
     setEditingSocialId(item.id);
@@ -168,13 +185,13 @@ export default function AdminContactPage() {
     });
   }
 
-  // --------------------------------------------------
-  // DELETE SOCIAL LINK
-  // --------------------------------------------------
+  // ============================================================
+  // DELETE
+  // ============================================================
 
   async function deleteSocialLink(id: number) {
     const confirmed = window.confirm(
-      "Are you sure you want to delete this social link?"
+      "Are you sure you want to delete this contact/social information?"
     );
 
     if (!confirmed) return;
@@ -189,12 +206,12 @@ export default function AdminContactPage() {
       return;
     }
 
-    loadSocialLinks();
+    await loadSocialLinks();
   }
 
-  // --------------------------------------------------
+  // ============================================================
   // UPDATE MESSAGE STATUS
-  // --------------------------------------------------
+  // ============================================================
 
   async function updateStatus(id: number, status: string) {
     const { error } = await supabase
@@ -207,12 +224,12 @@ export default function AdminContactPage() {
       return;
     }
 
-    loadMessages();
+    await loadMessages();
   }
 
-  // --------------------------------------------------
+  // ============================================================
   // DELETE MESSAGE
-  // --------------------------------------------------
+  // ============================================================
 
   async function deleteMessage(id: number) {
     const confirmed = window.confirm(
@@ -231,16 +248,35 @@ export default function AdminContactPage() {
       return;
     }
 
-    loadMessages();
+    await loadMessages();
   }
+
+  // ============================================================
+  // ICON
+  // ============================================================
+
+  function getIcon(platform: string) {
+    const value = platform.toLowerCase();
+
+    if (value.includes("email")) return "📧";
+    if (value.includes("facebook")) return "📘";
+    if (value.includes("linkedin")) return "💼";
+    if (value.includes("instagram")) return "📸";
+    if (value.includes("website")) return "🌐";
+    if (value.includes("group")) return "👥";
+
+    return "🔗";
+  }
+
+  // ============================================================
+  // RENDER
+  // ============================================================
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8 dark:bg-[#0a0f1a] sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
 
-        {/* --------------------------------------------------
-            HEADER
-        -------------------------------------------------- */}
+        {/* HEADER */}
 
         <div className="mb-8">
           <a
@@ -255,13 +291,14 @@ export default function AdminContactPage() {
           </h1>
 
           <p className="mt-2 text-slate-500 dark:text-slate-400">
-            Manage contact messages and website social media links.
+            Manage contact information, social media links, and contact
+            messages from one place.
           </p>
         </div>
 
-        {/* ==================================================
-            SOCIAL LINKS MANAGEMENT
-        ================================================== */}
+        {/* ============================================================
+            WEBSITE CONTACT INFORMATION
+        ============================================================ */}
 
         <section className="mb-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
 
@@ -269,37 +306,42 @@ export default function AdminContactPage() {
 
             <div>
               <h2 className="text-2xl font-bold text-[#0b1736] dark:text-white">
-                Social Media Links
+                Website Contact Information
               </h2>
 
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Add, edit, or remove your website social media links.
+                These details appear on the public Contact page. Edit them
+                here without changing the website code.
               </p>
             </div>
 
             <button
+              type="button"
               onClick={() => {
                 if (showSocialForm) {
                   resetSocialForm();
                 } else {
+                  setEditingSocialId(null);
+                  setPlatform("");
+                  setUrl("");
                   setShowSocialForm(true);
                 }
               }}
               className="rounded-lg bg-[#087f8c] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#066c76]"
             >
-              {showSocialForm ? "Cancel" : "+ Add Social Link"}
+              {showSocialForm ? "Cancel" : "+ Add Information"}
             </button>
           </div>
 
-          {/* SOCIAL FORM */}
+          {/* FORM */}
 
           {showSocialForm && (
             <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800">
 
               <h3 className="mb-4 text-lg font-bold text-[#0b1736] dark:text-white">
                 {editingSocialId !== null
-                  ? "Edit Social Link"
-                  : "Add Social Link"}
+                  ? "Edit Contact Information"
+                  : "Add Contact Information"}
               </h3>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -308,48 +350,71 @@ export default function AdminContactPage() {
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-                    Platform
+                    Type
                   </label>
 
-                  <input
-                    type="text"
+                  <select
                     value={platform}
                     onChange={(e) => setPlatform(e.target.value)}
-                    placeholder="Facebook"
                     className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-[#087f8c] dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                  />
+                  >
+                    <option value="">
+                      Select contact/social platform
+                    </option>
+
+                    {CONTACT_PLATFORMS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                {/* URL */}
+                {/* VALUE */}
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-                    Social Media URL
+                    Email / URL
                   </label>
 
                   <input
-                    type="url"
+                    type={
+                      platform.toLowerCase().includes("email")
+                        ? "email"
+                        : "url"
+                    }
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
-                    placeholder="https://facebook.com/yourpage"
+                    placeholder={
+                      platform.toLowerCase().includes("email")
+                        ? "example@diu.edu.bd"
+                        : "https://example.com"
+                    }
                     className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-[#087f8c] dark:border-slate-600 dark:bg-slate-900 dark:text-white"
                   />
                 </div>
+
               </div>
 
               <div className="mt-5 flex flex-wrap gap-3">
 
                 <button
+                  type="button"
                   onClick={saveSocialLink}
-                  className="rounded-lg bg-[#0b1736] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#087f8c]"
+                  disabled={savingSocial}
+                  className="rounded-lg bg-[#0b1736] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#087f8c] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {editingSocialId !== null
-                    ? "Update Link"
-                    : "Save Link"}
+                  {savingSocial
+                    ? "Saving..."
+                    : editingSocialId !== null
+                    ? "Update Information"
+                    : "Save Information"}
                 </button>
 
                 <button
+                  type="button"
                   onClick={resetSocialForm}
+                  disabled={savingSocial}
                   className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                   Cancel
@@ -359,7 +424,7 @@ export default function AdminContactPage() {
             </div>
           )}
 
-          {/* SOCIAL ERROR */}
+          {/* ERROR */}
 
           {socialError && (
             <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
@@ -367,53 +432,61 @@ export default function AdminContactPage() {
             </div>
           )}
 
-          {/* SOCIAL LINKS */}
+          {/* LIST */}
 
           {socialLoading ? (
             <div className="mt-6 rounded-xl bg-slate-50 p-6 text-center text-sm text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-              Loading social links...
+              Loading contact information...
             </div>
           ) : socialLinks.length === 0 ? (
             <div className="mt-6 rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-600">
+
               <div className="text-4xl">🔗</div>
 
               <h3 className="mt-3 font-bold text-[#0b1736] dark:text-white">
-                No social links added
+                No contact information added
               </h3>
 
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Click "Add Social Link" to create your first link.
+                Add your official email, Facebook, Instagram, department
+                links, and other information.
               </p>
+
             </div>
           ) : (
             <div className="mt-6 space-y-3">
 
               {socialLinks.map((item) => (
+
                 <div
                   key={item.id}
                   className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800 sm:flex-row sm:items-center sm:justify-between"
                 >
 
-                  <div className="min-w-0">
+                  <div className="flex min-w-0 items-center gap-4">
 
-                    <p className="font-bold text-[#0b1736] dark:text-white">
-                      {item.platform}
-                    </p>
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#087f8c]/10 text-xl">
+                      {getIcon(item.platform)}
+                    </div>
 
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 block truncate text-sm text-[#087f8c] hover:underline"
-                    >
-                      {item.url}
-                    </a>
+                    <div className="min-w-0">
+
+                      <p className="font-bold text-[#0b1736] dark:text-white">
+                        {item.platform}
+                      </p>
+
+                      <p className="mt-1 break-all text-sm text-[#087f8c]">
+                        {item.url}
+                      </p>
+
+                    </div>
 
                   </div>
 
                   <div className="flex shrink-0 gap-2">
 
                     <button
+                      type="button"
                       onClick={() => editSocialLink(item)}
                       className="rounded-lg bg-[#0b1736] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#087f8c]"
                     >
@@ -421,6 +494,7 @@ export default function AdminContactPage() {
                     </button>
 
                     <button
+                      type="button"
                       onClick={() => deleteSocialLink(item.id)}
                       className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
                     >
@@ -430,27 +504,31 @@ export default function AdminContactPage() {
                   </div>
 
                 </div>
+
               ))}
 
             </div>
           )}
+
         </section>
 
-        {/* ==================================================
+        {/* ============================================================
             CONTACT MESSAGES
-        ================================================== */}
+        ============================================================ */}
 
         <section>
 
           <div className="mb-6">
+
             <h2 className="text-2xl font-bold text-[#0b1736] dark:text-white">
               Contact Messages
             </h2>
 
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              View and manage messages submitted through the website contact
-              form.
+              View and manage messages submitted through the public Contact
+              page.
             </p>
+
           </div>
 
           {/* LOADING */}
@@ -465,6 +543,7 @@ export default function AdminContactPage() {
 
           {error && (
             <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+
               <p className="font-semibold">
                 Error loading messages
               </p>
@@ -472,6 +551,7 @@ export default function AdminContactPage() {
               <p className="mt-1 text-sm">
                 {error}
               </p>
+
             </div>
           )}
 
@@ -498,6 +578,7 @@ export default function AdminContactPage() {
           {/* MESSAGES */}
 
           {!loading && !error && messages.length > 0 && (
+
             <div className="space-y-5">
 
               {messages.map((item) => {
@@ -506,6 +587,7 @@ export default function AdminContactPage() {
                   item.status?.toLowerCase() === "unread";
 
                 return (
+
                   <div
                     key={item.id}
                     className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900"
@@ -572,6 +654,7 @@ export default function AdminContactPage() {
                       <div className="flex flex-wrap gap-2">
 
                         <button
+                          type="button"
                           onClick={() =>
                             updateStatus(
                               item.id,
@@ -586,6 +669,7 @@ export default function AdminContactPage() {
                         </button>
 
                         <button
+                          type="button"
                           onClick={() =>
                             deleteMessage(item.id)
                           }
