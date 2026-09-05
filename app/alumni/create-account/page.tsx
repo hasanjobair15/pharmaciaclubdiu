@@ -34,7 +34,7 @@ export default function CreateAlumniAccountPage() {
 
   const [batch, setBatch] = useState("");
   const [section, setSection] = useState("");
-  const [graduationYear, setGraduationYear] = useState("");
+  const [graduationDate, setGraduationDate] = useState("");
 
   const [currentPosition, setCurrentPosition] = useState("");
   const [organization, setOrganization] = useState("");
@@ -224,6 +224,68 @@ export default function CreateAlumniAccountPage() {
       return;
     }
 
+    if (!graduationDate) {
+      setErrorMessage(
+        "Please select your Graduation Month & Year."
+      );
+      setLoading(false);
+      return;
+    }
+
+    const [
+      graduationYearValue,
+      graduationMonthValue,
+    ] = graduationDate
+      .split("-")
+      .map(Number);
+
+    if (
+      !Number.isInteger(graduationYearValue) ||
+      !Number.isInteger(graduationMonthValue) ||
+      graduationMonthValue < 1 ||
+      graduationMonthValue > 12
+    ) {
+      setErrorMessage(
+        "Please select a valid Graduation Month & Year."
+      );
+      setLoading(false);
+      return;
+    }
+
+    /*
+     * Alumni accounts must already have graduated.
+     *
+     * Dhaka timezone is used so the status rule matches
+     * the rest of the application.
+     */
+    const today = new Date();
+
+    const todayYear = Number(
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Dhaka",
+        year: "numeric",
+      }).format(today)
+    );
+
+    const todayMonth = Number(
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Dhaka",
+        month: "numeric",
+      }).format(today)
+    );
+
+    if (
+      graduationYearValue > todayYear ||
+      (graduationYearValue === todayYear &&
+        graduationMonthValue > todayMonth)
+    ) {
+      setErrorMessage(
+        "Graduation Month & Year cannot be in the future for an Alumni account."
+      );
+      setLoading(false);
+      return;
+    }
+
     try {
       const photoData =
         await prepareProfilePhotoData();
@@ -254,7 +316,7 @@ export default function CreateAlumniAccountPage() {
             batch,
             section,
 
-            graduation_year: graduationYear,
+            graduation_date: graduationDate,
 
             current_position:
               currentPosition.trim(),
@@ -526,22 +588,28 @@ export default function CreateAlumniAccountPage() {
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold">
-                    Graduation Year
+                    Graduation Month & Year *
                   </label>
 
                   <input
-                    type="number"
-                    min="2000"
-                    max="2100"
-                    value={graduationYear}
+                    type="month"
+                    value={graduationDate}
                     onChange={(e) =>
-                      setGraduationYear(
+                      setGraduationDate(
                         e.target.value
                       )
                     }
-                    placeholder="e.g. 2026"
+                    required
                     className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   />
+
+                  <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                    Required for Alumni. You must
+                    select your official graduation
+                    month and year. The selected
+                    month is treated as your
+                    graduation date.
+                  </p>
                 </div>
               </div>
             </div>
@@ -568,54 +636,44 @@ export default function CreateAlumniAccountPage() {
                         onError={() => {
                           if (photoUrl) {
                             setErrorMessage(
-                              "The image URL could not be loaded. Please check the URL."
+                              "Unable to load the image from this URL."
                             );
                           }
                         }}
                       />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center text-5xl">
-                        🎓
+                      <div className="flex h-full w-full items-center justify-center text-center text-xs font-medium text-slate-400">
+                        No Photo
                       </div>
                     )}
                   </div>
-
-                  {photoPreview && (
-                    <button
-                      type="button"
-                      onClick={removePhoto}
-                      className="absolute -right-2 -top-2 flex h-9 w-9 items-center justify-center rounded-full bg-red-600 text-lg font-bold text-white shadow-md hover:bg-red-700"
-                      aria-label="Remove profile photo"
-                    >
-                      ×
-                    </button>
-                  )}
                 </div>
 
-                {/* FILE UPLOAD */}
-                <label className="mt-6 cursor-pointer rounded-full bg-[#0b1736] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#087f8c]">
-                  📷 Choose Profile Photo
+                {/* UPLOAD */}
+                <div className="mt-6 w-full max-w-md">
+                  <label className="mb-2 block text-sm font-semibold">
+                    Upload Profile Photo
+                  </label>
 
                   <input
                     type="file"
-                    accept="image/jpeg,image/png,image/webp"
+                    accept="image/*"
                     onChange={handlePhotoSelect}
                     disabled={loading}
-                    className="hidden"
+                    className="block w-full cursor-pointer rounded-xl border border-slate-300 bg-white text-sm text-slate-600 file:mr-4 file:border-0 file:bg-slate-100 file:px-4 file:py-3 file:text-sm file:font-semibold dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:file:bg-slate-700 dark:file:text-white"
                   />
-                </label>
 
-                <p className="mt-3 text-center text-xs text-slate-500 dark:text-slate-400">
-                  JPG, PNG or WebP
-                  <br />
-                  Maximum 10 MB • Automatically compressed
-                </p>
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    Maximum original file size: 10 MB.
+                    The image will be compressed automatically.
+                  </p>
+                </div>
 
                 {/* OR */}
-                <div className="my-6 flex w-full max-w-md items-center gap-3">
+                <div className="my-5 flex w-full max-w-md items-center gap-3">
                   <div className="h-px flex-1 bg-slate-300 dark:bg-slate-700" />
 
-                  <span className="text-xs font-bold text-slate-500">
+                  <span className="text-xs font-bold uppercase text-slate-400">
                     OR
                   </span>
 
@@ -644,14 +702,14 @@ export default function CreateAlumniAccountPage() {
 
                 {/* SELECTED FILE MESSAGE */}
                 {selectedPhoto && (
-                  <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">
+                  <div className="mt-4 w-full max-w-md rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">
                     ✓ Photo selected successfully
                   </div>
                 )}
 
                 {/* URL MESSAGE */}
                 {photoUrl && !selectedPhoto && (
-                  <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-300">
+                  <div className="mt-4 w-full max-w-md rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-300">
                     ✓ Image URL added
                   </div>
                 )}
