@@ -3,62 +3,42 @@ import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !serviceRoleKey) {
-  throw new Error("Missing Supabase environment variables.");
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error(
+      "Supabase environment variables are missing."
+    );
+  }
+
+  return createClient(
+    supabaseUrl,
+    serviceRoleKey,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    }
+  );
 }
 
-const supabaseAdmin = createClient(
-  supabaseUrl,
-  serviceRoleKey,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  }
-);
+function cleanGraduationDate(
+  value: unknown
+): string | null {
+  // Empty, null, or undefined means:
+  // NO graduation date.
+  //
+  // This is intentionally allowed for
+  // Running Students.
 
-function getBearerToken(request: NextRequest) {
-  const authorization = request.headers.get("authorization");
-
-  if (!authorization) {
-    return null;
-  }
-
-  const [type, token] = authorization.split(" ");
-
-  if (type?.toLowerCase() !== "bearer" || !token) {
-    return null;
-  }
-
-  return token;
-}
-
-function cleanText(value: unknown) {
-  if (typeof value !== "string") {
-    return "";
-  }
-
-  return value.trim();
-}
-
-/**
- * Accepts:
- *   "2026-09"
- *   "2026-09-01"
- *   ""
- *   null
- *
- * Stores the first day of the selected graduation month.
- *
- * Empty value means no graduation date, so the student
- * remains in Running Students.
- */
-function cleanGraduationDate(value: unknown): string | null {
-  if (value === null || value === undefined) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
     return null;
   }
 
@@ -71,8 +51,11 @@ function cleanGraduationDate(value: unknown): string | null {
   let year: number;
   let month: number;
 
-  const monthMatch = raw.match(/^(\d{4})-(\d{2})$/);
-  const dateMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const monthMatch =
+    raw.match(/^(\d{4})-(\d{2})$/);
+
+  const dateMatch =
+    raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
 
   if (monthMatch) {
     year = Number(monthMatch[1]);
@@ -80,60 +63,126 @@ function cleanGraduationDate(value: unknown): string | null {
   } else if (dateMatch) {
     year = Number(dateMatch[1]);
     month = Number(dateMatch[2]);
-
-    // We only care about the graduation month.
-    // Always store the first day of that month.
   } else {
-    return null;
+    throw new Error(
+      "Invalid graduation month and year."
+    );
   }
 
-  if (!Number.isInteger(year) || !Number.isInteger(month)) {
-    return null;
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month)
+  ) {
+    throw new Error(
+      "Invalid graduation month and year."
+    );
   }
 
   if (year < 1900 || year > 2200) {
-    return null;
+    throw new Error(
+      "Invalid graduation year."
+    );
   }
 
   if (month < 1 || month > 12) {
-    return null;
+    throw new Error(
+      "Invalid graduation month."
+    );
   }
 
-  return `${year}-${String(month).padStart(2, "0")}-01`;
+  // Store the month as the first day of that month.
+  return `${year}-${String(month).padStart(
+    2,
+    "0"
+  )}-01`;
 }
 
-export async function GET(request: NextRequest) {
-  try {
-    const token = getBearerToken(request);
+async function getAuthenticatedUser(
+  request: NextRequest
+) {
+  const authorization =
+    request.headers.get(
+      "authorization"
+    );
 
-    if (!token) {
+  if (
+    !authorization ||
+    !authorization.startsWith(
+      "Bearer "
+    )
+  ) {
+    return {
+      user: null,
+      error: "Authentication required.",
+    };
+  }
+
+  const token = authorization
+    .replace("Bearer ", "")
+    .trim();
+
+  if (!token) {
+    return {
+      user: null,
+      error: "Authentication required.",
+    };
+  }
+
+  const supabaseAdmin =
+    getSupabaseAdmin();
+
+  const {
+    data: { user },
+    error,
+  } =
+    await supabaseAdmin.auth.getUser(
+      token
+    );
+
+  if (error || !user) {
+    return {
+      user: null,
+      error:
+        "Your session has expired. Please log in again.",
+    };
+  }
+
+  return {
+    user,
+    error: null,
+  };
+}
+
+export async function GET(
+  request: NextRequest
+) {
+  try {
+    const {
+      user,
+      error: authError,
+    } =
+      await getAuthenticatedUser(
+        request
+      );
+
+    if (!user) {
       return NextResponse.json(
         {
-          error: "Unauthorized.",
+          error: authError,
         },
         {
           status: 401,
         }
       );
     }
+
+    const supabaseAdmin =
+      getSupabaseAdmin();
 
     const {
-      data: { user },
-      error: userError,
-    } = await supabaseAdmin.auth.getUser(token);
-
-    if (userError || !user) {
-      return NextResponse.json(
-        {
-          error: "Invalid or expired session.",
-        },
-        {
-          status: 401,
-        }
-      );
-    }
-
-    const { data, error } = await supabaseAdmin
+      data: profile,
+      error,
+    } = await supabaseAdmin
       .from("student_profiles")
       .select(
         `
@@ -144,11 +193,11 @@ export async function GET(request: NextRequest) {
           batch,
           section,
           blood_group,
+          graduation_date,
           profile_photo_url,
           linkedin_url,
           instagram_url,
           facebook_url,
-          graduation_date,
           created_at,
           updated_at
         `
@@ -157,11 +206,14 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (error) {
-      console.error("Student profile GET error:", error);
+      console.error(
+        "Student profile GET error:",
+        error
+      );
 
       return NextResponse.json(
         {
-          error: "Failed to load student profile.",
+          error: error.message,
         },
         {
           status: 500,
@@ -169,10 +221,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!data) {
+    if (!profile) {
       return NextResponse.json(
         {
-          error: "Student profile not found.",
+          error:
+            "Student profile not found.",
         },
         {
           status: 404,
@@ -181,14 +234,20 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      profile: data,
+      profile,
     });
   } catch (error) {
-    console.error("Student profile GET exception:", error);
+    console.error(
+      "GET /api/students/profile error:",
+      error
+    );
 
     return NextResponse.json(
       {
-        error: "Something went wrong.",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to load student profile.",
       },
       {
         status: 500,
@@ -197,30 +256,22 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function PUT(request: NextRequest) {
+export async function PUT(
+  request: NextRequest
+) {
   try {
-    const token = getBearerToken(request);
-
-    if (!token) {
-      return NextResponse.json(
-        {
-          error: "Unauthorized.",
-        },
-        {
-          status: 401,
-        }
-      );
-    }
-
     const {
-      data: { user },
-      error: userError,
-    } = await supabaseAdmin.auth.getUser(token);
+      user,
+      error: authError,
+    } =
+      await getAuthenticatedUser(
+        request
+      );
 
-    if (userError || !user) {
+    if (!user) {
       return NextResponse.json(
         {
-          error: "Invalid or expired session.",
+          error: authError,
         },
         {
           status: 401,
@@ -228,38 +279,100 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    let body: Record<string, unknown>;
+    const body =
+      (await request
+        .json()
+        .catch(() => ({}))) as Record<
+        string,
+        unknown
+      >;
+
+    const fullName =
+      typeof body.full_name ===
+      "string"
+        ? body.full_name.trim()
+        : "";
+
+    const studentId =
+      typeof body.student_id ===
+      "string"
+        ? body.student_id.trim() || null
+        : null;
+
+    const batchValue =
+      body.batch;
+
+    const section =
+      typeof body.section ===
+      "string"
+        ? body.section
+            .trim()
+            .toUpperCase()
+        : "";
+
+    const bloodGroup =
+      typeof body.blood_group ===
+      "string"
+        ? body.blood_group.trim() ||
+          null
+        : null;
+
+    const linkedinUrl =
+      typeof body.linkedin_url ===
+      "string"
+        ? body.linkedin_url.trim() ||
+          null
+        : null;
+
+    const instagramUrl =
+      typeof body.instagram_url ===
+      "string"
+        ? body.instagram_url.trim() ||
+          null
+        : null;
+
+    const facebookUrl =
+      typeof body.facebook_url ===
+      "string"
+        ? body.facebook_url.trim() ||
+          null
+        : null;
+
+    // ---------------------------------------------------------
+    // Graduation date
+    //
+    // IMPORTANT:
+    // Empty is allowed here.
+    //
+    // Empty = NULL = Running Student status.
+    // ---------------------------------------------------------
+
+    let graduationDate: string | null;
 
     try {
-      body = await request.json();
-    } catch {
+      graduationDate =
+        cleanGraduationDate(
+          body.graduation_date
+        );
+    } catch (error) {
       return NextResponse.json(
         {
-          error: "Invalid request body.",
+          error:
+            error instanceof Error
+              ? error.message
+              : "Invalid graduation date.",
         },
         {
           status: 400,
         }
       );
     }
-
-    const fullName = cleanText(body.full_name);
-    const studentId = cleanText(body.student_id);
-    const section = cleanText(body.section).toUpperCase();
-    const bloodGroup = cleanText(body.blood_group);
-    const linkedinUrl = cleanText(body.linkedin_url);
-    const instagramUrl = cleanText(body.instagram_url);
-    const facebookUrl = cleanText(body.facebook_url);
-    const profilePhotoUrl = cleanText(body.profile_photo_url);
-
-    const graduationDate = cleanGraduationDate(
-      body.graduation_date
-    );
 
     if (!fullName) {
       return NextResponse.json(
         {
-          error: "Full name is required.",
+          error:
+            "Full name is required.",
         },
         {
           status: 400,
@@ -267,27 +380,17 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    if (fullName.length > 150) {
-      return NextResponse.json(
-        {
-          error: "Full name is too long.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    const numericBatch = Number(body.batch);
+    const numericBatch =
+      Number(batchValue);
 
     if (
-      !Number.isInteger(numericBatch) ||
-      numericBatch < 1 ||
-      numericBatch > 100
+      !Number.isInteger(
+        numericBatch
+      )
     ) {
       return NextResponse.json(
         {
-          error: "Please provide a valid batch.",
+          error: "Invalid batch.",
         },
         {
           status: 400,
@@ -295,10 +398,13 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    if (!["A", "B"].includes(section)) {
+    if (
+      !["A", "B"].includes(section)
+    ) {
       return NextResponse.json(
         {
-          error: "Section must be A or B.",
+          error:
+            "Section must be A or B.",
         },
         {
           status: 400,
@@ -306,63 +412,68 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    /*
-     * Graduation date is optional.
-     *
-     * If it is NULL:
-     *   Student remains in Running Students.
-     *
-     * If it is something like:
-     *   2026-09-01
-     *
-     * then the Alumni page can automatically treat the student
-     * as an alumnus once that month has arrived.
-     */
+    const supabaseAdmin =
+      getSupabaseAdmin();
 
-    const { data: updatedProfile, error: updateError } =
-      await supabaseAdmin
-        .from("student_profiles")
-        .update({
-          full_name: fullName,
-          student_id: studentId || null,
-          batch: numericBatch,
+    // ---------------------------------------------------------
+    // Update student profile
+    // ---------------------------------------------------------
+
+    const {
+      data: updatedProfile,
+      error: updateError,
+    } = await supabaseAdmin
+      .from("student_profiles")
+      .update({
+        full_name: fullName,
+        student_id: studentId,
+        batch: numericBatch,
+        section,
+        blood_group: bloodGroup,
+
+        // NULL when the student clears
+        // the graduation field.
+        graduation_date:
+          graduationDate,
+
+        linkedin_url: linkedinUrl,
+        instagram_url:
+          instagramUrl,
+        facebook_url:
+          facebookUrl,
+      })
+      .eq("id", user.id)
+      .select(
+        `
+          id,
+          full_name,
+          student_id,
+          email,
+          batch,
           section,
-          blood_group: bloodGroup || null,
-          profile_photo_url: profilePhotoUrl || null,
-          linkedin_url: linkedinUrl || null,
-          instagram_url: instagramUrl || null,
-          facebook_url: facebookUrl || null,
-          graduation_date: graduationDate,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", user.id)
-        .select(
-          `
-            id,
-            full_name,
-            student_id,
-            email,
-            batch,
-            section,
-            blood_group,
-            profile_photo_url,
-            linkedin_url,
-            instagram_url,
-            facebook_url,
-            graduation_date,
-            created_at,
-            updated_at
-          `
-        )
-        .single();
+          blood_group,
+          graduation_date,
+          profile_photo_url,
+          linkedin_url,
+          instagram_url,
+          facebook_url,
+          created_at,
+          updated_at
+        `
+      )
+      .single();
 
     if (updateError) {
-      console.error("Student profile update error:", updateError);
+      console.error(
+        "Student profile update error:",
+        updateError
+      );
 
       return NextResponse.json(
         {
-          error: "Failed to update student profile.",
-          details: updateError.message,
+          error:
+            updateError.message ||
+            "Unable to update student profile.",
         },
         {
           status: 500,
@@ -370,44 +481,52 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    /*
-     * Keep Supabase Auth metadata synchronized with the profile.
-     */
-    const { error: metadataError } =
+    // ---------------------------------------------------------
+    // Keep Auth metadata synchronized
+    // ---------------------------------------------------------
+
+    const {
+      error: metadataError,
+    } =
       await supabaseAdmin.auth.admin.updateUserById(
         user.id,
         {
           user_metadata: {
-            ...(user.user_metadata || {}),
+            ...user.user_metadata,
             full_name: fullName,
             batch: numericBatch,
             section,
+
+            // NULL when cleared.
+            graduation_date:
+              graduationDate,
           },
         }
       );
 
     if (metadataError) {
-      console.error(
-        "Student auth metadata update error:",
+      console.warn(
+        "Student Auth metadata update warning:",
         metadataError
       );
-
-      /*
-       * We do not fail the whole profile update here because
-       * the database profile has already been updated successfully.
-       */
     }
 
     return NextResponse.json({
-      message: "Profile updated successfully.",
+      success: true,
       profile: updatedProfile,
     });
   } catch (error) {
-    console.error("Student profile PUT exception:", error);
+    console.error(
+      "PUT /api/students/profile error:",
+      error
+    );
 
     return NextResponse.json(
       {
-        error: "Something went wrong.",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to update student profile.",
       },
       {
         status: 500,
