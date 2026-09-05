@@ -13,17 +13,34 @@ export default function AlumniLoginPage() {
   const [password, setPassword] = useState("");
 
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
   const [resending, setResending] = useState(false);
   const [showResend, setShowResend] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
 
+  async function resolveAccountAndRedirect(accessToken: string) {
+    const response = await fetch("/api/auth/account-type", {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data?.error || "Unable to determine your account type."
+      );
+    }
+
+    router.replace(data.redirect_to);
+  }
+
   useEffect(() => {
-    /* After the email-confirmation link, Supabase redirects here
-       (/?confirmed=1&...tokens). The browser client picks up the session
-       from the URL; surface the confirmation to the member and clean the URL. */
-    async function handleConfirmRedirect() {
+    async function handleInitialSession() {
       const params = new URLSearchParams(window.location.search);
       const confirmed = params.get("confirmed") === "1";
 
@@ -32,8 +49,16 @@ export default function AlumniLoginPage() {
           data: { session },
         } = await supabase.auth.getSession();
 
-        if (session) {
+        if (session?.access_token) {
           setSessionReady(true);
+
+          try {
+            await resolveAccountAndRedirect(session.access_token);
+            return;
+          } catch (error) {
+            console.error("Account resolver error:", error);
+          }
+
           setInfoMessage(
             "Your email has been confirmed and you are signed in."
           );
@@ -42,24 +67,31 @@ export default function AlumniLoginPage() {
             "Your email has been confirmed! You can now log in with your email and password."
           );
         }
-      } catch {
-        /* ignore — member can simply log in */
+      } catch (error) {
+        console.error("Session check error:", error);
+      } finally {
+        setCheckingSession(false);
       }
 
-      if (confirmed || window.location.hash.includes("access_token")) {
+      if (
+        confirmed ||
+        window.location.hash.includes("access_token")
+      ) {
         params.delete("confirmed");
+
         const query = params.toString();
 
         window.history.replaceState(
           {},
           document.title,
-          `${window.location.pathname}${query ? `?${query}` : ""}`
+          `${window.location.pathname}${
+            query ? `?${query}` : ""
+          }`
         );
       }
     }
 
-    handleConfirmRedirect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    handleInitialSession();
   }, []);
 
   async function handleResendConfirmation() {
@@ -79,14 +111,20 @@ export default function AlumniLoginPage() {
       });
 
       if (error) {
-        if (/too many requests|rate limit|over_request/i.test(error.message || "")) {
-          setErrorMessage("Too many emails were sent. Please wait a minute and try again.");
+        if (
+          /too many requests|rate limit|over_request/i.test(
+            error.message || ""
+          )
+        ) {
+          setErrorMessage(
+            "Too many emails were sent. Please wait a minute and try again."
+          );
         } else {
           throw error;
         }
       } else {
         setInfoMessage(
-          `Confirmation email sent again to ${email.trim()}. Check your inbox (and the spam folder).`
+          `Confirmation email sent again to ${email.trim()}. Check your inbox and spam folder.`
         );
       }
     } catch (error) {
@@ -105,6 +143,8 @@ export default function AlumniLoginPage() {
 
     setLoading(true);
     setErrorMessage("");
+    setInfoMessage("");
+    setShowResend(false);
 
     if (!email.trim()) {
       setErrorMessage("Please enter your email address.");
@@ -119,35 +159,69 @@ export default function AlumniLoginPage() {
     }
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
+      const { data, error } =
+        await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
 
       if (error) {
         throw error;
       }
 
-      router.push("/alumni/profile");
-      router.refresh();
+      if (!data.session?.access_token) {
+        throw new Error(
+          "Login succeeded, but no session was created."
+        );
+      }
+
+      /*
+       * IMPORTANT:
+       * Do not automatically send the user to /alumni/profile.
+       *
+       * The account resolver decides whether this account is:
+       *
+       * Student  -> /students/profile
+       * Alumni   -> /alumni/profile
+       *
+       * This means an account can use either login page.
+       */
+      await resolveAccountAndRedirect(
+        data.session.access_token
+      );
     } catch (error) {
       console.error("Alumni login error:", error);
 
-      const raw = error instanceof Error ? error.message : "";
+      const raw =
+        error instanceof Error ? error.message : "";
 
       if (/email not confirmed/i.test(raw)) {
         setErrorMessage(
           "Your email is not confirmed yet. Check your inbox for the confirmation link — or resend it below."
         );
+
         setShowResend(true);
       } else {
         setErrorMessage(
-          raw || "Unable to log in. Please check your email and password."
+          raw ||
+            "Unable to log in. Please check your email and password."
         );
       }
-    } finally {
+
       setLoading(false);
     }
+  }
+
+  if (checkingSession) {
+    return (
+      <main className="min-h-screen bg-slate-50 dark:bg-[#0a0f1a]">
+        <section className="flex min-h-screen items-center justify-center px-6">
+          <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+            Checking your account...
+          </p>
+        </section>
+      </main>
+    );
   }
 
   return (
@@ -166,8 +240,7 @@ export default function AlumniLoginPage() {
           </h1>
 
           <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-slate-600 dark:text-slate-300">
-            Sign in to manage your alumni profile and keep your information
-            up to date.
+            Sign in with your Pharmacia Club account.
           </p>
 
         </div>
@@ -188,7 +261,7 @@ export default function AlumniLoginPage() {
           </h2>
 
           <p className="mt-2 text-center text-sm text-slate-500 dark:text-slate-400">
-            Log in to your alumni account.
+            Log in to your Pharmacia Club account.
           </p>
 
           {/* LOGIN FORM */}
@@ -232,7 +305,6 @@ export default function AlumniLoginPage() {
                   Password
                 </label>
 
-                {/* FORGOT PASSWORD */}
                 <Link
                   href="/alumni/forgot-password"
                   className="text-sm font-semibold text-[#087f8c] transition hover:underline"
@@ -268,6 +340,8 @@ export default function AlumniLoginPage() {
                 {errorMessage}
               </div>
             )}
+
+            {/* RESEND CONFIRMATION */}
             {showResend && errorMessage && (
               <button
                 type="button"
@@ -275,17 +349,41 @@ export default function AlumniLoginPage() {
                 disabled={resending}
                 className="w-full rounded-full border border-[#087f8c] px-6 py-3 text-sm font-bold text-[#087f8c] transition hover:bg-[#087f8c] hover:text-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#2dd4bf] dark:text-[#2dd4bf] dark:hover:bg-[#2dd4bf] dark:hover:text-[#062a2d]"
               >
-                {resending ? "Sending..." : "Resend Confirmation Email"}
+                {resending
+                  ? "Sending..."
+                  : "Resend Confirmation Email"}
               </button>
             )}
 
+            {/* EXISTING SESSION */}
             {sessionReady && (
-              <Link
-                href="/alumni/profile"
-                className="block w-full rounded-full bg-[#087f8c] px-6 py-3 text-center text-sm font-bold text-white transition hover:bg-[#0b1736]"
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const {
+                      data: { session },
+                    } = await supabase.auth.getSession();
+
+                    if (session?.access_token) {
+                      await resolveAccountAndRedirect(
+                        session.access_token
+                      );
+                    }
+                  } catch (error) {
+                    console.error(error);
+
+                    setErrorMessage(
+                      error instanceof Error
+                        ? error.message
+                        : "Unable to determine your account."
+                    );
+                  }
+                }}
+                className="w-full rounded-full bg-[#087f8c] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#0b1736]"
               >
-                Continue to My Alumni Profile →
-              </Link>
+                Continue to My Profile →
+              </button>
             )}
 
             {/* LOGIN BUTTON */}
