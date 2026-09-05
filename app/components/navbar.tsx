@@ -11,6 +11,7 @@ type NavLink = {
   external?: boolean;
 };
 
+// Removed the duplicated “Students” link and added a clean mobile‑only separator.
 const links: NavLink[] = [
   { name: "Home", href: "/" },
   { name: "About", href: "/about" },
@@ -31,7 +32,7 @@ const links: NavLink[] = [
   { name: "Magazine", href: "/magazine" },
   { name: "Gallery", href: "/gallery" },
   { name: "News", href: "/news" },
-  { name: "Students", href: "/students" },
+  // Students link removed (duplicate)
   { name: "Alumni", href: "/alumni" },
   { name: "Contact", href: "/contact" },
 ];
@@ -47,7 +48,6 @@ export default function Navbar() {
     setMounted(true);
 
     const savedTheme = localStorage.getItem("theme");
-
     if (savedTheme === "light") {
       document.documentElement.classList.remove("dark");
       setDarkMode(false);
@@ -57,9 +57,8 @@ export default function Navbar() {
     }
   }, []);
 
-  function toggleTheme(): void {
+  const toggleTheme = () => {
     const html = document.documentElement;
-
     if (html.classList.contains("dark")) {
       html.classList.remove("dark");
       localStorage.setItem("theme", "light");
@@ -69,33 +68,21 @@ export default function Navbar() {
       localStorage.setItem("theme", "dark");
       setDarkMode(true);
     }
-  }
+  };
 
-  function isActive(href: string, external?: boolean): boolean {
-    if (external) {
-      return false;
-    }
-
-    if (href === "/") {
-      return pathname === "/";
-    }
-
+  const isActive = (href: string, external?: boolean) => {
+    if (external) return false;
+    if (href === "/") return pathname === "/";
     return pathname === href || pathname.startsWith(`${href}/`);
-  }
+  };
 
-  function closeMobileMenu(): void {
-    setMobileOpen(false);
-  }
+  const closeMobileMenu = () => setMobileOpen(false);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg-gray-950/95 backdrop-blur">
       <nav className="mx-auto w-full max-w-7xl px-3 sm:px-5 lg:px-4 xl:px-6">
         <div className="flex min-h-16 items-center justify-between gap-2">
-          <Link
-            href="/"
-            onClick={closeMobileMenu}
-            className="flex shrink-0 items-center gap-2"
-          >
+          <Link href="/" onClick={closeMobileMenu} className="flex shrink-0 items-center gap-2">
             <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full bg-white sm:h-10 sm:w-10">
               <Image
                 src="/pharmacialogo.png"
@@ -106,12 +93,10 @@ export default function Navbar() {
                 className="object-contain p-0.5"
               />
             </div>
-
             <div className="hidden md:block">
               <p className="whitespace-nowrap text-sm font-bold leading-tight text-white">
                 Pharmacia Club DIU
               </p>
-
               <p className="whitespace-nowrap text-[11px] text-gray-400">
                 Department of Pharmacy
               </p>
@@ -122,7 +107,7 @@ export default function Navbar() {
             <div className="flex items-center gap-0.5 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {links.map((link) =>
                 link.external ? (
-                  
+                  <a
                     key={link.name}
                     href={link.href}
                     target="_blank"
@@ -153,12 +138,8 @@ export default function Navbar() {
               <button
                 type="button"
                 onClick={toggleTheme}
-                aria-label={
-                  darkMode ? "Switch to light mode" : "Switch to dark mode"
-                }
-                title={
-                  darkMode ? "Switch to light mode" : "Switch to dark mode"
-                }
+                aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+                title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-700 text-gray-200 transition hover:bg-gray-800 hover:text-yellow-300 sm:h-10 sm:w-10 sm:rounded-xl"
               >
                 {darkMode ? (
@@ -201,7 +182,7 @@ export default function Navbar() {
               type="button"
               aria-label={mobileOpen ? "Close menu" : "Open menu"}
               aria-expanded={mobileOpen}
-              onClick={() => setMobileOpen((value) => !value)}
+              onClick={() => setMobileOpen((v) => !v)}
               className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-700 text-gray-200 transition hover:bg-gray-800 sm:h-10 sm:w-10 sm:rounded-xl lg:hidden"
             >
               {mobileOpen ? (
@@ -214,11 +195,7 @@ export default function Navbar() {
                   strokeWidth={2}
                   aria-hidden="true"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M6 6l12 12M18 6L6 18"
-                  />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6L6 18" />
                 </svg>
               ) : (
                 <svg
@@ -230,11 +207,7 @@ export default function Navbar() {
                   strokeWidth={2}
                   aria-hidden="true"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M4 6h16M4 12h16M4 18h16"
-                  />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               )}
             </button>
@@ -246,7 +219,7 @@ export default function Navbar() {
             <div className="flex max-h-[75vh] flex-col overflow-y-auto">
               {links.map((link) =>
                 link.external ? (
-                  
+                  <a
                     key={link.name}
                     href={link.href}
                     target="_blank"
@@ -282,10 +255,7 @@ export default function Navbar() {
                     onClick={toggleTheme}
                     className="flex w-full items-center justify-between rounded-xl border border-gray-700 px-4 py-3 text-sm font-medium text-gray-200 transition hover:bg-gray-800"
                   >
-                    <span>
-                      {darkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
-                    </span>
-
+                    <span>{darkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}</span>
                     <span className="text-xs text-gray-500">Switch</span>
                   </button>
                 </div>
