@@ -13,6 +13,7 @@ type StudentProfile = {
   batch: number;
   section: string;
   blood_group: string | null;
+  graduation_date: string | null;
   profile_photo_url: string | null;
   linkedin_url: string | null;
   instagram_url: string | null;
@@ -39,6 +40,7 @@ export default function StudentProfilePage() {
     batch: "",
     section: "A",
     blood_group: "",
+    graduation_date: "",
     linkedin_url: "",
     instagram_url: "",
     facebook_url: "",
@@ -90,6 +92,9 @@ export default function StudentProfilePage() {
         batch: String(student.batch || ""),
         section: student.section || "A",
         blood_group: student.blood_group || "",
+        graduation_date: student.graduation_date
+          ? String(student.graduation_date).slice(0, 7)
+          : "",
         linkedin_url: student.linkedin_url || "",
         instagram_url: student.instagram_url || "",
         facebook_url: student.facebook_url || "",
@@ -133,6 +138,9 @@ export default function StudentProfilePage() {
       batch: String(profile.batch || ""),
       section: profile.section || "A",
       blood_group: profile.blood_group || "",
+      graduation_date: profile.graduation_date
+        ? String(profile.graduation_date).slice(0, 7)
+        : "",
       linkedin_url: profile.linkedin_url || "",
       instagram_url: profile.instagram_url || "",
       facebook_url: profile.facebook_url || "",
@@ -144,7 +152,9 @@ export default function StudentProfilePage() {
     setEditing(false);
   }
 
-  async function handleSave(event: FormEvent<HTMLFormElement>) {
+  async function handleSave(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
     setSaving(true);
@@ -175,6 +185,10 @@ export default function StudentProfilePage() {
           batch: form.batch,
           section: form.section,
           blood_group: form.blood_group,
+
+          // Empty value becomes NULL in the API.
+          graduation_date: form.graduation_date || null,
+
           linkedin_url: form.linkedin_url,
           instagram_url: form.instagram_url,
           facebook_url: form.facebook_url,
@@ -190,19 +204,28 @@ export default function StudentProfilePage() {
         );
       }
 
-      setProfile(data.profile);
+      const updatedProfile =
+        data.profile as StudentProfile;
+
+      setProfile(updatedProfile);
 
       setForm({
-        full_name: data.profile.full_name || "",
-        student_id: data.profile.student_id || "",
-        batch: String(data.profile.batch || ""),
-        section: data.profile.section || "A",
-        blood_group: data.profile.blood_group || "",
-        linkedin_url: data.profile.linkedin_url || "",
-        instagram_url: data.profile.instagram_url || "",
-        facebook_url: data.profile.facebook_url || "",
+        full_name: updatedProfile.full_name || "",
+        student_id: updatedProfile.student_id || "",
+        batch: String(updatedProfile.batch || ""),
+        section: updatedProfile.section || "A",
+        blood_group: updatedProfile.blood_group || "",
+        graduation_date: updatedProfile.graduation_date
+          ? String(updatedProfile.graduation_date).slice(0, 7)
+          : "",
+        linkedin_url:
+          updatedProfile.linkedin_url || "",
+        instagram_url:
+          updatedProfile.instagram_url || "",
+        facebook_url:
+          updatedProfile.facebook_url || "",
         profile_photo_url:
-          data.profile.profile_photo_url || "",
+          updatedProfile.profile_photo_url || "",
       });
 
       setEditing(false);
@@ -233,6 +256,46 @@ export default function StudentProfilePage() {
     router.replace("/students/login");
     router.refresh();
   };
+
+  function formatGraduationDate(
+    graduationDate: string | null
+  ) {
+    if (!graduationDate) {
+      return "Not provided";
+    }
+
+    const value = String(graduationDate).slice(0, 7);
+
+    const match = value.match(
+      /^(\d{4})-(\d{2})$/
+    );
+
+    if (!match) {
+      return graduationDate;
+    }
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+
+    if (
+      !Number.isInteger(year) ||
+      !Number.isInteger(month) ||
+      month < 1 ||
+      month > 12
+    ) {
+      return graduationDate;
+    }
+
+    const date = new Date(
+      Date.UTC(year, month - 1, 1)
+    );
+
+    return new Intl.DateTimeFormat("en-US", {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(date);
+  }
 
   if (loading) {
     return (
@@ -455,6 +518,13 @@ export default function StudentProfilePage() {
                     />
 
                     <InfoRow
+                      label="Graduation"
+                      value={formatGraduationDate(
+                        profile.graduation_date
+                      )}
+                    />
+
+                    <InfoRow
                       label="Department"
                       value="Department of Pharmacy"
                     />
@@ -466,6 +536,29 @@ export default function StudentProfilePage() {
                   </div>
                 </section>
               </div>
+
+              {/* Graduation Status */}
+              {profile.graduation_date && (
+                <div className="border-t px-6 py-6 sm:px-8">
+                  <div className="rounded-xl border bg-muted/30 p-4">
+                    <p className="text-sm font-semibold">
+                      Graduation Date
+                    </p>
+
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {formatGraduationDate(
+                        profile.graduation_date
+                      )}
+                    </p>
+
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Your profile will automatically appear
+                      in the Alumni directory when your
+                      graduation month begins.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Social Links */}
               {(profile.linkedin_url ||
@@ -618,7 +711,7 @@ export default function StudentProfilePage() {
                   </div>
                 </section>
 
-                {/* Academic */}
+                {/* Academic Information */}
                 <section className="border-t pt-8">
                   <h3 className="mb-5 text-lg font-semibold">
                     Academic Information
@@ -662,6 +755,47 @@ export default function StudentProfilePage() {
                           Section B
                         </option>
                       </select>
+                    </div>
+
+                    {/* Graduation Month + Year */}
+                    <div className="sm:col-span-2">
+                      <label className="mb-2 block text-sm font-semibold">
+                        Graduation Month & Year
+                      </label>
+
+                      <input
+                        type="month"
+                        value={form.graduation_date}
+                        onChange={(e) =>
+                          updateField(
+                            "graduation_date",
+                            e.target.value
+                          )
+                        }
+                        className="w-full rounded-xl border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      />
+
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Optional. When this graduation
+                        month begins, your profile will
+                        automatically appear in the Alumni
+                        directory.
+                      </p>
+
+                      {form.graduation_date && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateField(
+                              "graduation_date",
+                              ""
+                            )
+                          }
+                          className="mt-3 rounded-lg border px-3 py-2 text-xs font-semibold transition hover:bg-muted"
+                        >
+                          Clear Graduation Date
+                        </button>
+                      )}
                     </div>
                   </div>
                 </section>
