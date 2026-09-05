@@ -4,7 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
-const ADMIN_EMAIL = "jobair2311091015@diu.edu.bd";
+const ADMIN_EMAIL = "diupc@diu.edu.bd";
 
 export default function AdminLoginPage() {
   const router = useRouter();
