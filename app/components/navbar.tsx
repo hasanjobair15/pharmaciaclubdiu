@@ -32,7 +32,7 @@ const links: NavLink[] = [
   { name: "Magazine", href: "/magazine" },
   { name: "Gallery", href: "/gallery" },
   { name: "News", href: "/news" },
-  // Students link removed (duplicate)
+  { name: "Students", href: "/students" },
   { name: "Alumni", href: "/alumni" },
   { name: "Contact", href: "/contact" },
 ];
