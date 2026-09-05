@@ -112,7 +112,7 @@ export default function Navbar() {
                     href={link.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="shrink-0 whitespace-nowrap rounded-lg px-2 py-2 text-[11px] font-medium text-gray-300 transition hover:bg-gray-800 hover:text-green-400 lg:text-xs xl:px-2.5"
+                    className="shrink-0 whitespace-nowrap rounded-lg px-2.5 py-2 text-xs font-medium text-gray-300 transition hover:bg-gray-800 hover:text-green-400 lg:text-sm xl:px-3"
                   >
                     {link.name}
                   </a>
