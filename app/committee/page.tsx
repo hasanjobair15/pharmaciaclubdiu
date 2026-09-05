@@ -32,6 +32,32 @@ const panels: Panel[] = [
   "Executive Committee",
 ];
 
+/*
+ * CURRENT COMMITTEE
+ */
+const CURRENT_SESSION = "Fall 2026";
+
+/*
+ * PREVIOUS COMMITTEES
+ */
+const PREVIOUS_SESSIONS = [
+  "Spring 2022",
+  "2024",
+  "Spring 2025",
+  "2025-2026",
+];
+
+/*
+ * UPCOMING COMMITTEES
+ */
+const UPCOMING_SESSIONS = [
+  "Spring 2027",
+  "Fall 2027",
+  "Spring 2028",
+  "Fall 2028",
+  "Spring 2029",
+];
+
 export default function CommitteePage() {
   const supabase = createClient();
 
@@ -44,9 +70,13 @@ export default function CommitteePage() {
   const [sessionLoading, setSessionLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  /*
+   * LOAD COMMITTEE MEMBERS
+   */
   useEffect(() => {
     async function loadCommittee() {
       setLoading(true);
+      setErrorMessage("");
 
       const { data, error } = await supabase
         .from("committee")
@@ -66,34 +96,71 @@ export default function CommitteePage() {
     loadCommittee();
   }, []);
 
-  const currentMembers = members.filter(
-    (member) => member.is_current === true
-  );
+  /*
+   * CURRENT COMMITTEE
+   *
+   * Fall 2026 is always treated as the current session.
+   */
+  const currentSession = CURRENT_SESSION;
 
-  const currentSession =
-    currentMembers.find((member) => member.session)?.session ?? "";
-
+  /*
+   * PREVIOUS SESSIONS
+   *
+   * Only show sessions that actually exist in the database.
+   * The order is fixed so the history never appears randomly.
+   */
   const previousSessions = useMemo(() => {
-    return Array.from(
-      new Set(
-        members
-          .filter(
-            (member) =>
-              !member.is_current &&
-              member.session &&
-              member.session !== currentSession
-          )
-          .map((member) => member.session!.trim())
-      )
+    const existingSessions = new Set(
+      members
+        .filter(
+          (member) =>
+            member.session &&
+            member.session.trim() !== CURRENT_SESSION
+        )
+        .map((member) => member.session!.trim())
     );
-  }, [members, currentSession]);
 
+    return PREVIOUS_SESSIONS.filter((session) =>
+      existingSessions.has(session)
+    );
+  }, [members]);
+
+  /*
+   * UPCOMING SESSIONS
+   *
+   * Only show upcoming sessions that have already been added
+   * to the database.
+   */
+  const upcomingSessions = useMemo(() => {
+    const existingSessions = new Set(
+      members
+        .filter((member) => member.session)
+        .map((member) => member.session!.trim())
+    );
+
+    return UPCOMING_SESSIONS.filter((session) =>
+      existingSessions.has(session)
+    );
+  }, [members]);
+
+  /*
+   * ACTIVE SESSION
+   *
+   * No selected archive = current committee.
+   */
   const activeSession = selectedSession || currentSession;
 
+  /*
+   * MEMBERS FOR CURRENT/SELECTED SESSION
+   */
   const displayedMembers = members.filter(
-    (member) => member.session?.trim() === activeSession?.trim()
+    (member) =>
+      member.session?.trim() === activeSession?.trim()
   );
 
+  /*
+   * OPEN A PREVIOUS OR UPCOMING SESSION
+   */
   async function handleSessionClick(session: string) {
     if (selectedSession === session) {
       setSelectedSession(null);
@@ -102,6 +169,7 @@ export default function CommitteePage() {
 
     setSelectedSession(session);
     setSessionLoading(true);
+    setErrorMessage("");
 
     const { data, error } = await supabase
       .from("committee")
@@ -123,6 +191,22 @@ export default function CommitteePage() {
     }
 
     setSessionLoading(false);
+
+    setTimeout(() => {
+      document
+        .getElementById("selected-committee")
+        ?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+    }, 100);
+  }
+
+  /*
+   * RETURN TO CURRENT COMMITTEE
+   */
+  function handleCurrentCommittee() {
+    setSelectedSession(null);
 
     setTimeout(() => {
       document
@@ -170,6 +254,7 @@ export default function CommitteePage() {
           </div>
         ) : (
           <>
+            {/* HEADER */}
             <div className="mb-10 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
               <div>
                 <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#087f8c] dark:text-[#2dd4bf]">
@@ -183,15 +268,28 @@ export default function CommitteePage() {
                 </h2>
               </div>
 
-              {activeSession && (
-                <div className="rounded-full bg-[#e4f7f8] px-5 py-2 text-sm font-bold text-[#087f8c] dark:bg-[#12383c] dark:text-[#5eead4]">
-                  {selectedSession
-                    ? "Previous Session"
-                    : "Current Session"}
-                </div>
-              )}
+              <div className="flex flex-wrap gap-3">
+                {selectedSession && (
+                  <button
+                    type="button"
+                    onClick={handleCurrentCommittee}
+                    className="rounded-full border border-slate-300 bg-white px-5 py-2 text-sm font-bold text-[#0b1736] transition hover:border-[#087f8c] hover:text-[#087f8c] dark:border-slate-700 dark:bg-[#111827] dark:text-slate-200 dark:hover:border-[#2dd4bf] dark:hover:text-[#5eead4]"
+                  >
+                    ← Current Committee
+                  </button>
+                )}
+
+                {activeSession && (
+                  <div className="rounded-full bg-[#e4f7f8] px-5 py-2 text-sm font-bold text-[#087f8c] dark:bg-[#12383c] dark:text-[#5eead4]">
+                    {selectedSession
+                      ? "Archived Session"
+                      : "Current Session"}
+                  </div>
+                )}
+              </div>
             </div>
 
+            {/* SESSION LOADING */}
             {sessionLoading ? (
               <div className="py-16 text-center">
                 <div className="mx-auto h-9 w-9 animate-spin rounded-full border-4 border-slate-200 border-t-[#087f8c] dark:border-slate-700 dark:border-t-[#2dd4bf]" />
@@ -275,6 +373,44 @@ export default function CommitteePage() {
 
             <div className="flex flex-wrap gap-3">
               {previousSessions.map((session) => (
+                <button
+                  key={session}
+                  type="button"
+                  onClick={() => handleSessionClick(session)}
+                  className={`rounded-full border px-5 py-3 text-sm font-bold transition ${
+                    selectedSession === session
+                      ? "border-[#087f8c] bg-[#087f8c] text-white dark:border-[#2dd4bf] dark:bg-[#2dd4bf] dark:text-[#062a2d]"
+                      : "border-slate-200 bg-white text-[#0b1736] hover:border-[#087f8c] hover:text-[#087f8c] dark:border-slate-700 dark:bg-[#111827] dark:text-slate-200 dark:hover:border-[#2dd4bf] dark:hover:text-[#5eead4]"
+                  }`}
+                >
+                  {session}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* UPCOMING COMMITTEES */}
+      {upcomingSessions.length > 0 && (
+        <section className="border-t border-slate-200 bg-[#f7faff] py-20 transition-colors dark:border-slate-800 dark:bg-[#0a0f1a]">
+          <div className="mx-auto max-w-7xl px-6 lg:px-8">
+            <div className="mb-8">
+              <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#087f8c] dark:text-[#2dd4bf]">
+                Future
+              </p>
+
+              <h2 className="mt-3 text-4xl font-black text-[#0b1736] dark:text-white">
+                Upcoming Committees
+              </h2>
+
+              <p className="mt-3 max-w-2xl text-slate-500 dark:text-slate-400">
+                Explore upcoming committee sessions of Pharmacia Club DIU.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              {upcomingSessions.map((session) => (
                 <button
                   key={session}
                   type="button"
