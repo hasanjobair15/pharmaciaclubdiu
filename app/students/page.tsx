@@ -16,9 +16,45 @@ type Student = {
   linkedin_url: string | null;
   instagram_url: string | null;
   facebook_url: string | null;
+  graduation_date: string | null;
 };
 
 const supabase = createClient();
+
+function getDhakaToday() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * A student is considered graduated when the selected
+ * graduation month has arrived.
+ *
+ * Example:
+ * Graduation date = 2026-09-01
+ * Today            = 2026-09-05
+ *
+ * Result: Alumni
+ */
+function hasGraduated(graduationDate: string | null) {
+  if (!graduationDate) {
+    return false;
+  }
+
+  const today = getDhakaToday();
+
+  return graduationDate <= today;
+}
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -38,10 +74,18 @@ export default function StudentsPage() {
       setLoading(true);
       setError("");
 
+      /*
+       * We intentionally load graduation_date as well.
+       *
+       * The extra client-side check is a safety layer.
+       * The main purpose is to ensure that a student whose
+       * graduation date has arrived does not remain visible
+       * in the Running Students directory.
+       */
       const { data, error } = await supabase
         .from("student_profiles")
         .select(
-          "id, full_name, student_id, email, batch, section, blood_group, profile_photo_url, linkedin_url, instagram_url, facebook_url"
+          "id, full_name, student_id, email, batch, section, blood_group, profile_photo_url, linkedin_url, instagram_url, facebook_url, graduation_date"
         )
         .in("batch", currentBatches)
         .order("batch", { ascending: true })
@@ -50,10 +94,15 @@ export default function StudentsPage() {
 
       if (error) {
         console.error("Student loading error:", error);
+
         setError(error.message);
         setStudents([]);
       } else {
-        setStudents((data || []) as Student[]);
+        const runningStudents = ((data || []) as Student[]).filter(
+          (student) => !hasGraduated(student.graduation_date)
+        );
+
+        setStudents(runningStudents);
       }
 
       setLoading(false);
@@ -89,7 +138,12 @@ export default function StudentsPage() {
         matchesSection
       );
     });
-  }, [students, search, batchFilter, sectionFilter]);
+  }, [
+    students,
+    search,
+    batchFilter,
+    sectionFilter,
+  ]);
 
   const groupedStudents = useMemo(() => {
     const groups: Record<string, Student[]> = {};
@@ -139,6 +193,11 @@ export default function StudentsPage() {
                 <span className="font-semibold text-slate-700 dark:text-slate-200">
                   {currentBatches.join(", ")}
                 </span>
+              </p>
+
+              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                Students are automatically moved to Alumni when their
+                graduation month arrives.
               </p>
             </div>
 
