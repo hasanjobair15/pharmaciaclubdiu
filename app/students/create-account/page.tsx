@@ -29,6 +29,7 @@ export default function StudentCreateAccountPage() {
 
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -36,7 +37,6 @@ export default function StudentCreateAccountPage() {
 
   useEffect(() => {
     if (!photo) {
-      setPhotoPreview("");
       return;
     }
 
@@ -65,6 +65,32 @@ export default function StudentCreateAccountPage() {
 
     setError("");
     setPhoto(file);
+
+    // If a file is selected, clear URL input.
+    setPhotoUrl("");
+  };
+
+  const handlePhotoUrlChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const url = event.target.value.trim();
+
+    setPhotoUrl(url);
+    setError("");
+
+    // If URL is entered, clear uploaded file.
+    if (url) {
+      setPhoto(null);
+      setPhotoPreview(url);
+    } else {
+      setPhotoPreview("");
+    }
+  };
+
+  const removePhoto = () => {
+    setPhoto(null);
+    setPhotoPreview("");
+    setPhotoUrl("");
   };
 
   const fileToBase64 = (file: File): Promise<string> =>
@@ -79,8 +105,9 @@ export default function StudentCreateAccountPage() {
         }
       };
 
-      reader.onerror = () =>
+      reader.onerror = () => {
         reject(new Error("Could not read image."));
+      };
 
       reader.readAsDataURL(file);
     });
@@ -123,18 +150,30 @@ export default function StudentCreateAccountPage() {
 
       let photoData = "";
 
-      // Compress profile photo before sending
+      /*
+       * If the student selected an image file,
+       * compress it before sending.
+       */
       if (photo) {
-        const compressedPhoto =
-          await imageCompression(photo, {
+        const compressedPhoto = await imageCompression(
+          photo,
+          {
             maxSizeMB: 1,
             maxWidthOrHeight: 1200,
             useWebWorker: true,
             fileType: "image/webp",
-          });
+          }
+        );
 
         photoData = await fileToBase64(compressedPhoto);
       }
+
+      /*
+       * If the student entered an image URL,
+       * use the URL instead of a file.
+       */
+      const finalPhoto =
+        photoData || photoUrl.trim() || null;
 
       const response = await fetch(
         "/api/students/register",
@@ -158,7 +197,7 @@ export default function StudentCreateAccountPage() {
             instagram_url: instagram.trim(),
             facebook_url: facebook.trim(),
 
-            profile_photo_url: photoData || null,
+            profile_photo_url: finalPhoto,
           }),
         }
       );
@@ -172,7 +211,7 @@ export default function StudentCreateAccountPage() {
         );
       }
 
-      // Automatically log the student in
+      // Automatically log the student in.
       const { error: loginError } =
         await supabase.auth.signInWithPassword({
           email: email.trim().toLowerCase(),
@@ -425,35 +464,110 @@ export default function StudentCreateAccountPage() {
 
           {/* Profile Photo */}
           <section className="mt-8 border-t pt-8">
-            <h2 className="mb-4 text-xl font-semibold">
+            <h2 className="mb-2 text-xl font-semibold">
               Profile Photo
             </h2>
 
-            <div className="flex flex-col items-center gap-5 sm:flex-row">
-              {photoPreview ? (
-                <img
-                  src={photoPreview}
-                  alt="Profile preview"
-                  className="h-28 w-28 rounded-full object-cover ring-2 ring-border"
-                />
-              ) : (
-                <div className="flex h-28 w-28 items-center justify-center rounded-full border bg-muted text-sm text-muted-foreground">
-                  No Photo
-                </div>
-              )}
+            <p className="mb-5 text-sm text-muted-foreground">
+              You can upload an image file OR paste a public image URL.
+            </p>
 
+            <div className="flex flex-col gap-6">
+              {/* Preview */}
+              <div className="flex justify-center">
+                {photoPreview ? (
+                  <div className="relative">
+                    <img
+                      src={photoPreview}
+                      alt="Profile preview"
+                      className="h-32 w-32 rounded-full object-cover ring-2 ring-border"
+                      onError={() => {
+                        setError(
+                          "The image URL could not be loaded. Please check the URL."
+                        );
+                      }}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={removePhoto}
+                      className="absolute -right-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full bg-red-600 text-white shadow hover:bg-red-700"
+                      aria-label="Remove photo"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex h-32 w-32 items-center justify-center rounded-full border bg-muted text-center text-sm text-muted-foreground">
+                    No Photo
+                  </div>
+                )}
+              </div>
+
+              {/* File Upload */}
               <div>
+                <label className="mb-2 block text-sm font-medium">
+                  Upload Image
+                </label>
+
+                <label className="flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed px-4 py-5 text-center transition hover:bg-muted">
+                  <div>
+                    <div className="mb-1 font-medium">
+                      📷 Choose Image File
+                    </div>
+
+                    <div className="text-xs text-muted-foreground">
+                      JPG, PNG or WEBP — maximum 10 MB
+                    </div>
+                  </div>
+
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/*"
+                    onChange={handlePhotoChange}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              {/* OR */}
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-sm text-muted-foreground">
+                  OR
+                </span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+
+              {/* Image URL */}
+              <div>
+                <label className="mb-2 block text-sm font-medium">
+                  Image URL
+                </label>
+
                 <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoChange}
-                  className="block w-full text-sm"
+                  type="url"
+                  value={photoUrl}
+                  onChange={handlePhotoUrlChange}
+                  placeholder="https://example.com/my-photo.jpg"
+                  className="w-full rounded-lg border bg-background px-4 py-3 outline-none focus:ring-2"
                 />
 
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Optional. Maximum 10 MB.
+                  Paste a direct public URL to your profile image.
                 </p>
               </div>
+
+              {/* Remove */}
+              {photoPreview && (
+                <button
+                  type="button"
+                  onClick={removePhoto}
+                  className="w-full rounded-lg border px-4 py-3 text-sm font-medium transition hover:bg-muted"
+                >
+                  Remove Profile Photo
+                </button>
+              )}
             </div>
           </section>
 
