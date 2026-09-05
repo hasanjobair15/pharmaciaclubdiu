@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -8,37 +7,55 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 function getAdminClient() {
-  if (!supabaseUrl || !serviceRoleKey) {
+  if (!supabaseUrl) {
     throw new Error(
-      "Supabase server configuration is missing. Add NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel."
+      "Missing NEXT_PUBLIC_SUPABASE_URL."
     );
   }
 
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
+  if (!serviceRoleKey) {
+    throw new Error(
+      "Missing SUPABASE_SERVICE_ROLE_KEY. Add it to your Vercel environment variables."
+    );
+  }
+
+  return createClient(
+    supabaseUrl,
+    serviceRoleKey,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    }
+  );
 }
 
-function cleanString(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
+function cleanString(value: unknown): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
 }
 
-function nullableString(value: unknown) {
+function nullableString(value: unknown): string | null {
   const valueString = cleanString(value);
   return valueString || null;
 }
 
-function nullableNumber(value: unknown) {
-  if (value === null || value === undefined || value === "") {
+function nullableNumber(value: unknown): number | null {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
     return null;
   }
 
   const number = Number(value);
 
-  return Number.isFinite(number) ? number : null;
+  return Number.isFinite(number)
+    ? number
+    : null;
 }
 
 function photoPath(userId: string) {
@@ -46,6 +63,7 @@ function photoPath(userId: string) {
 }
 
 async function uploadProfilePhoto(
+  supabaseAdmin: ReturnType<typeof getAdminClient>,
   userId: string,
   dataUrl: string
 ) {
@@ -53,85 +71,153 @@ async function uploadProfilePhoto(
     /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
 
   if (!match) {
-    throw new Error("Invalid image data.");
+    throw new Error("Invalid profile photo data.");
   }
 
-  const mime = match[1];
-  const base64 = match[2];
+  const mimeType = match[1];
+  const base64Data = match[2];
 
-  if (!mime.startsWith("image/")) {
-    throw new Error("Only image files are supported.");
-  }
-
-  const bytes = Buffer.from(base64, "base64");
-
-  if (bytes.byteLength > 3 * 1024 * 1024) {
+  if (!mimeType.startsWith("image/")) {
     throw new Error(
-      "Profile photo is too large. Please use an image under 3 MB."
+      "Only image files are allowed."
     );
   }
 
-  const supabaseAdmin = getAdminClient();
+  let bytes: Buffer;
 
-  const { error } = await supabaseAdmin.storage
-    .from("committee-photos")
-    .upload(photoPath(userId), bytes, {
-      contentType: mime,
-      upsert: true,
-      cacheControl: "3600",
-    });
-
-  if (error) {
-    throw error;
+  try {
+    bytes = Buffer.from(
+      base64Data,
+      "base64"
+    );
+  } catch {
+    throw new Error(
+      "Unable to process the profile photo."
+    );
   }
 
-  const {
-    data: { publicUrl },
-  } = supabaseAdmin.storage
-    .from("committee-photos")
-    .getPublicUrl(photoPath(userId));
+  if (bytes.length === 0) {
+    throw new Error(
+      "The profile photo is empty."
+    );
+  }
 
-  return `${publicUrl}?v=${Date.now()}`;
+  if (bytes.length > 3 * 1024 * 1024) {
+    throw new Error(
+      "Profile photo must be smaller than 3 MB."
+    );
+  }
+
+  const path = photoPath(userId);
+
+  const { error } =
+    await supabaseAdmin.storage
+      .from("committee-photos")
+      .upload(path, bytes, {
+        contentType: mimeType,
+        upsert: true,
+        cacheControl: "3600",
+      });
+
+  if (error) {
+    throw new Error(
+      `Profile photo upload failed: ${error.message}`
+    );
+  }
+
+  const { data } =
+    supabaseAdmin.storage
+      .from("committee-photos")
+      .getPublicUrl(path);
+
+  if (!data?.publicUrl) {
+    throw new Error(
+      "Profile photo URL could not be generated."
+    );
+  }
+
+  return `${data.publicUrl}?v=${Date.now()}`;
 }
 
-export async function POST(request: Request) {
+async function rollbackUser(
+  supabaseAdmin: ReturnType<typeof getAdminClient>,
+  userId: string,
+  photoUploaded: boolean
+) {
+  if (photoUploaded) {
+    await supabaseAdmin.storage
+      .from("committee-photos")
+      .remove([photoPath(userId)])
+      .catch(() => undefined);
+  }
+
+  await supabaseAdmin.auth.admin
+    .deleteUser(userId)
+    .catch(() => undefined);
+}
+
+export async function POST(
+  request: Request
+) {
+  let createdUserId: string | null = null;
+  let photoUploaded = false;
+
   try {
     const body = await request.json();
 
-    const fullName = cleanString(body.full_name);
-    const email = cleanString(body.email).toLowerCase();
-    const password = typeof body.password === "string"
-      ? body.password
-      : "";
-
-    const batch = cleanString(body.batch);
-    const section = cleanString(body.section).toUpperCase();
-
-    const graduationYear = nullableNumber(
-      body.graduation_year
+    const fullName = cleanString(
+      body.full_name
     );
 
-    const currentPosition = nullableString(
-      body.current_position
+    const email = cleanString(
+      body.email
+    ).toLowerCase();
+
+    const password =
+      typeof body.password === "string"
+        ? body.password
+        : "";
+
+    const batch = cleanString(
+      body.batch
     );
 
-    const organization = nullableString(
-      body.organization
-    );
+    const section = cleanString(
+      body.section
+    ).toUpperCase();
 
-    const bio = nullableString(body.bio);
+    const graduationYear =
+      nullableNumber(
+        body.graduation_year
+      );
 
-    const linkedinUrl = nullableString(
-      body.linkedin_url
-    );
+    const currentPosition =
+      nullableString(
+        body.current_position
+      );
 
-    const facebookUrl = nullableString(
-      body.facebook_url
-    );
+    const organization =
+      nullableString(
+        body.organization
+      );
 
-    const instagramUrl = nullableString(
-      body.instagram_url
-    );
+    const bio =
+      nullableString(body.bio);
+
+    const linkedinUrl =
+      nullableString(
+        body.linkedin_url
+      );
+
+    const facebookUrl =
+      nullableString(
+        body.facebook_url
+      );
+
+    const instagramUrl =
+      nullableString(
+        body.instagram_url
+      );
 
     const isPublic =
       typeof body.is_public === "boolean"
@@ -139,29 +225,43 @@ export async function POST(request: Request) {
         : true;
 
     const photoData =
-      typeof body.photoData === "string"
+      typeof body.photoData === "string" &&
+      body.photoData.length > 0
         ? body.photoData
         : null;
 
+    /* ---------------- VALIDATION ---------------- */
+
     if (!fullName) {
       return NextResponse.json(
-        { error: "Full name is required." },
+        {
+          error:
+            "Full name is required.",
+        },
         { status: 400 }
       );
     }
 
     if (!email) {
       return NextResponse.json(
-        { error: "Email address is required." },
+        {
+          error:
+            "Email address is required.",
+        },
         { status: 400 }
       );
     }
 
     if (
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+        email
+      )
     ) {
       return NextResponse.json(
-        { error: "Please enter a valid email address." },
+        {
+          error:
+            "Please enter a valid email address.",
+        },
         { status: 400 }
       );
     }
@@ -178,62 +278,136 @@ export async function POST(request: Request) {
 
     if (!batch) {
       return NextResponse.json(
-        { error: "Please select your batch." },
+        {
+          error:
+            "Please select your batch.",
+        },
         { status: 400 }
       );
     }
 
     if (!section) {
       return NextResponse.json(
-        { error: "Please select your section." },
+        {
+          error:
+            "Please select your section.",
+        },
         { status: 400 }
       );
     }
 
     if (
-      !["A", "B", "C", "D", "E", "F"].includes(section)
+      !["A", "B", "C", "D", "E", "F"].includes(
+        section
+      )
     ) {
       return NextResponse.json(
-        { error: "Invalid section selected." },
+        {
+          error:
+            "Invalid section selected.",
+        },
         { status: 400 }
       );
     }
 
-    const supabaseAdmin = getAdminClient();
+    /* ---------------- ADMIN CLIENT ---------------- */
+
+    const supabaseAdmin =
+      getAdminClient();
+
+    /* ---------------- DUPLICATE CHECK ---------------- */
 
     /*
-     * IMPORTANT:
-     * email_confirm: true means this Alumni account is
-     * automatically confirmed.
-     *
-     * No confirmation email is required.
+     * Do not rely only on createUser's error message.
+     * Search Auth users explicitly so duplicate-email
+     * handling is consistent.
      */
+
+    let existingUser = null;
+
+    try {
+      let page = 1;
+
+      while (page <= 20) {
+        const {
+          data,
+          error,
+        } =
+          await supabaseAdmin.auth.admin.listUsers(
+            {
+              page,
+              perPage: 1000,
+            }
+          );
+
+        if (error) {
+          break;
+        }
+
+        existingUser =
+          data.users.find(
+            (user) =>
+              user.email?.toLowerCase() ===
+              email
+          ) || null;
+
+        if (
+          existingUser ||
+          data.users.length < 1000
+        ) {
+          break;
+        }
+
+        page++;
+      }
+    } catch {
+      // createUser below will still handle duplicates.
+    }
+
+    if (existingUser) {
+      return NextResponse.json(
+        {
+          error:
+            "This email is already registered. Please log in instead.",
+        },
+        { status: 409 }
+      );
+    }
+
+    /* ---------------- CREATE AUTH USER ---------------- */
+
     const {
       data: authData,
       error: authError,
     } =
-      await supabaseAdmin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: {
-          full_name: fullName,
-          batch,
-          section,
-        },
-      });
+      await supabaseAdmin.auth.admin.createUser(
+        {
+          email,
+          password,
+          email_confirm: true,
+          user_metadata: {
+            full_name: fullName,
+            batch,
+            section,
+          },
+        }
+      );
 
-    if (authError || !authData.user) {
+    if (
+      authError ||
+      !authData?.user
+    ) {
       const message =
         authError?.message ||
         "Unable to create alumni account.";
 
-      const lowerMessage =
+      const lower =
         message.toLowerCase();
 
       if (
-        lowerMessage.includes("already") ||
-        lowerMessage.includes("exists")
+        lower.includes("already") ||
+        lower.includes("exists") ||
+        lower.includes("duplicate")
       ) {
         return NextResponse.json(
           {
@@ -245,96 +419,129 @@ export async function POST(request: Request) {
       }
 
       return NextResponse.json(
-        { error: message },
+        {
+          error: message,
+        },
         { status: 400 }
       );
     }
 
-    const userId = authData.user.id;
+    createdUserId =
+      authData.user.id;
 
-    let profilePhotoUrl: string | null = null;
+    /* ---------------- PROFILE PHOTO ---------------- */
 
-    try {
-      if (photoData) {
-        profilePhotoUrl =
-          await uploadProfilePhoto(
-            userId,
-            photoData
-          );
-      }
+    let profilePhotoUrl:
+      | string
+      | null = null;
 
-      const { data: profile, error: profileError } =
-        await supabaseAdmin
-          .from("alumni_profiles")
-          .insert({
-            id: userId,
-            email,
-            full_name: fullName,
-            batch,
-            section,
-            graduation_year: graduationYear,
-            current_position: currentPosition,
-            organization,
-            bio,
-            linkedin_url: linkedinUrl,
-            facebook_url: facebookUrl,
-            instagram_url: instagramUrl,
-            is_public: isPublic,
-            profile_photo_url:
-              profilePhotoUrl,
-          })
-          .select()
-          .single();
-
-      if (profileError) {
-        if (profilePhotoUrl) {
-          await supabaseAdmin.storage
-            .from("committee-photos")
-            .remove([photoPath(userId)]);
-        }
-
-        await supabaseAdmin.auth.admin.deleteUser(
-          userId
+    if (photoData) {
+      profilePhotoUrl =
+        await uploadProfilePhoto(
+          supabaseAdmin,
+          createdUserId,
+          photoData
         );
 
-        return NextResponse.json(
-          {
-            error:
-              "Account could not be completed. Please try again.",
-          },
-          { status: 500 }
-        );
-      }
+      photoUploaded = true;
+    }
+
+    /* ---------------- CREATE PROFILE ---------------- */
+
+    const {
+      data: profile,
+      error: profileError,
+    } =
+      await supabaseAdmin
+        .from("alumni_profiles")
+        .insert({
+          id: createdUserId,
+          email,
+          full_name: fullName,
+          batch,
+          section,
+          graduation_year:
+            graduationYear,
+          current_position:
+            currentPosition,
+          organization,
+          bio,
+          linkedin_url:
+            linkedinUrl,
+          facebook_url:
+            facebookUrl,
+          instagram_url:
+            instagramUrl,
+          is_public: isPublic,
+          profile_photo_url:
+            profilePhotoUrl,
+        })
+        .select()
+        .single();
+
+    if (profileError) {
+      await rollbackUser(
+        supabaseAdmin,
+        createdUserId,
+        photoUploaded
+      );
+
+      createdUserId = null;
+
+      console.error(
+        "Alumni profile creation failed:",
+        profileError
+      );
 
       return NextResponse.json(
         {
-          success: true,
-          user: {
-            id: userId,
-            email,
-          },
-          profile,
+          error:
+            "The account could not be completed. Please try again.",
+          details:
+            process.env.NODE_ENV ===
+            "development"
+              ? profileError.message
+              : undefined,
         },
-        { status: 201 }
+        { status: 500 }
       );
-    } catch (profileError) {
-      if (profilePhotoUrl) {
-        await supabaseAdmin.storage
-          .from("committee-photos")
-          .remove([photoPath(userId)]);
-      }
-
-      await supabaseAdmin.auth.admin.deleteUser(
-        userId
-      );
-
-      throw profileError;
     }
+
+    /* ---------------- SUCCESS ---------------- */
+
+    return NextResponse.json(
+      {
+        success: true,
+        message:
+          "Alumni account created successfully.",
+        user: {
+          id: createdUserId,
+          email,
+        },
+        profile,
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error(
       "POST /api/alumni/register error:",
       error
     );
+
+    if (createdUserId) {
+      try {
+        const supabaseAdmin =
+          getAdminClient();
+
+        await rollbackUser(
+          supabaseAdmin,
+          createdUserId,
+          photoUploaded
+        );
+      } catch {
+        // Ignore rollback failure.
+      }
+    }
 
     return NextResponse.json(
       {
