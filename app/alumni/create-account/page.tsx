@@ -22,14 +22,7 @@ const batches = Array.from(
   }
 );
 
-const sections = [
-  "A",
-  "B",
-  "C",
-  "D",
-  "E",
-  "F",
-];
+const sections = ["A", "B", "C", "D", "E", "F"];
 
 export default function CreateAlumniAccountPage() {
   const router = useRouter();
@@ -37,42 +30,34 @@ export default function CreateAlumniAccountPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] =
-    useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const [batch, setBatch] = useState("");
   const [section, setSection] = useState("");
-  const [graduationYear, setGraduationYear] =
-    useState("");
+  const [graduationYear, setGraduationYear] = useState("");
 
-  const [currentPosition, setCurrentPosition] =
-    useState("");
-  const [organization, setOrganization] =
-    useState("");
+  const [currentPosition, setCurrentPosition] = useState("");
+  const [organization, setOrganization] = useState("");
+  const [country, setCountry] = useState("");
   const [bio, setBio] = useState("");
 
   const [linkedinUrl, setLinkedinUrl] = useState("");
   const [facebookUrl, setFacebookUrl] = useState("");
-  const [instagramUrl, setInstagramUrl] =
-    useState("");
+  const [instagramUrl, setInstagramUrl] = useState("");
 
   const [selectedPhoto, setSelectedPhoto] =
     useState<File | null>(null);
 
-  const [photoPreview, setPhotoPreview] =
-    useState("");
-
+  const [photoPreview, setPhotoPreview] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
 
   const [isPublic, setIsPublic] = useState(true);
 
   const [loading, setLoading] = useState(false);
-  const [uploadingPhoto, setUploadingPhoto] =
-    useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const [message, setMessage] = useState("");
-  const [errorMessage, setErrorMessage] =
-    useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   function handlePhotoSelect(
     event: ChangeEvent<HTMLInputElement>
@@ -85,9 +70,7 @@ export default function CreateAlumniAccountPage() {
     setErrorMessage("");
 
     if (!file.type.startsWith("image/")) {
-      setErrorMessage(
-        "Please select a valid image file."
-      );
+      setErrorMessage("Please select a valid image file.");
       return;
     }
 
@@ -103,9 +86,7 @@ export default function CreateAlumniAccountPage() {
     // Clear URL when using an uploaded photo.
     setPhotoUrl("");
 
-    const previewUrl =
-      URL.createObjectURL(file);
-
+    const previewUrl = URL.createObjectURL(file);
     setPhotoPreview(previewUrl);
   }
 
@@ -143,16 +124,15 @@ export default function CreateAlumniAccountPage() {
     setUploadingPhoto(true);
 
     try {
-      const compressedFile =
-        await imageCompression(
-          selectedPhoto,
-          {
-            maxSizeMB: 0.7,
-            maxWidthOrHeight: 1200,
-            useWebWorker: true,
-            fileType: "image/webp",
-          }
-        );
+      const compressedFile = await imageCompression(
+        selectedPhoto,
+        {
+          maxSizeMB: 0.7,
+          maxWidthOrHeight: 1200,
+          useWebWorker: true,
+          fileType: "image/webp",
+        }
+      );
 
       return await new Promise<string>(
         (resolve, reject) => {
@@ -170,9 +150,7 @@ export default function CreateAlumniAccountPage() {
             );
           };
 
-          reader.readAsDataURL(
-            compressedFile
-          );
+          reader.readAsDataURL(compressedFile);
         }
       );
     } catch (error) {
@@ -201,9 +179,7 @@ export default function CreateAlumniAccountPage() {
     setErrorMessage("");
 
     if (!fullName.trim()) {
-      setErrorMessage(
-        "Please enter your full name."
-      );
+      setErrorMessage("Please enter your full name.");
       setLoading(false);
       return;
     }
@@ -217,9 +193,7 @@ export default function CreateAlumniAccountPage() {
     }
 
     if (!password) {
-      setErrorMessage(
-        "Please enter a password."
-      );
+      setErrorMessage("Please enter a password.");
       setLoading(false);
       return;
     }
@@ -233,25 +207,19 @@ export default function CreateAlumniAccountPage() {
     }
 
     if (password !== confirmPassword) {
-      setErrorMessage(
-        "The passwords do not match."
-      );
+      setErrorMessage("The passwords do not match.");
       setLoading(false);
       return;
     }
 
     if (!batch) {
-      setErrorMessage(
-        "Please select your batch."
-      );
+      setErrorMessage("Please select your batch.");
       setLoading(false);
       return;
     }
 
     if (!section) {
-      setErrorMessage(
-        "Please select your section."
-      );
+      setErrorMessage("Please select your section.");
       setLoading(false);
       return;
     }
@@ -286,14 +254,18 @@ export default function CreateAlumniAccountPage() {
             batch,
             section,
 
-            graduation_year:
-              graduationYear,
+            graduation_year: graduationYear,
 
             current_position:
-              currentPosition,
+              currentPosition.trim(),
 
-            organization,
-            bio,
+            organization:
+              organization.trim(),
+
+            // Optional country.
+            country: country.trim() || null,
+
+            bio: bio.trim(),
 
             linkedin_url:
               linkedinUrl.trim(),
@@ -311,8 +283,7 @@ export default function CreateAlumniAccountPage() {
         }
       );
 
-      const result =
-        await response.json();
+      const result = await response.json();
 
       if (!response.ok) {
         throw new Error(
@@ -328,18 +299,13 @@ export default function CreateAlumniAccountPage() {
        * Now sign in normally.
        */
       const { createClient } =
-        await import(
-          "@/lib/supabase/client"
-        );
+        await import("@/lib/supabase/client");
 
       const supabase = createClient();
 
-      const {
-        error: loginError,
-      } =
+      const { error: loginError } =
         await supabase.auth.signInWithPassword({
-          email:
-            email.trim().toLowerCase(),
+          email: email.trim().toLowerCase(),
           password,
         });
 
@@ -349,9 +315,7 @@ export default function CreateAlumniAccountPage() {
         );
 
         setTimeout(() => {
-          router.push(
-            "/alumni/login"
-          );
+          router.push("/alumni/login");
           router.refresh();
         }, 1200);
 
@@ -363,9 +327,7 @@ export default function CreateAlumniAccountPage() {
       );
 
       setTimeout(() => {
-        router.push(
-          "/alumni/profile"
-        );
+        router.push("/alumni/profile");
         router.refresh();
       }, 1000);
     } catch (error) {
@@ -406,7 +368,6 @@ export default function CreateAlumniAccountPage() {
 
       <section className="mx-auto max-w-4xl px-6 py-12">
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
-
           <form
             onSubmit={handleCreateAccount}
             className="space-y-8"
@@ -596,7 +557,6 @@ export default function CreateAlumniAccountPage() {
               </p>
 
               <div className="mt-6 flex flex-col items-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 dark:border-slate-700 dark:bg-slate-800/50">
-
                 {/* PHOTO PREVIEW */}
                 <div className="relative">
                   <div className="h-36 w-36 overflow-hidden rounded-full border-4 border-white bg-slate-200 shadow-md dark:border-slate-800 dark:bg-slate-700">
@@ -746,6 +706,26 @@ export default function CreateAlumniAccountPage() {
                       )
                     }
                     placeholder="e.g. Pharmaceutical Company"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+
+                {/* COUNTRY */}
+                <div>
+                  <label className="mb-2 block text-sm font-semibold">
+                    Current Country
+                    <span className="ml-2 text-xs font-normal text-slate-400">
+                      Optional
+                    </span>
+                  </label>
+
+                  <input
+                    type="text"
+                    value={country}
+                    onChange={(e) =>
+                      setCountry(e.target.value)
+                    }
+                    placeholder="e.g. Bangladesh, USA, UK, Canada"
                     className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   />
                 </div>
