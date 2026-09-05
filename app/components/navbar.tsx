@@ -39,9 +39,9 @@ external: true,
 export default function Navbar() {
 const pathname = usePathname();
 
-const [mobileOpen, setMobileOpen] = useState<boolean>(false);
-const [darkMode, setDarkMode] = useState<boolean>(true);
-const [mounted, setMounted] = useState<boolean>(false);
+const [mobileOpen, setMobileOpen] = useState(false);
+const [darkMode, setDarkMode] = useState(true);
+const [mounted, setMounted] = useState(false);
 
 useEffect(() => {
 setMounted(true);
@@ -60,7 +60,7 @@ if (savedTheme === "light") {
 
 }, []);
 
-function toggleTheme(): void {
+function toggleTheme() {
 const html = document.documentElement;
 
 ```
@@ -77,7 +77,7 @@ if (html.classList.contains("dark")) {
 
 }
 
-function isActive(href: string, external?: boolean): boolean {
+function isActive(href: string, external?: boolean) {
 if (external) {
 return false;
 }
@@ -92,13 +92,12 @@ return pathname === href || pathname.startsWith(`${href}/`);
 
 }
 
-function closeMobileMenu(): void {
+function closeMobileMenu() {
 setMobileOpen(false);
 }
 
-return ( <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg-gray-950/95 backdrop-blur"> <nav className="mx-auto w-full max-w-7xl px-3 sm:px-5 lg:px-6 xl:px-8">
-{/* ==================== TOP BAR ==================== */} <div className="flex min-h-16 items-center justify-between gap-3">
-{/* ==================== LOGO ==================== */} <Link
+return ( <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg-gray-950/95 backdrop-blur"> <nav className="mx-auto w-full max-w-7xl px-3 sm:px-5 lg:px-6 xl:px-8"> <div className="flex min-h-16 items-center justify-between gap-3">
+{/* Logo */} <Link
          href="/"
          onClick={closeMobileMenu}
          className="flex shrink-0 items-center gap-2.5"
@@ -123,21 +122,25 @@ return ( <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg
         </div>
       </Link>
 
-      {/* ==================== DESKTOP NAVIGATION ==================== */}
+      {/* Desktop Navigation */}
       <div className="hidden min-w-0 flex-1 items-center justify-center lg:flex">
         <div className="flex items-center gap-0.5">
-          {links.map((link) =>
-            link.external ? (
-              <a
-                key={link.name}
-                href={link.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="whitespace-nowrap rounded-lg px-2 py-2 text-xs font-medium text-gray-300 transition hover:bg-gray-800 hover:text-green-400 xl:px-2.5"
-              >
-                {link.name}
-              </a>
-            ) : (
+          {links.map((link) => {
+            if (link.external) {
+              return (
+                <a
+                  key={link.name}
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="whitespace-nowrap rounded-lg px-2 py-2 text-xs font-medium text-gray-300 transition hover:bg-gray-800 hover:text-green-400 xl:px-2.5"
+                >
+                  {link.name}
+                </a>
+              );
+            }
+
+            return (
               <Link
                 key={link.name}
                 href={link.href}
@@ -149,14 +152,14 @@ return ( <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg
               >
                 {link.name}
               </Link>
-            ),
-          )}
+            );
+          })}
         </div>
       </div>
 
-      {/* ==================== RIGHT CONTROLS ==================== */}
+      {/* Right Controls */}
       <div className="flex shrink-0 items-center gap-2">
-        {/* Theme Toggle */}
+        {/* Desktop Theme Button */}
         {mounted && (
           <button
             type="button"
@@ -209,7 +212,7 @@ return ( <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg
           </button>
         )}
 
-        {/* Mobile / Tablet Menu Button */}
+        {/* Mobile Menu Button */}
         <button
           type="button"
           aria-label={mobileOpen ? "Close menu" : "Open menu"}
@@ -254,26 +257,30 @@ return ( <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg
       </div>
     </div>
 
-    {/* ==================== MOBILE / TABLET MENU ==================== */}
+    {/* Mobile Navigation */}
     {mobileOpen && (
       <div className="border-t border-gray-800 py-3 lg:hidden">
         <div className="flex max-h-[75vh] flex-col overflow-y-auto">
-          {links.map((link) =>
-            link.external ? (
-              <a
-                key={link.name}
-                href={link.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={closeMobileMenu}
-                className="rounded-xl px-4 py-3 text-sm font-medium text-gray-300 transition hover:bg-gray-800 hover:text-green-400"
-              >
-                <span className="flex items-center justify-between">
-                  <span>{link.name}</span>
-                  <span className="text-xs text-gray-500">↗</span>
-                </span>
-              </a>
-            ) : (
+          {links.map((link) => {
+            if (link.external) {
+              return (
+                <a
+                  key={link.name}
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={closeMobileMenu}
+                  className="rounded-xl px-4 py-3 text-sm font-medium text-gray-300 transition hover:bg-gray-800 hover:text-green-400"
+                >
+                  <span className="flex items-center justify-between">
+                    <span>{link.name}</span>
+                    <span className="text-xs text-gray-500">↗</span>
+                  </span>
+                </a>
+              );
+            }
+
+            return (
               <Link
                 key={link.name}
                 href={link.href}
@@ -286,23 +293,27 @@ return ( <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg
               >
                 {link.name}
               </Link>
-            ),
-          )}
+            );
+          })}
 
           {/* Mobile Theme Toggle */}
-          <div className="mt-2 border-t border-gray-800 pt-3">
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className="flex w-full items-center justify-between rounded-xl border border-gray-700 px-4 py-3 text-sm font-medium text-gray-200 transition hover:bg-gray-800"
-            >
-              <span>
-                {darkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
-              </span>
+          {mounted && (
+            <div className="mt-2 border-t border-gray-800 pt-3">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="flex w-full items-center justify-between rounded-xl border border-gray-700 px-4 py-3 text-sm font-medium text-gray-200 transition hover:bg-gray-800"
+              >
+                <span>
+                  {darkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
+                </span>
 
-              <span className="text-xs text-gray-500">Switch</span>
-            </button>
-          </div>
+                <span className="text-xs text-gray-500">
+                  Switch
+                </span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     )}
