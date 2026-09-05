@@ -62,6 +62,8 @@ export default function CreateAlumniAccountPage() {
   const [photoPreview, setPhotoPreview] =
     useState("");
 
+  const [photoUrl, setPhotoUrl] = useState("");
+
   const [isPublic, setIsPublic] = useState(true);
 
   const [loading, setLoading] = useState(false);
@@ -98,10 +100,39 @@ export default function CreateAlumniAccountPage() {
 
     setSelectedPhoto(file);
 
+    // Clear URL when using an uploaded photo.
+    setPhotoUrl("");
+
     const previewUrl =
       URL.createObjectURL(file);
 
     setPhotoPreview(previewUrl);
+  }
+
+  function handlePhotoUrlChange(
+    event: ChangeEvent<HTMLInputElement>
+  ) {
+    const url = event.target.value.trim();
+
+    setPhotoUrl(url);
+    setMessage("");
+    setErrorMessage("");
+
+    // Clear uploaded file when using a URL.
+    if (url) {
+      setSelectedPhoto(null);
+      setPhotoPreview(url);
+    } else {
+      setPhotoPreview("");
+    }
+  }
+
+  function removePhoto() {
+    setSelectedPhoto(null);
+    setPhotoUrl("");
+    setPhotoPreview("");
+    setErrorMessage("");
+    setMessage("");
   }
 
   async function prepareProfilePhotoData() {
@@ -229,6 +260,17 @@ export default function CreateAlumniAccountPage() {
       const photoData =
         await prepareProfilePhotoData();
 
+      /*
+       * If an uploaded file exists, send the
+       * compressed image data.
+       *
+       * Otherwise, send the image URL.
+       */
+      const finalPhoto =
+        photoData ||
+        photoUrl.trim() ||
+        undefined;
+
       const response = await fetch(
         "/api/alumni/register",
         {
@@ -240,23 +282,31 @@ export default function CreateAlumniAccountPage() {
             full_name: fullName.trim(),
             email: email.trim().toLowerCase(),
             password,
+
             batch,
             section,
+
             graduation_year:
               graduationYear,
+
             current_position:
               currentPosition,
+
             organization,
             bio,
+
             linkedin_url:
-              linkedinUrl,
+              linkedinUrl.trim(),
+
             facebook_url:
-              facebookUrl,
+              facebookUrl.trim(),
+
             instagram_url:
-              instagramUrl,
+              instagramUrl.trim(),
+
             is_public: isPublic,
-            photoData:
-              photoData || undefined,
+
+            photoData: finalPhoto,
           }),
         }
       );
@@ -542,25 +592,47 @@ export default function CreateAlumniAccountPage() {
               </h2>
 
               <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                Add a professional photo for the
-                alumni directory.
+                Upload a photo or paste a public image URL.
               </p>
 
               <div className="mt-6 flex flex-col items-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 dark:border-slate-700 dark:bg-slate-800/50">
-                <div className="h-36 w-36 overflow-hidden rounded-full border-4 border-white bg-slate-200 shadow-md dark:border-slate-800 dark:bg-slate-700">
-                  {photoPreview ? (
-                    <img
-                      src={photoPreview}
-                      alt="Profile preview"
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-5xl">
-                      🎓
-                    </div>
+
+                {/* PHOTO PREVIEW */}
+                <div className="relative">
+                  <div className="h-36 w-36 overflow-hidden rounded-full border-4 border-white bg-slate-200 shadow-md dark:border-slate-800 dark:bg-slate-700">
+                    {photoPreview ? (
+                      <img
+                        src={photoPreview}
+                        alt="Profile preview"
+                        className="h-full w-full object-cover"
+                        onError={() => {
+                          if (photoUrl) {
+                            setErrorMessage(
+                              "The image URL could not be loaded. Please check the URL."
+                            );
+                          }
+                        }}
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-5xl">
+                        🎓
+                      </div>
+                    )}
+                  </div>
+
+                  {photoPreview && (
+                    <button
+                      type="button"
+                      onClick={removePhoto}
+                      className="absolute -right-2 -top-2 flex h-9 w-9 items-center justify-center rounded-full bg-red-600 text-lg font-bold text-white shadow-md hover:bg-red-700"
+                      aria-label="Remove profile photo"
+                    >
+                      ×
+                    </button>
                   )}
                 </div>
 
+                {/* FILE UPLOAD */}
                 <label className="mt-6 cursor-pointer rounded-full bg-[#0b1736] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#087f8c]">
                   📷 Choose Profile Photo
 
@@ -579,10 +651,60 @@ export default function CreateAlumniAccountPage() {
                   Maximum 10 MB • Automatically compressed
                 </p>
 
+                {/* OR */}
+                <div className="my-6 flex w-full max-w-md items-center gap-3">
+                  <div className="h-px flex-1 bg-slate-300 dark:bg-slate-700" />
+
+                  <span className="text-xs font-bold text-slate-500">
+                    OR
+                  </span>
+
+                  <div className="h-px flex-1 bg-slate-300 dark:bg-slate-700" />
+                </div>
+
+                {/* IMAGE URL */}
+                <div className="w-full max-w-md">
+                  <label className="mb-2 block text-sm font-semibold">
+                    Profile Image URL
+                  </label>
+
+                  <input
+                    type="url"
+                    value={photoUrl}
+                    onChange={handlePhotoUrlChange}
+                    disabled={loading}
+                    placeholder="https://example.com/profile-photo.jpg"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    Paste a direct public URL to your profile image.
+                  </p>
+                </div>
+
+                {/* SELECTED FILE MESSAGE */}
                 {selectedPhoto && (
                   <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">
                     ✓ Photo selected successfully
                   </div>
+                )}
+
+                {/* URL MESSAGE */}
+                {photoUrl && !selectedPhoto && (
+                  <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-300">
+                    ✓ Image URL added
+                  </div>
+                )}
+
+                {/* REMOVE BUTTON */}
+                {photoPreview && (
+                  <button
+                    type="button"
+                    onClick={removePhoto}
+                    className="mt-4 rounded-full border border-red-300 px-5 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950/30"
+                  >
+                    Remove Profile Photo
+                  </button>
                 )}
               </div>
             </div>
