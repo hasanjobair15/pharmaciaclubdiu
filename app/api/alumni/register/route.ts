@@ -51,31 +51,37 @@ function nullableString(
   return valueString || null;
 }
 
-/*
- * Convert YYYY-MM or YYYY-MM-DD
- * into YYYY-MM-01.
+/**
+ * Converts:
+ * YYYY-MM
+ * YYYY-MM-DD
  *
- * Alumni graduation date is mandatory.
+ * into:
+ * YYYY-MM-01
+ *
+ * Graduation month is stored as the first
+ * day of that month.
  */
 function cleanGraduationDate(
   value: unknown
-): string | null {
+): string {
   if (
     value === null ||
     value === undefined
   ) {
-    return null;
+    throw new Error(
+      "Graduation Month & Year is required for an alumni profile."
+    );
   }
 
   const raw =
     String(value).trim();
 
   if (!raw) {
-    return null;
+    throw new Error(
+      "Graduation Month & Year is required for an alumni profile."
+    );
   }
-
-  let year: number;
-  let month: number;
 
   const monthMatch =
     raw.match(
@@ -86,6 +92,9 @@ function cleanGraduationDate(
     raw.match(
       /^(\d{4})-(\d{2})-(\d{2})$/
     );
+
+  let year: number;
+  let month: number;
 
   if (monthMatch) {
     year = Number(
@@ -105,7 +114,7 @@ function cleanGraduationDate(
     );
   } else {
     throw new Error(
-      "Invalid graduation month and year."
+      "Invalid Graduation Month & Year."
     );
   }
 
@@ -114,7 +123,7 @@ function cleanGraduationDate(
     !Number.isInteger(month)
   ) {
     throw new Error(
-      "Invalid graduation month and year."
+      "Invalid Graduation Month & Year."
     );
   }
 
@@ -141,14 +150,16 @@ function cleanGraduationDate(
   ).padStart(2, "0")}-01`;
 }
 
-/*
- * Current date according to Dhaka,
- * Bangladesh.
+/**
+ * Returns today's date in Asia/Dhaka.
+ *
+ * Example:
+ * 2026-09-05
  */
-function getDhakaTodayString() {
+function getDhakaTodayString(): string {
   const parts =
     new Intl.DateTimeFormat(
-      "en-US",
+      "en-CA",
       {
         timeZone: "Asia/Dhaka",
         year: "numeric",
@@ -159,32 +170,60 @@ function getDhakaTodayString() {
       new Date()
     );
 
-  const year = Number(
+  const year =
     parts.find(
       (part) =>
         part.type === "year"
-    )?.value
-  );
+    )?.value;
 
-  const month = Number(
+  const month =
     parts.find(
       (part) =>
         part.type === "month"
-    )?.value
-  );
+    )?.value;
 
-  const day = Number(
+  const day =
     parts.find(
       (part) =>
         part.type === "day"
-    )?.value
-  );
+    )?.value;
 
-  return `${year}-${String(
-    month
-  ).padStart(2, "0")}-${String(
-    day
-  ).padStart(2, "0")}`;
+  if (
+    !year ||
+    !month ||
+    !day
+  ) {
+    throw new Error(
+      "Unable to determine current date."
+    );
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Graduation month starts on the first day
+ * of that month.
+ *
+ * Therefore:
+ *
+ * graduation_date <= today
+ *
+ * means the person is already an Alumni.
+ */
+function validateGraduationDate(
+  graduationDate: string
+) {
+  const today =
+    getDhakaTodayString();
+
+  if (
+    graduationDate > today
+  ) {
+    throw new Error(
+      "Graduation Month & Year cannot be in the future for an Alumni account."
+    );
+  }
 }
 
 function photoPath(
@@ -240,7 +279,9 @@ async function uploadProfilePhoto(
     );
   }
 
-  if (bytes.length === 0) {
+  if (
+    bytes.length === 0
+  ) {
     throw new Error(
       "The profile photo is empty."
     );
@@ -259,7 +300,7 @@ async function uploadProfilePhoto(
     photoPath(userId);
 
   const {
-    error: uploadError,
+    error,
   } =
     await supabaseAdmin.storage
       .from(
@@ -277,20 +318,24 @@ async function uploadProfilePhoto(
         }
       );
 
-  if (uploadError) {
+  if (error) {
     throw new Error(
-      `Profile photo upload failed: ${uploadError.message}`
+      `Profile photo upload failed: ${error.message}`
     );
   }
 
-  const { data } =
+  const {
+    data,
+  } =
     supabaseAdmin.storage
       .from(
         "committee-photos"
       )
       .getPublicUrl(path);
 
-  if (!data?.publicUrl) {
+  if (
+    !data?.publicUrl
+  ) {
     throw new Error(
       "Profile photo URL could not be generated."
     );
@@ -333,16 +378,12 @@ export async function POST(
     | string
     | null = null;
 
-  let photoUploaded = false;
+  let photoUploaded =
+    false;
 
   try {
     const body =
-      (await request
-        .json()
-        .catch(() => ({}))) as Record<
-        string,
-        unknown
-      >;
+      await request.json();
 
     const fullName =
       cleanString(
@@ -371,18 +412,20 @@ export async function POST(
       ).toUpperCase();
 
     /*
-     * NEW:
-     * Graduation Month & Year.
+     * Graduation date is now REQUIRED
+     * for every Alumni account.
      */
-    let graduationDate:
-      | string
-      | null = null;
+    let graduationDate: string;
 
     try {
       graduationDate =
         cleanGraduationDate(
           body.graduation_date
         );
+
+      validateGraduationDate(
+        graduationDate
+      );
     } catch (error) {
       return NextResponse.json(
         {
@@ -398,43 +441,19 @@ export async function POST(
     }
 
     /*
-     * Alumni graduation date is mandatory.
-     */
-    if (!graduationDate) {
-      return NextResponse.json(
-        {
-          error:
-            "Graduation Month & Year is required for an alumni account.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    /*
-     * Alumni must already have graduated.
+     * Keep graduation_year for compatibility
+     * with the existing alumni_profiles table.
      *
-     * The graduation month itself counts as
-     * Alumni from the first day of that month.
+     * The actual source of truth is now
+     * graduation_date.
      */
-    const today =
-      getDhakaTodayString();
-
-    if (
-      graduationDate >
-      today
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Graduation Month & Year cannot be in the future.",
-        },
-        {
-          status: 400,
-        }
+    const graduationYear =
+      Number(
+        graduationDate.slice(
+          0,
+          4
+        )
       );
-    }
 
     const currentPosition =
       nullableString(
@@ -585,6 +604,25 @@ export async function POST(
       );
     }
 
+    /*
+     * Graduation date has already been
+     * validated above.
+     *
+     * Keep this explicit check here so
+     * the server-side rule is obvious.
+     */
+    if (!graduationDate) {
+      return NextResponse.json(
+        {
+          error:
+            "Graduation Month & Year is required for an alumni profile.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
     /* ---------------- ADMIN CLIENT ---------------- */
 
     const supabaseAdmin =
@@ -592,7 +630,8 @@ export async function POST(
 
     /* ---------------- DUPLICATE CHECK ---------------- */
 
-    let existingUser = null;
+    let existingUser =
+      null;
 
     try {
       let page = 1;
@@ -671,16 +710,15 @@ export async function POST(
 
             section,
 
+            /*
+             * Graduation date is stored
+             * in Auth metadata too.
+             */
             graduation_date:
               graduationDate,
 
             graduation_year:
-              Number(
-                graduationDate.slice(
-                  0,
-                  4
-                )
-              ),
+              graduationYear,
           },
         }
       );
@@ -772,22 +810,17 @@ export async function POST(
           section,
 
           /*
-           * New source-of-truth field.
+           * NEW SOURCE OF TRUTH
            */
           graduation_date:
             graduationDate,
 
           /*
-           * Keep old field synchronized
-           * for compatibility.
+           * Kept for compatibility
+           * with existing database/UI.
            */
           graduation_year:
-            Number(
-              graduationDate.slice(
-                0,
-                4
-              )
-            ),
+            graduationYear,
 
           current_position:
             currentPosition,
@@ -837,8 +870,7 @@ export async function POST(
             "The account could not be completed. Please try again.",
 
           details:
-            process.env
-              .NODE_ENV ===
+            process.env.NODE_ENV ===
             "development"
               ? profileError.message
               : undefined,
@@ -846,6 +878,44 @@ export async function POST(
         {
           status: 500,
         }
+      );
+    }
+
+    /*
+     * If a student profile already exists
+     * for this Auth user, keep its graduation
+     * date synchronized.
+     *
+     * This makes graduation_date the same
+     * across Student and Alumni records.
+     */
+    const {
+      error:
+        studentSyncError,
+    } =
+      await supabaseAdmin
+        .from(
+          "student_profiles"
+        )
+        .update({
+          graduation_date:
+            graduationDate,
+        })
+        .eq(
+          "id",
+          createdUserId
+        );
+
+    if (studentSyncError) {
+      /*
+       * Do not fail Alumni registration
+       * if there is no matching student
+       * profile or if the optional sync
+       * cannot be performed.
+       */
+      console.warn(
+        "Student graduation date sync warning:",
+        studentSyncError
       );
     }
 
@@ -859,9 +929,7 @@ export async function POST(
           "Alumni account created successfully.",
 
         user: {
-          id:
-            createdUserId,
-
+          id: createdUserId,
           email,
         },
 
@@ -888,7 +956,9 @@ export async function POST(
           photoUploaded
         );
       } catch {
-        // Ignore rollback failure.
+        /*
+         * Ignore rollback failure.
+         */
       }
     }
 
