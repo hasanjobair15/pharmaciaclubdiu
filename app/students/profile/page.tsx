@@ -1,8 +1,14 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import {
+  ChangeEvent,
+  FormEvent,
+  useEffect,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import imageCompression from "browser-image-compression";
 import { supabase } from "@/app/lib/supabase";
 
 type StudentProfile = {
@@ -25,14 +31,29 @@ type StudentProfile = {
 export default function StudentProfilePage() {
   const router = useRouter();
 
-  const [profile, setProfile] = useState<StudentProfile | null>(null);
+  const [profile, setProfile] =
+    useState<StudentProfile | null>(null);
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [saving, setSaving] =
+    useState(false);
+
+  const [editing, setEditing] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
+
+  const [success, setSuccess] =
+    useState("");
+
+  const [photoUploading, setPhotoUploading] =
+    useState(false);
+
+  const [photoPreview, setPhotoPreview] =
+    useState("");
 
   const [form, setForm] = useState({
     full_name: "",
@@ -51,130 +72,133 @@ export default function StudentProfilePage() {
     loadProfile();
   }, []);
 
+  /* =========================================================
+     SESSION
+     ========================================================= */
+
   async function getFreshAccessToken() {
-    /*
-     * Always use the same Supabase client as Student Login.
-     *
-     * refreshSession() makes sure we don't send an old access
-     * token to /api/students/profile.
-     */
     const {
       data: { session },
       error: sessionError,
     } = await supabase.auth.refreshSession();
 
     if (sessionError) {
-      console.error("Session refresh error:", sessionError);
+      console.error(
+        "Session refresh error:",
+        sessionError
+      );
     }
 
-    if (session?.access_token && session.user) {
+    if (
+      session?.access_token &&
+      session.user
+    ) {
       return session.access_token;
     }
 
-    /*
-     * If refresh did not return a session, check the existing
-     * session one more time.
-     */
     const {
-      data: { session: existingSession },
+      data: {
+        session: existingSession,
+      },
     } = await supabase.auth.getSession();
 
-    if (existingSession?.access_token && existingSession.user) {
+    if (
+      existingSession?.access_token &&
+      existingSession.user
+    ) {
       return existingSession.access_token;
     }
 
     return null;
   }
 
+  /* =========================================================
+     LOAD PROFILE
+     ========================================================= */
+
   async function loadProfile() {
     try {
       setLoading(true);
       setError("");
 
-      const accessToken = await getFreshAccessToken();
+      const accessToken =
+        await getFreshAccessToken();
 
       if (!accessToken) {
         router.replace("/students/login");
         return;
       }
 
-      const response = await fetch("/api/students/profile", {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: "application/json",
-        },
-        cache: "no-store",
-      });
+      const response = await fetch(
+        "/api/students/profile",
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: "application/json",
+          },
+          cache: "no-store",
+        }
+      );
 
-      const data = await response.json();
+      const data =
+        await response.json();
 
-      /*
-       * If the API says the account is now Alumni, do not try
-       * to render it as a Student profile.
-       */
       if (
         response.ok &&
         data?.account_type === "alumni" &&
         data?.redirect_to
       ) {
-        router.replace(data.redirect_to);
+        router.replace(
+          data.redirect_to
+        );
         return;
       }
 
       if (!response.ok) {
-        /*
-         * If the server rejected the token, try one final fresh
-         * session and retry the request once.
-         */
         if (response.status === 401) {
-          const retryToken = await getFreshAccessToken();
+          const retryToken =
+            await getFreshAccessToken();
 
-          if (retryToken && retryToken !== accessToken) {
-            const retryResponse = await fetch(
-              "/api/students/profile",
-              {
-                method: "GET",
-                headers: {
-                  Authorization: `Bearer ${retryToken}`,
-                  Accept: "application/json",
-                },
-                cache: "no-store",
-              }
-            );
+          if (
+            retryToken &&
+            retryToken !== accessToken
+          ) {
+            const retryResponse =
+              await fetch(
+                "/api/students/profile",
+                {
+                  method: "GET",
+                  headers: {
+                    Authorization: `Bearer ${retryToken}`,
+                    Accept: "application/json",
+                  },
+                  cache: "no-store",
+                }
+              );
 
-            const retryData = await retryResponse.json();
+            const retryData =
+              await retryResponse.json();
 
             if (
               retryResponse.ok &&
-              retryData?.account_type === "alumni" &&
+              retryData?.account_type ===
+                "alumni" &&
               retryData?.redirect_to
             ) {
-              router.replace(retryData.redirect_to);
+              router.replace(
+                retryData.redirect_to
+              );
               return;
             }
 
-            if (retryResponse.ok && retryData?.profile) {
-              const student = retryData.profile as StudentProfile;
-
-              setProfile(student);
-
-              setForm({
-                full_name: student.full_name || "",
-                student_id: student.student_id || "",
-                batch: String(student.batch || ""),
-                section: student.section || "A",
-                blood_group: student.blood_group || "",
-                graduation_date: student.graduation_date
-                  ? String(student.graduation_date).slice(0, 7)
-                  : "",
-                linkedin_url: student.linkedin_url || "",
-                instagram_url: student.instagram_url || "",
-                facebook_url: student.facebook_url || "",
-                profile_photo_url:
-                  student.profile_photo_url || "",
-              });
-
+            if (
+              retryResponse.ok &&
+              retryData?.profile
+            ) {
+              setStudentProfile(
+                retryData.profile
+              );
               return;
             }
 
@@ -186,7 +210,8 @@ export default function StudentProfilePage() {
         }
 
         throw new Error(
-          data?.error || "Unable to load your profile."
+          data?.error ||
+            "Unable to load your profile."
         );
       }
 
@@ -196,27 +221,14 @@ export default function StudentProfilePage() {
         );
       }
 
-      const student = data.profile as StudentProfile;
-
-      setProfile(student);
-
-      setForm({
-        full_name: student.full_name || "",
-        student_id: student.student_id || "",
-        batch: String(student.batch || ""),
-        section: student.section || "A",
-        blood_group: student.blood_group || "",
-        graduation_date: student.graduation_date
-          ? String(student.graduation_date).slice(0, 7)
-          : "",
-        linkedin_url: student.linkedin_url || "",
-        instagram_url: student.instagram_url || "",
-        facebook_url: student.facebook_url || "",
-        profile_photo_url:
-          student.profile_photo_url || "",
-      });
+      setStudentProfile(
+        data.profile
+      );
     } catch (err) {
-      console.error("Student profile error:", err);
+      console.error(
+        "Student profile error:",
+        err
+      );
 
       setError(
         err instanceof Error
@@ -227,6 +239,60 @@ export default function StudentProfilePage() {
       setLoading(false);
     }
   }
+
+  /* =========================================================
+     SET PROFILE
+     ========================================================= */
+
+  function setStudentProfile(
+    student: StudentProfile
+  ) {
+    setProfile(student);
+
+    setForm({
+      full_name:
+        student.full_name || "",
+
+      student_id:
+        student.student_id || "",
+
+      batch:
+        String(student.batch || ""),
+
+      section:
+        student.section || "A",
+
+      blood_group:
+        student.blood_group || "",
+
+      graduation_date:
+        student.graduation_date
+          ? String(
+              student.graduation_date
+            ).slice(0, 7)
+          : "",
+
+      linkedin_url:
+        student.linkedin_url || "",
+
+      instagram_url:
+        student.instagram_url || "",
+
+      facebook_url:
+        student.facebook_url || "",
+
+      profile_photo_url:
+        student.profile_photo_url || "",
+    });
+
+    setPhotoPreview(
+      student.profile_photo_url || ""
+    );
+  }
+
+  /* =========================================================
+     FORM
+     ========================================================= */
 
   function updateField(
     field: keyof typeof form,
@@ -241,6 +307,9 @@ export default function StudentProfilePage() {
   function startEditing() {
     setSuccess("");
     setError("");
+    setPhotoPreview(
+      profile?.profile_photo_url || ""
+    );
     setEditing(true);
   }
 
@@ -248,25 +317,156 @@ export default function StudentProfilePage() {
     if (!profile) return;
 
     setForm({
-      full_name: profile.full_name || "",
-      student_id: profile.student_id || "",
-      batch: String(profile.batch || ""),
-      section: profile.section || "A",
-      blood_group: profile.blood_group || "",
-      graduation_date: profile.graduation_date
-        ? String(profile.graduation_date).slice(0, 7)
-        : "",
-      linkedin_url: profile.linkedin_url || "",
-      instagram_url: profile.instagram_url || "",
-      facebook_url: profile.facebook_url || "",
+      full_name:
+        profile.full_name || "",
+
+      student_id:
+        profile.student_id || "",
+
+      batch:
+        String(profile.batch || ""),
+
+      section:
+        profile.section || "A",
+
+      blood_group:
+        profile.blood_group || "",
+
+      graduation_date:
+        profile.graduation_date
+          ? String(
+              profile.graduation_date
+            ).slice(0, 7)
+          : "",
+
+      linkedin_url:
+        profile.linkedin_url || "",
+
+      instagram_url:
+        profile.instagram_url || "",
+
+      facebook_url:
+        profile.facebook_url || "",
+
       profile_photo_url:
         profile.profile_photo_url || "",
     });
+
+    setPhotoPreview(
+      profile.profile_photo_url || ""
+    );
 
     setError("");
     setSuccess("");
     setEditing(false);
   }
+
+  /* =========================================================
+     PHOTO UPLOAD
+     ========================================================= */
+
+  async function handlePhotoSelect(
+    event: ChangeEvent<HTMLInputElement>
+  ) {
+    const file =
+      event.target.files?.[0];
+
+    if (!file) return;
+
+    try {
+      setPhotoUploading(true);
+      setError("");
+      setSuccess("");
+
+      if (!file.type.startsWith("image/")) {
+        throw new Error(
+          "Please select a valid image file."
+        );
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        throw new Error(
+          "Image is too large. Maximum original file size is 10 MB."
+        );
+      }
+
+      const compressed =
+        await imageCompression(file, {
+          maxSizeMB: 1,
+          maxWidthOrHeight: 1200,
+          useWebWorker: true,
+          fileType: "image/webp",
+        });
+
+      const base64 =
+        await fileToBase64(
+          compressed
+        );
+
+      /*
+       * Keep the base64 temporarily in the form.
+       *
+       * The API will upload it to Supabase Storage
+       * when Save Changes is pressed.
+       */
+      updateField(
+        "profile_photo_url",
+        base64
+      );
+
+      setPhotoPreview(base64);
+    } catch (err) {
+      console.error(
+        "Profile photo selection error:",
+        err
+      );
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to select profile photo."
+      );
+    } finally {
+      setPhotoUploading(false);
+
+      /*
+       * Allow selecting the same file again.
+       */
+      event.target.value = "";
+    }
+  }
+
+  /* =========================================================
+     PHOTO URL
+     ========================================================= */
+
+  function handlePhotoUrlChange(
+    value: string
+  ) {
+    updateField(
+      "profile_photo_url",
+      value
+    );
+
+    setPhotoPreview(value);
+  }
+
+  /* =========================================================
+     REMOVE PHOTO
+     ========================================================= */
+
+  function removePhoto() {
+    updateField(
+      "profile_photo_url",
+      ""
+    );
+
+    setPhotoPreview("");
+  }
+
+  /* =========================================================
+     SAVE
+     ========================================================= */
 
   async function handleSave(
     event: FormEvent<HTMLFormElement>
@@ -278,54 +478,81 @@ export default function StudentProfilePage() {
     setSuccess("");
 
     try {
-      const accessToken = await getFreshAccessToken();
+      const accessToken =
+        await getFreshAccessToken();
 
       if (!accessToken) {
-        router.replace("/students/login");
+        router.replace(
+          "/students/login"
+        );
         return;
       }
 
-      const response = await fetch("/api/students/profile", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-          Accept: "application/json",
-        },
-        cache: "no-store",
-        body: JSON.stringify({
-          full_name: form.full_name,
-          student_id: form.student_id,
-          batch: form.batch,
-          section: form.section,
-          blood_group: form.blood_group,
+      const response = await fetch(
+        "/api/students/profile",
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Authorization: `Bearer ${accessToken}`,
+            Accept: "application/json",
+          },
+          cache: "no-store",
 
-          /*
-           * Empty value becomes NULL in the API.
-           */
-          graduation_date:
-            form.graduation_date || null,
+          body: JSON.stringify({
+            full_name:
+              form.full_name,
 
-          linkedin_url: form.linkedin_url,
-          instagram_url: form.instagram_url,
-          facebook_url: form.facebook_url,
-          profile_photo_url:
-            form.profile_photo_url,
-        }),
-      });
+            student_id:
+              form.student_id,
 
-      const data = await response.json();
+            batch:
+              form.batch,
 
-      /*
-       * A student who has reached their graduation month
-       * may be converted to Alumni by the API.
-       */
+            section:
+              form.section,
+
+            blood_group:
+              form.blood_group,
+
+            graduation_date:
+              form.graduation_date ||
+              null,
+
+            linkedin_url:
+              form.linkedin_url,
+
+            instagram_url:
+              form.instagram_url,
+
+            facebook_url:
+              form.facebook_url,
+
+            /*
+             * Can be:
+             *
+             * data:image/... = uploaded image
+             * https://...   = image URL
+             */
+            profile_photo_url:
+              form.profile_photo_url,
+          }),
+        }
+      );
+
+      const data =
+        await response.json();
+
       if (
         response.ok &&
-        data?.account_type === "alumni" &&
+        data?.account_type ===
+          "alumni" &&
         data?.redirect_to
       ) {
-        router.replace(data.redirect_to);
+        router.replace(
+          data.redirect_to
+        );
         return;
       }
 
@@ -345,33 +572,12 @@ export default function StudentProfilePage() {
       const updatedProfile =
         data.profile as StudentProfile;
 
-      setProfile(updatedProfile);
-
-      setForm({
-        full_name: updatedProfile.full_name || "",
-        student_id:
-          updatedProfile.student_id || "",
-        batch: String(updatedProfile.batch || ""),
-        section: updatedProfile.section || "A",
-        blood_group:
-          updatedProfile.blood_group || "",
-        graduation_date:
-          updatedProfile.graduation_date
-            ? String(
-                updatedProfile.graduation_date
-              ).slice(0, 7)
-            : "",
-        linkedin_url:
-          updatedProfile.linkedin_url || "",
-        instagram_url:
-          updatedProfile.instagram_url || "",
-        facebook_url:
-          updatedProfile.facebook_url || "",
-        profile_photo_url:
-          updatedProfile.profile_photo_url || "",
-      });
+      setStudentProfile(
+        updatedProfile
+      );
 
       setEditing(false);
+
       setSuccess(
         "Profile updated successfully."
       );
@@ -381,7 +587,10 @@ export default function StudentProfilePage() {
         behavior: "smooth",
       });
     } catch (err) {
-      console.error("Profile update error:", err);
+      console.error(
+        "Profile update error:",
+        err
+      );
 
       setError(
         err instanceof Error
@@ -393,12 +602,24 @@ export default function StudentProfilePage() {
     }
   }
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  /* =========================================================
+     LOGOUT
+     ========================================================= */
 
-    router.replace("/students/login");
-    router.refresh();
-  };
+  const handleLogout =
+    async () => {
+      await supabase.auth.signOut();
+
+      router.replace(
+        "/students/login"
+      );
+
+      router.refresh();
+    };
+
+  /* =========================================================
+     GRADUATION FORMAT
+     ========================================================= */
 
   function formatGraduationDate(
     graduationDate: string | null
@@ -407,18 +628,26 @@ export default function StudentProfilePage() {
       return "Not provided";
     }
 
-    const value = String(graduationDate).slice(0, 7);
+    const value =
+      String(graduationDate).slice(
+        0,
+        7
+      );
 
-    const match = value.match(
-      /^(\d{4})-(\d{2})$/
-    );
+    const match =
+      value.match(
+        /^(\d{4})-(\d{2})$/
+      );
 
     if (!match) {
       return graduationDate;
     }
 
-    const year = Number(match[1]);
-    const month = Number(match[2]);
+    const year =
+      Number(match[1]);
+
+    const month =
+      Number(match[2]);
 
     if (
       !Number.isInteger(year) ||
@@ -430,15 +659,26 @@ export default function StudentProfilePage() {
     }
 
     const date = new Date(
-      Date.UTC(year, month - 1, 1)
+      Date.UTC(
+        year,
+        month - 1,
+        1
+      )
     );
 
-    return new Intl.DateTimeFormat("en-US", {
-      month: "long",
-      year: "numeric",
-      timeZone: "UTC",
-    }).format(date);
+    return new Intl.DateTimeFormat(
+      "en-US",
+      {
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+      }
+    ).format(date);
   }
+
+  /* =========================================================
+     LOADING
+     ========================================================= */
 
   if (loading) {
     return (
@@ -459,6 +699,10 @@ export default function StudentProfilePage() {
       </main>
     );
   }
+
+  /* =========================================================
+     ERROR
+     ========================================================= */
 
   if (error && !profile) {
     return (
@@ -520,10 +764,16 @@ export default function StudentProfilePage() {
     );
   }
 
+  /* =========================================================
+     MAIN
+     ========================================================= */
+
   return (
     <main className="min-h-screen bg-background px-4 py-10 sm:px-6">
       <div className="mx-auto max-w-4xl">
+
         {/* Header */}
+
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-primary">
@@ -549,6 +799,7 @@ export default function StudentProfilePage() {
         </div>
 
         {/* Messages */}
+
         {success && (
           <div className="mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-300">
             ✓ {success}
@@ -562,14 +813,22 @@ export default function StudentProfilePage() {
         )}
 
         {/* Profile Card */}
+
         <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+
           {/* Profile Header */}
+
           <div className="border-b bg-muted/30 px-6 py-8 sm:px-8">
             <div className="flex flex-col items-center gap-5 sm:flex-row">
+
               {profile.profile_photo_url ? (
                 <img
-                  src={profile.profile_photo_url}
-                  alt={profile.full_name}
+                  src={
+                    profile.profile_photo_url
+                  }
+                  alt={
+                    profile.full_name
+                  }
                   className="h-32 w-32 rounded-full object-cover ring-4 ring-background shadow-md"
                 />
               ) : (
@@ -587,13 +846,18 @@ export default function StudentProfilePage() {
                 </h2>
 
                 <p className="mt-1 text-muted-foreground">
-                  Batch {profile.batch} • Section{" "}
+                  Batch{" "}
+                  {profile.batch}{" "}
+                  • Section{" "}
                   {profile.section}
                 </p>
 
                 {profile.student_id && (
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Student ID: {profile.student_id}
+                    Student ID:{" "}
+                    {
+                      profile.student_id
+                    }
                   </p>
                 )}
               </div>
@@ -601,10 +865,11 @@ export default function StudentProfilePage() {
           </div>
 
           {/* VIEW MODE */}
+
           {!editing && (
             <>
               <div className="grid gap-8 p-6 sm:grid-cols-2 sm:p-8">
-                {/* Personal Information */}
+
                 <section>
                   <h3 className="mb-4 text-lg font-semibold">
                     Personal Information
@@ -613,12 +878,16 @@ export default function StudentProfilePage() {
                   <div className="space-y-4">
                     <InfoRow
                       label="Full Name"
-                      value={profile.full_name}
+                      value={
+                        profile.full_name
+                      }
                     />
 
                     <InfoRow
                       label="Email"
-                      value={profile.email}
+                      value={
+                        profile.email
+                      }
                     />
 
                     <InfoRow
@@ -639,7 +908,6 @@ export default function StudentProfilePage() {
                   </div>
                 </section>
 
-                {/* Academic Information */}
                 <section>
                   <h3 className="mb-4 text-lg font-semibold">
                     Academic Information
@@ -676,7 +944,6 @@ export default function StudentProfilePage() {
                 </section>
               </div>
 
-              {/* Graduation Status */}
               {profile.graduation_date && (
                 <div className="border-t px-6 py-6 sm:px-8">
                   <div className="rounded-xl border bg-muted/30 p-4">
@@ -699,7 +966,6 @@ export default function StudentProfilePage() {
                 </div>
               )}
 
-              {/* Social Links */}
               {(profile.linkedin_url ||
                 profile.instagram_url ||
                 profile.facebook_url) && (
@@ -711,7 +977,9 @@ export default function StudentProfilePage() {
                   <div className="flex flex-wrap gap-3">
                     {profile.linkedin_url && (
                       <a
-                        href={profile.linkedin_url}
+                        href={
+                          profile.linkedin_url
+                        }
                         target="_blank"
                         rel="noopener noreferrer"
                         className="rounded-lg border px-4 py-2 text-sm font-medium transition hover:bg-muted"
@@ -722,7 +990,9 @@ export default function StudentProfilePage() {
 
                     {profile.instagram_url && (
                       <a
-                        href={profile.instagram_url}
+                        href={
+                          profile.instagram_url
+                        }
                         target="_blank"
                         rel="noopener noreferrer"
                         className="rounded-lg border px-4 py-2 text-sm font-medium transition hover:bg-muted"
@@ -733,7 +1003,9 @@ export default function StudentProfilePage() {
 
                     {profile.facebook_url && (
                       <a
-                        href={profile.facebook_url}
+                        href={
+                          profile.facebook_url
+                        }
                         target="_blank"
                         rel="noopener noreferrer"
                         className="rounded-lg border px-4 py-2 text-sm font-medium transition hover:bg-muted"
@@ -745,7 +1017,6 @@ export default function StudentProfilePage() {
                 </div>
               )}
 
-              {/* Bottom Actions */}
               <div className="flex flex-col gap-3 border-t bg-muted/20 p-6 sm:flex-row sm:justify-between sm:p-8">
                 <Link
                   href="/students"
@@ -766,10 +1037,15 @@ export default function StudentProfilePage() {
           )}
 
           {/* EDIT MODE */}
+
           {editing && (
-            <form onSubmit={handleSave}>
+            <form
+              onSubmit={handleSave}
+            >
               <div className="space-y-8 p-6 sm:p-8">
-                {/* Personal Information */}
+
+                {/* Personal */}
+
                 <section>
                   <h3 className="mb-5 text-lg font-semibold">
                     Personal Information
@@ -778,7 +1054,9 @@ export default function StudentProfilePage() {
                   <div className="grid gap-5 sm:grid-cols-2">
                     <FormField
                       label="Full Name"
-                      value={form.full_name}
+                      value={
+                        form.full_name
+                      }
                       onChange={(value) =>
                         updateField(
                           "full_name",
@@ -795,7 +1073,9 @@ export default function StudentProfilePage() {
 
                       <input
                         type="email"
-                        value={profile.email}
+                        value={
+                          profile.email
+                        }
                         disabled
                         className="w-full rounded-xl border bg-muted px-4 py-3 text-sm text-muted-foreground"
                       />
@@ -807,7 +1087,9 @@ export default function StudentProfilePage() {
 
                     <FormField
                       label="Student ID"
-                      value={form.student_id}
+                      value={
+                        form.student_id
+                      }
                       onChange={(value) =>
                         updateField(
                           "student_id",
@@ -822,7 +1104,9 @@ export default function StudentProfilePage() {
                       </label>
 
                       <select
-                        value={form.blood_group}
+                        value={
+                          form.blood_group
+                        }
                         onChange={(e) =>
                           updateField(
                             "blood_group",
@@ -834,20 +1118,37 @@ export default function StudentProfilePage() {
                         <option value="">
                           Select blood group
                         </option>
-                        <option value="A+">A+</option>
-                        <option value="A-">A-</option>
-                        <option value="B+">B+</option>
-                        <option value="B-">B-</option>
-                        <option value="AB+">AB+</option>
-                        <option value="AB-">AB-</option>
-                        <option value="O+">O+</option>
-                        <option value="O-">O-</option>
+                        <option value="A+">
+                          A+
+                        </option>
+                        <option value="A-">
+                          A-
+                        </option>
+                        <option value="B+">
+                          B+
+                        </option>
+                        <option value="B-">
+                          B-
+                        </option>
+                        <option value="AB+">
+                          AB+
+                        </option>
+                        <option value="AB-">
+                          AB-
+                        </option>
+                        <option value="O+">
+                          O+
+                        </option>
+                        <option value="O-">
+                          O-
+                        </option>
                       </select>
                     </div>
                   </div>
                 </section>
 
-                {/* Academic Information */}
+                {/* Academic */}
+
                 <section className="border-t pt-8">
                   <h3 className="mb-5 text-lg font-semibold">
                     Academic Information
@@ -857,7 +1158,9 @@ export default function StudentProfilePage() {
                     <FormField
                       label="Batch"
                       type="number"
-                      value={form.batch}
+                      value={
+                        form.batch
+                      }
                       onChange={(value) =>
                         updateField(
                           "batch",
@@ -873,7 +1176,9 @@ export default function StudentProfilePage() {
                       </label>
 
                       <select
-                        value={form.section}
+                        value={
+                          form.section
+                        }
                         onChange={(e) =>
                           updateField(
                             "section",
@@ -892,7 +1197,6 @@ export default function StudentProfilePage() {
                       </select>
                     </div>
 
-                    {/* Graduation Month + Year */}
                     <div className="sm:col-span-2">
                       <label className="mb-2 block text-sm font-semibold">
                         Graduation Month & Year
@@ -900,7 +1204,9 @@ export default function StudentProfilePage() {
 
                       <input
                         type="month"
-                        value={form.graduation_date}
+                        value={
+                          form.graduation_date
+                        }
                         onChange={(e) =>
                           updateField(
                             "graduation_date",
@@ -911,10 +1217,9 @@ export default function StudentProfilePage() {
                       />
 
                       <p className="mt-2 text-xs text-muted-foreground">
-                        Optional. When this graduation
-                        month begins, your profile will
-                        automatically appear in the Alumni
-                        directory.
+                        Optional. When this graduation month begins,
+                        your profile will automatically appear in
+                        the Alumni directory.
                       </p>
 
                       {form.graduation_date && (
@@ -935,30 +1240,164 @@ export default function StudentProfilePage() {
                   </div>
                 </section>
 
-                {/* Profile Photo */}
+                {/* =================================================
+                    PROFILE PHOTO
+                ================================================= */}
+
                 <section className="border-t pt-8">
                   <h3 className="mb-5 text-lg font-semibold">
                     Profile Photo
                   </h3>
 
-                  <FormField
-                    label="Profile Photo URL"
-                    value={form.profile_photo_url}
-                    onChange={(value) =>
-                      updateField(
-                        "profile_photo_url",
-                        value
-                      )
-                    }
-                    placeholder="https://example.com/photo.jpg"
-                  />
+                  <div className="space-y-6">
 
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Enter a publicly accessible image URL.
-                  </p>
+                    {/* Preview */}
+
+                    <div className="flex flex-col items-center gap-4 sm:flex-row">
+                      {photoPreview ? (
+                        <img
+                          src={
+                            photoPreview
+                          }
+                          alt="Profile preview"
+                          className="h-32 w-32 rounded-full object-cover ring-4 ring-background shadow-md"
+                        />
+                      ) : (
+                        <div className="flex h-32 w-32 items-center justify-center rounded-full bg-primary text-4xl font-bold text-primary-foreground">
+                          {form.full_name
+                            .trim()
+                            .charAt(0)
+                            .toUpperCase() ||
+                            "S"}
+                        </div>
+                      )}
+
+                      <div className="text-center sm:text-left">
+                        <p className="font-semibold">
+                          Choose your profile picture
+                        </p>
+
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          You can upload an image or use a public image URL.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Upload */}
+
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold">
+                        Upload Profile Photo
+                      </label>
+
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={
+                          handlePhotoSelect
+                        }
+                        disabled={
+                          saving ||
+                          photoUploading
+                        }
+                        className="block w-full rounded-xl border bg-background px-4 py-3 text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:font-semibold file:text-primary-foreground hover:file:opacity-90"
+                      />
+
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        JPG, PNG, WEBP or another image format. Maximum original file size: 10 MB.
+                      </p>
+
+                      {photoUploading && (
+                        <p className="mt-2 text-sm font-medium text-primary">
+                          Preparing image...
+                        </p>
+                      )}
+                    </div>
+
+                    {/* OR */}
+
+                    <div className="flex items-center gap-3">
+                      <div className="h-px flex-1 bg-border" />
+
+                      <span className="text-xs font-semibold uppercase text-muted-foreground">
+                        OR
+                      </span>
+
+                      <div className="h-px flex-1 bg-border" />
+                    </div>
+
+                    {/* URL */}
+
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold">
+                        Profile Photo URL
+                      </label>
+
+                      <input
+                        type="url"
+                        value={
+                          form.profile_photo_url.startsWith(
+                            "data:image/"
+                          )
+                            ? ""
+                            : form.profile_photo_url
+                        }
+                        onChange={(e) =>
+                          handlePhotoUrlChange(
+                            e.target.value
+                          )
+                        }
+                        placeholder="https://example.com/photo.jpg"
+                        className="w-full rounded-xl border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      />
+
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Enter a publicly accessible image URL.
+                      </p>
+                    </div>
+
+                    {/* Remove */}
+
+                    {(photoPreview ||
+                      form.profile_photo_url) && (
+                      <button
+                        type="button"
+                        onClick={
+                          removePhoto
+                        }
+                        disabled={
+                          saving
+                        }
+                        className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/30"
+                      >
+                        Remove Profile Photo
+                      </button>
+                    )}
+
+                    <div className="rounded-xl border bg-muted/30 p-4">
+                      <p className="text-sm font-semibold">
+                        How it works
+                      </p>
+
+                      <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                        <li>
+                          • Uploaded photos are securely stored in Supabase Storage.
+                        </li>
+
+                        <li>
+                          • A pasted URL is saved directly as the image URL.
+                        </li>
+
+                        <li>
+                          • If you provide both, the uploaded photo is used.
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
                 </section>
 
-                {/* Social Links */}
+                {/* Social */}
+
                 <section className="border-t pt-8">
                   <h3 className="mb-5 text-lg font-semibold">
                     Social Links
@@ -967,7 +1406,9 @@ export default function StudentProfilePage() {
                   <div className="space-y-5">
                     <FormField
                       label="LinkedIn URL"
-                      value={form.linkedin_url}
+                      value={
+                        form.linkedin_url
+                      }
                       onChange={(value) =>
                         updateField(
                           "linkedin_url",
@@ -979,7 +1420,9 @@ export default function StudentProfilePage() {
 
                     <FormField
                       label="Instagram URL"
-                      value={form.instagram_url}
+                      value={
+                        form.instagram_url
+                      }
                       onChange={(value) =>
                         updateField(
                           "instagram_url",
@@ -991,7 +1434,9 @@ export default function StudentProfilePage() {
 
                     <FormField
                       label="Facebook URL"
-                      value={form.facebook_url}
+                      value={
+                        form.facebook_url
+                      }
                       onChange={(value) =>
                         updateField(
                           "facebook_url",
@@ -1004,11 +1449,14 @@ export default function StudentProfilePage() {
                 </section>
               </div>
 
-              {/* Save / Cancel */}
+              {/* Save */}
+
               <div className="flex flex-col gap-3 border-t bg-muted/20 p-6 sm:flex-row sm:justify-end sm:p-8">
                 <button
                   type="button"
-                  onClick={cancelEditing}
+                  onClick={
+                    cancelEditing
+                  }
                   disabled={saving}
                   className="rounded-lg border px-6 py-3 text-sm font-semibold transition hover:bg-muted disabled:opacity-50"
                 >
@@ -1017,7 +1465,10 @@ export default function StudentProfilePage() {
 
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={
+                    saving ||
+                    photoUploading
+                  }
                   className="rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving
@@ -1033,6 +1484,39 @@ export default function StudentProfilePage() {
   );
 }
 
+/* =========================================================
+   BASE64
+   ========================================================= */
+
+function fileToBase64(
+  file: File
+): Promise<string> {
+  return new Promise(
+    (resolve, reject) => {
+      const reader =
+        new FileReader();
+
+      reader.onload = () =>
+        resolve(
+          String(reader.result)
+        );
+
+      reader.onerror = () =>
+        reject(
+          new Error(
+            "Unable to read the image."
+          )
+        );
+
+      reader.readAsDataURL(file);
+    }
+  );
+}
+
+/* =========================================================
+   FORM FIELD
+   ========================================================= */
+
 function FormField({
   label,
   value,
@@ -1043,7 +1527,9 @@ function FormField({
 }: {
   label: string;
   value: string;
-  onChange: (value: string) => void;
+  onChange: (
+    value: string
+  ) => void;
   placeholder?: string;
   type?: string;
   required?: boolean;
@@ -1058,15 +1544,23 @@ function FormField({
         type={type}
         value={value}
         onChange={(e) =>
-          onChange(e.target.value)
+          onChange(
+            e.target.value
+          )
         }
-        placeholder={placeholder}
+        placeholder={
+          placeholder
+        }
         required={required}
         className="w-full rounded-xl border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
       />
     </div>
   );
 }
+
+/* =========================================================
+   INFO ROW
+   ========================================================= */
 
 function InfoRow({
   label,
