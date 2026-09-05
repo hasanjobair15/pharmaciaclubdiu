@@ -1,17 +1,15 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import imageCompression from "browser-image-compression";
 
 const CURRENT_BATCHES = [29, 30, 31, 32, 33, 34, 35, 36];
 const SECTIONS = ["A", "B"];
 
-export default function StudentCreateAccountPage() {
-  const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
+const supabase = createClient();
 
+export default function CreateStudentAccountPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,9 +17,21 @@ export default function StudentCreateAccountPage() {
 
   const [batch, setBatch] = useState("");
   const [section, setSection] = useState("");
-
   const [studentId, setStudentId] = useState("");
   const [bloodGroup, setBloodGroup] = useState("");
+
+  /*
+   * Graduation month is stored as:
+   *
+   * YYYY-MM
+   *
+   * Example:
+   * September 2026 = 2026-09
+   *
+   * The API converts this to:
+   * 2026-09-01
+   */
+  const [graduationDate, setGraduationDate] = useState("");
 
   const [linkedin, setLinkedin] = useState("");
   const [instagram, setInstagram] = useState("");
@@ -36,620 +46,583 @@ export default function StudentCreateAccountPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!photo) {
-      return;
-    }
+    return () => {
+      if (photoPreview) {
+        URL.revokeObjectURL(photoPreview);
+      }
+    };
+  }, [photoPreview]);
 
-    const url = URL.createObjectURL(photo);
-    setPhotoPreview(url);
-
-    return () => URL.revokeObjectURL(url);
-  }, [photo]);
-
-  const handlePhotoChange = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  function handlePhotoChange(
+    event: ChangeEvent<HTMLInputElement>
+  ) {
     const file = event.target.files?.[0];
 
-    if (!file) return;
+    if (!file) {
+      return;
+    }
+
+    setError("");
 
     if (!file.type.startsWith("image/")) {
-      setError("Please select an image file.");
+      setError("Please select a valid image file.");
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError("Photo must be smaller than 10 MB.");
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Profile photo must be smaller than 5MB.");
       return;
     }
 
-    setError("");
+    if (photoPreview) {
+      URL.revokeObjectURL(photoPreview);
+    }
+
     setPhoto(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  }
 
-    // If a file is selected, clear URL input.
-    setPhotoUrl("");
-  };
-
-  const handlePhotoUrlChange = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const url = event.target.value.trim();
-
-    setPhotoUrl(url);
-    setError("");
-
-    // If URL is entered, clear uploaded file.
-    if (url) {
-      setPhoto(null);
-      setPhotoPreview(url);
-    } else {
-      setPhotoPreview("");
+  async function uploadPhoto() {
+    if (!photo) {
+      return photoUrl || "";
     }
-  };
 
-  const removePhoto = () => {
-    setPhoto(null);
-    setPhotoPreview("");
-    setPhotoUrl("");
-  };
+    const extension =
+      photo.name.split(".").pop()?.toLowerCase() || "jpg";
 
-  const fileToBase64 = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
+    const fileName = `${crypto.randomUUID()}.${extension}`;
+    const filePath = `student-profiles/${fileName}`;
 
-      reader.onload = () => {
-        if (typeof reader.result === "string") {
-          resolve(reader.result);
-        } else {
-          reject(new Error("Could not read image."));
-        }
-      };
+    const { error: uploadError } = await supabase.storage
+      .from("profile-photos")
+      .upload(filePath, photo, {
+        cacheControl: "3600",
+        upsert: false,
+      });
 
-      reader.onerror = () => {
-        reject(new Error("Could not read image."));
-      };
+    if (uploadError) {
+      throw new Error(
+        `Profile photo upload failed: ${uploadError.message}`
+      );
+    }
 
-      reader.readAsDataURL(file);
-    });
+    const { data } = supabase.storage
+      .from("profile-photos")
+      .getPublicUrl(filePath);
 
-  const handleSubmit = async (
+    return data.publicUrl;
+  }
+
+  async function handleSubmit(
     event: FormEvent<HTMLFormElement>
-  ) => {
+  ) {
     event.preventDefault();
 
-    setLoading(true);
-    setError("");
     setMessage("");
+    setError("");
+
+    if (!fullName.trim()) {
+      setError("Please enter your full name.");
+      return;
+    }
+
+    if (!email.trim()) {
+      setError("Please enter your email address.");
+      return;
+    }
+
+    if (!password) {
+      setError("Please enter a password.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must contain at least 6 characters.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    if (!batch) {
+      setError("Please select your batch.");
+      return;
+    }
+
+    if (!section) {
+      setError("Please select your section.");
+      return;
+    }
+
+    /*
+     * Graduation date is optional.
+     *
+     * If empty:
+     *   graduation_date = null
+     *
+     * Therefore the student stays in Running Students.
+     */
+    if (graduationDate) {
+      const validFormat = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+      if (!validFormat.test(graduationDate)) {
+        setError("Please select a valid graduation month.");
+        return;
+      }
+    }
+
+    setLoading(true);
 
     try {
-      if (!fullName.trim()) {
-        throw new Error("Please enter your full name.");
-      }
+      const finalPhoto = await uploadPhoto();
 
-      if (!email.trim()) {
-        throw new Error("Please enter your email.");
-      }
+      const response = await fetch("/api/students/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          full_name: fullName.trim(),
+          email: email.trim().toLowerCase(),
+          password,
+          batch: Number(batch),
+          section,
+          student_id: studentId.trim(),
+          blood_group: bloodGroup,
+          graduation_date: graduationDate || null,
+          linkedin_url: linkedin.trim(),
+          instagram_url: instagram.trim(),
+          facebook_url: facebook.trim(),
+          profile_photo_url: finalPhoto,
+        }),
+      });
 
-      if (password.length < 6) {
-        throw new Error(
-          "Password must be at least 6 characters."
-        );
-      }
-
-      if (password !== confirmPassword) {
-        throw new Error("Passwords do not match.");
-      }
-
-      if (!batch) {
-        throw new Error("Please select your batch.");
-      }
-
-      if (!section) {
-        throw new Error("Please select your section.");
-      }
-
-      let photoData = "";
-
-      /*
-       * If the student selected an image file,
-       * compress it before sending.
-       */
-      if (photo) {
-        const compressedPhoto = await imageCompression(
-          photo,
-          {
-            maxSizeMB: 1,
-            maxWidthOrHeight: 1200,
-            useWebWorker: true,
-            fileType: "image/webp",
-          }
-        );
-
-        photoData = await fileToBase64(compressedPhoto);
-      }
-
-      /*
-       * If the student entered an image URL,
-       * use the URL instead of a file.
-       */
-      const finalPhoto =
-        photoData || photoUrl.trim() || null;
-
-      const response = await fetch(
-        "/api/students/register",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            full_name: fullName.trim(),
-            email: email.trim().toLowerCase(),
-            password,
-
-            batch: Number(batch),
-            section,
-
-            student_id: studentId.trim(),
-            blood_group: bloodGroup,
-
-            linkedin_url: linkedin.trim(),
-            instagram_url: instagram.trim(),
-            facebook_url: facebook.trim(),
-
-            profile_photo_url: finalPhoto,
-          }),
-        }
-      );
-
-      const result = await response.json();
+      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(
-          result.error ||
-            "Unable to create student account."
-        );
-      }
-
-      // Automatically log the student in.
-      const { error: loginError } =
-        await supabase.auth.signInWithPassword({
-          email: email.trim().toLowerCase(),
-          password,
-        });
-
-      if (loginError) {
-        throw new Error(
-          "Account was created, but automatic login failed. Please log in manually."
+          data.error || "Failed to create student account."
         );
       }
 
       setMessage(
-        "Student account created successfully!"
+        data.message ||
+          "Student account created successfully."
       );
 
-      setTimeout(() => {
-        router.push("/students/profile");
-        router.refresh();
-      }, 800);
+      setFullName("");
+      setEmail("");
+      setPassword("");
+      setConfirmPassword("");
+      setBatch("");
+      setSection("");
+      setStudentId("");
+      setBloodGroup("");
+      setGraduationDate("");
+      setLinkedin("");
+      setInstagram("");
+      setFacebook("");
+      setPhoto(null);
+      setPhotoUrl("");
+
+      if (photoPreview) {
+        URL.revokeObjectURL(photoPreview);
+        setPhotoPreview("");
+      }
     } catch (err) {
+      console.error("Student registration error:", err);
+
       setError(
         err instanceof Error
           ? err.message
-          : "Something went wrong."
+          : "Something went wrong. Please try again."
       );
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
-    <main className="min-h-screen bg-background px-4 py-10">
+    <main className="min-h-screen bg-slate-50 px-4 py-10 dark:bg-slate-950 sm:px-6">
       <div className="mx-auto max-w-3xl">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold tracking-tight">
-            Student Account
-          </h1>
+        {/* Back */}
+        <div className="mb-6">
+          <Link
+            href="/students"
+            className="inline-flex items-center text-sm font-medium text-slate-600 transition hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400"
+          >
+            ← Back to Students
+          </Link>
+        </div>
 
-          <p className="mt-2 text-muted-foreground">
-            Create your Pharmacia Club DIU student profile
+        {/* Header */}
+        <div className="mb-8 text-center">
+          <p className="text-sm font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+            Pharmacia Club DIU
           </p>
 
-          <p className="mt-2 text-sm text-muted-foreground">
-            Current running batches:{" "}
-            {CURRENT_BATCHES[0]}–{CURRENT_BATCHES[7]}
+          <h1 className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
+            Create Student Account
+          </h1>
+
+          <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+            Register your profile for the Pharmacia Club student
+            directory.
           </p>
         </div>
 
+        {/* Success */}
+        {message && (
+          <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-300">
+            {message}
+          </div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+            {error}
+          </div>
+        )}
+
         <form
           onSubmit={handleSubmit}
-          className="rounded-2xl border bg-card p-6 shadow-sm sm:p-8"
+          className="space-y-6"
         >
-          {error && (
-            <div className="mb-6 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
-              {error}
-            </div>
-          )}
-
-          {message && (
-            <div className="mb-6 rounded-lg border border-green-300 bg-green-50 p-4 text-sm text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-300">
-              {message}
-            </div>
-          )}
-
           {/* Basic Information */}
-          <section>
-            <h2 className="mb-4 text-xl font-semibold">
-              Basic Information
-            </h2>
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-6">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                Basic Information
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Enter your basic account information.
+              </p>
+            </div>
 
             <div className="grid gap-5 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <label className="mb-2 block text-sm font-medium">
-                  Full Name *
-                </label>
+              <FormField
+                label="Full Name"
+                required
+                value={fullName}
+                onChange={setFullName}
+                placeholder="Enter your full name"
+              />
 
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={(e) =>
-                    setFullName(e.target.value)
-                  }
-                  placeholder="Enter your full name"
-                  required
-                  className="w-full rounded-lg border bg-background px-4 py-3 outline-none focus:ring-2"
-                />
-              </div>
+              <FormField
+                label="Email Address"
+                required
+                type="email"
+                value={email}
+                onChange={setEmail}
+                placeholder="example@email.com"
+              />
 
-              <div>
-                <label className="mb-2 block text-sm font-medium">
-                  Email *
-                </label>
+              <FormField
+                label="Password"
+                required
+                type="password"
+                value={password}
+                onChange={setPassword}
+                placeholder="Minimum 6 characters"
+              />
 
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) =>
-                    setEmail(e.target.value)
-                  }
-                  placeholder="your@email.com"
-                  required
-                  className="w-full rounded-lg border bg-background px-4 py-3 outline-none focus:ring-2"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium">
-                  Student ID
-                </label>
-
-                <input
-                  type="text"
-                  value={studentId}
-                  onChange={(e) =>
-                    setStudentId(e.target.value)
-                  }
-                  placeholder="Optional"
-                  className="w-full rounded-lg border bg-background px-4 py-3 outline-none focus:ring-2"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium">
-                  Password *
-                </label>
-
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) =>
-                    setPassword(e.target.value)
-                  }
-                  placeholder="Minimum 6 characters"
-                  required
-                  minLength={6}
-                  className="w-full rounded-lg border bg-background px-4 py-3 outline-none focus:ring-2"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium">
-                  Confirm Password *
-                </label>
-
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) =>
-                    setConfirmPassword(e.target.value)
-                  }
-                  placeholder="Repeat your password"
-                  required
-                  className="w-full rounded-lg border bg-background px-4 py-3 outline-none focus:ring-2"
-                />
-              </div>
+              <FormField
+                label="Confirm Password"
+                required
+                type="password"
+                value={confirmPassword}
+                onChange={setConfirmPassword}
+                placeholder="Re-enter your password"
+              />
             </div>
           </section>
 
           {/* Academic Information */}
-          <section className="mt-8 border-t pt-8">
-            <h2 className="mb-4 text-xl font-semibold">
-              Academic Information
-            </h2>
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-6">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                Academic Information
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Provide your current academic details.
+              </p>
+            </div>
 
             <div className="grid gap-5 sm:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm font-medium">
-                  Batch *
+              <SelectField
+                label="Batch"
+                required
+                value={batch}
+                onChange={setBatch}
+                placeholder="Select batch"
+                options={CURRENT_BATCHES.map((item) => ({
+                  value: String(item),
+                  label: `Batch ${item}`,
+                }))}
+              />
+
+              <SelectField
+                label="Section"
+                required
+                value={section}
+                onChange={setSection}
+                placeholder="Select section"
+                options={SECTIONS.map((item) => ({
+                  value: item,
+                  label: `Section ${item}`,
+                }))}
+              />
+
+              <FormField
+                label="Student ID"
+                value={studentId}
+                onChange={setStudentId}
+                placeholder="Enter your student ID"
+              />
+
+              <FormField
+                label="Blood Group"
+                value={bloodGroup}
+                onChange={setBloodGroup}
+                placeholder="Example: B+"
+              />
+
+              {/* NEW GRADUATION FIELD */}
+              <div className="sm:col-span-2">
+                <label
+                  htmlFor="graduation-date"
+                  className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
+                >
+                  Graduation Month & Year
+                  <span className="ml-1 text-xs font-normal text-slate-400">
+                    (Optional)
+                  </span>
                 </label>
 
-                <select
-                  value={batch}
+                <input
+                  id="graduation-date"
+                  type="month"
+                  value={graduationDate}
                   onChange={(e) =>
-                    setBatch(e.target.value)
+                    setGraduationDate(e.target.value)
                   }
-                  required
-                  className="w-full rounded-lg border bg-background px-4 py-3"
-                >
-                  <option value="">
-                    Select Batch
-                  </option>
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                />
 
-                  {CURRENT_BATCHES.map((item) => (
-                    <option
-                      key={item}
-                      value={item}
-                    >
-                      Batch {item}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium">
-                  Section *
-                </label>
-
-                <select
-                  value={section}
-                  onChange={(e) =>
-                    setSection(e.target.value)
-                  }
-                  required
-                  className="w-full rounded-lg border bg-background px-4 py-3"
-                >
-                  <option value="">
-                    Select Section
-                  </option>
-
-                  {SECTIONS.map((item) => (
-                    <option
-                      key={item}
-                      value={item}
-                    >
-                      Section {item}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium">
-                  Blood Group
-                </label>
-
-                <select
-                  value={bloodGroup}
-                  onChange={(e) =>
-                    setBloodGroup(e.target.value)
-                  }
-                  className="w-full rounded-lg border bg-background px-4 py-3"
-                >
-                  <option value="">
-                    Select Blood Group
-                  </option>
-                  <option value="A+">A+</option>
-                  <option value="A-">A-</option>
-                  <option value="B+">B+</option>
-                  <option value="B-">B-</option>
-                  <option value="AB+">AB+</option>
-                  <option value="AB-">AB-</option>
-                  <option value="O+">O+</option>
-                  <option value="O-">O-</option>
-                </select>
+                <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                  Select the month and year you graduate. Once
+                  that month arrives, your profile will
+                  automatically appear in the Alumni section.
+                  Leave this empty if you do not want to set a
+                  graduation date.
+                </p>
               </div>
             </div>
           </section>
 
           {/* Profile Photo */}
-          <section className="mt-8 border-t pt-8">
-            <h2 className="mb-2 text-xl font-semibold">
-              Profile Photo
-            </h2>
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-6">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                Profile Photo
+              </h2>
 
-            <p className="mb-5 text-sm text-muted-foreground">
-              You can upload an image file OR paste a public image URL.
-            </p>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Add a professional profile photo.
+              </p>
+            </div>
 
-            <div className="flex flex-col gap-6">
-              {/* Preview */}
-              <div className="flex justify-center">
+            <div className="flex flex-col items-center gap-5 sm:flex-row">
+              <div className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 ring-4 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
                 {photoPreview ? (
-                  <div className="relative">
-                    <img
-                      src={photoPreview}
-                      alt="Profile preview"
-                      className="h-32 w-32 rounded-full object-cover ring-2 ring-border"
-                      onError={() => {
-                        setError(
-                          "The image URL could not be loaded. Please check the URL."
-                        );
-                      }}
-                    />
-
-                    <button
-                      type="button"
-                      onClick={removePhoto}
-                      className="absolute -right-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full bg-red-600 text-white shadow hover:bg-red-700"
-                      aria-label="Remove photo"
-                    >
-                      ×
-                    </button>
-                  </div>
+                  <img
+                    src={photoPreview}
+                    alt="Profile preview"
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
-                  <div className="flex h-32 w-32 items-center justify-center rounded-full border bg-muted text-center text-sm text-muted-foreground">
+                  <span className="text-sm text-slate-400">
                     No Photo
-                  </div>
+                  </span>
                 )}
               </div>
 
-              {/* File Upload */}
-              <div>
-                <label className="mb-2 block text-sm font-medium">
-                  Upload Image
-                </label>
-
-                <label className="flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed px-4 py-5 text-center transition hover:bg-muted">
-                  <div>
-                    <div className="mb-1 font-medium">
-                      📷 Choose Image File
-                    </div>
-
-                    <div className="text-xs text-muted-foreground">
-                      JPG, PNG or WEBP — maximum 10 MB
-                    </div>
-                  </div>
-
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/*"
-                    onChange={handlePhotoChange}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-
-              {/* OR */}
-              <div className="flex items-center gap-3">
-                <div className="h-px flex-1 bg-border" />
-                <span className="text-sm text-muted-foreground">
-                  OR
-                </span>
-                <div className="h-px flex-1 bg-border" />
-              </div>
-
-              {/* Image URL */}
-              <div>
-                <label className="mb-2 block text-sm font-medium">
-                  Image URL
+              <div className="w-full">
+                <label
+                  htmlFor="profile-photo"
+                  className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
+                >
+                  Choose Photo
                 </label>
 
                 <input
-                  type="url"
-                  value={photoUrl}
-                  onChange={handlePhotoUrlChange}
-                  placeholder="https://example.com/my-photo.jpg"
-                  className="w-full rounded-lg border bg-background px-4 py-3 outline-none focus:ring-2"
+                  id="profile-photo"
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoChange}
+                  className="block w-full cursor-pointer rounded-xl border border-slate-300 bg-white text-sm text-slate-700 file:mr-4 file:border-0 file:bg-slate-100 file:px-4 file:py-3 file:text-sm file:font-medium dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:file:bg-slate-700"
                 />
 
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Paste a direct public URL to your profile image.
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  JPG, PNG, WEBP or other image format. Maximum
+                  size: 5MB.
                 </p>
               </div>
-
-              {/* Remove */}
-              {photoPreview && (
-                <button
-                  type="button"
-                  onClick={removePhoto}
-                  className="w-full rounded-lg border px-4 py-3 text-sm font-medium transition hover:bg-muted"
-                >
-                  Remove Profile Photo
-                </button>
-              )}
             </div>
           </section>
 
           {/* Social Links */}
-          <section className="mt-8 border-t pt-8">
-            <h2 className="mb-4 text-xl font-semibold">
-              Social Links
-            </h2>
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-6">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                Social Links
+              </h2>
 
-            <div className="space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-medium">
-                  LinkedIn
-                </label>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Add your social media profiles. These fields are
+                optional.
+              </p>
+            </div>
 
-                <input
-                  type="url"
-                  value={linkedin}
-                  onChange={(e) =>
-                    setLinkedin(e.target.value)
-                  }
-                  placeholder="https://linkedin.com/in/..."
-                  className="w-full rounded-lg border bg-background px-4 py-3"
-                />
-              </div>
+            <div className="space-y-5">
+              <FormField
+                label="LinkedIn"
+                value={linkedin}
+                onChange={setLinkedin}
+                placeholder="https://linkedin.com/in/your-profile"
+              />
 
-              <div>
-                <label className="mb-2 block text-sm font-medium">
-                  Instagram
-                </label>
+              <FormField
+                label="Instagram"
+                value={instagram}
+                onChange={setInstagram}
+                placeholder="https://instagram.com/your-profile"
+              />
 
-                <input
-                  type="url"
-                  value={instagram}
-                  onChange={(e) =>
-                    setInstagram(e.target.value)
-                  }
-                  placeholder="https://instagram.com/..."
-                  className="w-full rounded-lg border bg-background px-4 py-3"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium">
-                  Facebook
-                </label>
-
-                <input
-                  type="url"
-                  value={facebook}
-                  onChange={(e) =>
-                    setFacebook(e.target.value)
-                  }
-                  placeholder="https://facebook.com/..."
-                  className="w-full rounded-lg border bg-background px-4 py-3"
-                />
-              </div>
+              <FormField
+                label="Facebook"
+                value={facebook}
+                onChange={setFacebook}
+                placeholder="https://facebook.com/your-profile"
+              />
             </div>
           </section>
 
           {/* Submit */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="mt-8 w-full rounded-lg bg-primary px-5 py-3 font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {loading
-              ? "Creating Account..."
-              : "Create Student Account"}
-          </button>
-
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            Already have an account?{" "}
-            <a
-              href="/students/login"
-              className="font-medium underline"
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-xl bg-blue-600 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Student Login
-            </a>
-          </p>
+              {loading
+                ? "Creating Account..."
+                : "Create Student Account"}
+            </button>
+
+            <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
+              Already have an account?{" "}
+              <Link
+                href="/students/login"
+                className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
+              >
+                Login here
+              </Link>
+            </p>
+          </section>
         </form>
       </div>
     </main>
+  );
+}
+
+function FormField({
+  label,
+  required = false,
+  type = "text",
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  required?: boolean;
+  type?: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <div>
+      <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+        {label}
+
+        {required && (
+          <span className="ml-1 text-red-500">*</span>
+        )}
+      </label>
+
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        required={required}
+        className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
+      />
+    </div>
+  );
+}
+
+function SelectField({
+  label,
+  required = false,
+  value,
+  onChange,
+  placeholder,
+  options,
+}: {
+  label: string;
+  required?: boolean;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  options: {
+    value: string;
+    label: string;
+  }[];
+}) {
+  return (
+    <div>
+      <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+        {label}
+
+        {required && (
+          <span className="ml-1 text-red-500">*</span>
+        )}
+      </label>
+
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required={required}
+        className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+      >
+        <option value="">{placeholder}</option>
+
+        {options.map((option) => (
+          <option
+            key={option.value}
+            value={option.value}
+          >
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }
