@@ -86,8 +86,6 @@ function toRequiredString(value: unknown) {
  * Store:
  *
  * 2026-09-01
- *
- * Graduation month is the source of truth.
  */
 function cleanGraduationDate(value: unknown): string | null {
   if (value === null || value === undefined) {
@@ -113,19 +111,27 @@ function cleanGraduationDate(value: unknown): string | null {
     year = Number(dateMatch[1]);
     month = Number(dateMatch[2]);
   } else {
-    throw new Error("Invalid graduation month and year.");
+    throw new Error(
+      "Invalid graduation month and year."
+    );
   }
 
   if (!Number.isInteger(year) || !Number.isInteger(month)) {
-    throw new Error("Invalid graduation month and year.");
+    throw new Error(
+      "Invalid graduation month and year."
+    );
   }
 
   if (year < 1900 || year > 2200) {
-    throw new Error("Invalid graduation year.");
+    throw new Error(
+      "Invalid graduation year."
+    );
   }
 
   if (month < 1 || month > 12) {
-    throw new Error("Invalid graduation month.");
+    throw new Error(
+      "Invalid graduation month."
+    );
   }
 
   return `${year}-${String(month).padStart(2, "0")}-01`;
@@ -142,46 +148,76 @@ function getDhakaTodayString() {
     day: "2-digit",
   }).formatToParts(new Date());
 
-  const year = parts.find((part) => part.type === "year")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
-  const day = parts.find((part) => part.type === "day")?.value;
+  const year = parts.find(
+    (part) => part.type === "year"
+  )?.value;
+
+  const month = parts.find(
+    (part) => part.type === "month"
+  )?.value;
+
+  const day = parts.find(
+    (part) => part.type === "day"
+  )?.value;
 
   return `${year}-${month}-${day}`;
 }
 
-function buildProfileFields(body: Record<string, unknown>) {
+function buildProfileFields(
+  body: Record<string, unknown>
+) {
   const graduationDate = cleanGraduationDate(
     body.graduation_date
   );
 
   return {
-    full_name: toRequiredString(body.full_name),
+    full_name: toRequiredString(
+      body.full_name
+    ),
 
-    batch: toRequiredString(body.batch),
+    batch: toRequiredString(
+      body.batch
+    ),
 
-    section: toRequiredString(body.section).toUpperCase(),
+    section: toRequiredString(
+      body.section
+    ).toUpperCase(),
 
     graduation_date: graduationDate,
 
     /*
-     * Keep this for compatibility with the
-     * existing alumni table/UI.
+     * Keep graduation_year for compatibility
+     * with the existing Alumni table/UI.
      */
     graduation_year: graduationDate
-      ? Number(graduationDate.slice(0, 4))
+      ? Number(
+          graduationDate.slice(0, 4)
+        )
       : null,
 
-    current_position: toNullableString(body.current_position),
+    current_position: toNullableString(
+      body.current_position
+    ),
 
-    organization: toNullableString(body.organization),
+    organization: toNullableString(
+      body.organization
+    ),
 
-    bio: toNullableString(body.bio),
+    bio: toNullableString(
+      body.bio
+    ),
 
-    linkedin_url: toNullableString(body.linkedin_url),
+    linkedin_url: toNullableString(
+      body.linkedin_url
+    ),
 
-    facebook_url: toNullableString(body.facebook_url),
+    facebook_url: toNullableString(
+      body.facebook_url
+    ),
 
-    instagram_url: toNullableString(body.instagram_url),
+    instagram_url: toNullableString(
+      body.instagram_url
+    ),
 
     is_public:
       typeof body.is_public === "boolean"
@@ -199,20 +235,29 @@ async function uploadProfilePhoto(
   dataUrl: string
 ) {
   const match =
-    /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+    /^data:([^;]+);base64,(.+)$/.exec(
+      dataUrl
+    );
 
   if (!match) {
-    throw new Error("Invalid image data.");
+    throw new Error(
+      "Invalid image data."
+    );
   }
 
   const mime = match[1];
   const base64 = match[2];
 
   if (!mime.startsWith("image/")) {
-    throw new Error("Only image files are supported.");
+    throw new Error(
+      "Only image files are supported."
+    );
   }
 
-  const bytes = Buffer.from(base64, "base64");
+  const bytes = Buffer.from(
+    base64,
+    "base64"
+  );
 
   if (bytes.byteLength > 3 * 1024 * 1024) {
     throw new Error(
@@ -220,16 +265,23 @@ async function uploadProfilePhoto(
     );
   }
 
-  const supabaseAdmin = getAdminClient();
+  const supabaseAdmin =
+    getAdminClient();
 
-  const { error: uploadError } =
+  const {
+    error: uploadError,
+  } =
     await supabaseAdmin.storage
       .from("committee-photos")
-      .upload(photoPath(userId), bytes, {
-        contentType: mime,
-        upsert: true,
-        cacheControl: "3600",
-      });
+      .upload(
+        photoPath(userId),
+        bytes,
+        {
+          contentType: mime,
+          upsert: true,
+          cacheControl: "3600",
+        }
+      );
 
   if (uploadError) {
     throw uploadError;
@@ -237,19 +289,28 @@ async function uploadProfilePhoto(
 
   const {
     data: { publicUrl },
-  } = supabaseAdmin.storage
-    .from("committee-photos")
-    .getPublicUrl(photoPath(userId));
+  } =
+    supabaseAdmin.storage
+      .from("committee-photos")
+      .getPublicUrl(
+        photoPath(userId)
+      );
 
   return `${publicUrl}?v=${Date.now()}`;
 }
 
-async function deleteProfilePhoto(userId: string) {
-  const supabaseAdmin = getAdminClient();
+async function deleteProfilePhoto(
+  userId: string
+) {
+  const supabaseAdmin =
+    getAdminClient();
 
-  const { error } = await supabaseAdmin.storage
-    .from("committee-photos")
-    .remove([photoPath(userId)]);
+  const { error } =
+    await supabaseAdmin.storage
+      .from("committee-photos")
+      .remove([
+        photoPath(userId),
+      ]);
 
   if (error) {
     console.warn(
@@ -260,78 +321,33 @@ async function deleteProfilePhoto(userId: string) {
 }
 
 /*
- * Synchronize the same person's Student profile.
- *
- * IMPORTANT:
- * We use the SAME Supabase Auth user ID.
- *
- * Student account
- *      ↓
- * graduation_date reached
- *      ↓
- * Alumni profile created
- *      ↓
- * same user.id
- */
-async function syncStudentProfile(
-  userId: string,
-  profileFields: ReturnType<typeof buildProfileFields>
-) {
-  const supabaseAdmin = getAdminClient();
-
-  const { data: studentProfile, error: lookupError } =
-    await supabaseAdmin
-      .from("student_profiles")
-      .select("id")
-      .eq("id", userId)
-      .maybeSingle();
-
-  if (lookupError) {
-    console.warn(
-      "Linked student profile lookup warning:",
-      lookupError
-    );
-
-    return;
-  }
-
-  if (!studentProfile) {
-    return;
-  }
-
-  const { error: updateError } =
-    await supabaseAdmin
-      .from("student_profiles")
-      .update({
-        full_name: profileFields.full_name,
-        batch: profileFields.batch,
-        section: profileFields.section,
-        graduation_date: profileFields.graduation_date,
-        profile_photo_url:
-          profileFields.profile_photo_url ?? undefined,
-        linkedin_url: profileFields.linkedin_url,
-        facebook_url: profileFields.facebook_url,
-        instagram_url: profileFields.instagram_url,
-      })
-      .eq("id", userId);
-
-  if (updateError) {
-    console.warn(
-      "Linked student profile synchronization warning:",
-      updateError
-    );
-  }
-}
-
-/*
+ * ---------------------------------------------------------
  * GET
+ * ---------------------------------------------------------
+ *
+ * One Auth account can be used from either login page.
+ *
+ * If an Alumni profile exists:
+ *   → return Alumni
+ *
+ * If only Student profile exists and graduation has started:
+ *   → create Alumni profile automatically
+ *
+ * If only Student profile exists and graduation has not
+ * started:
+ *   → return Student
  */
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest
+) {
   try {
     const {
       user,
       error: authError,
-    } = await getAuthenticatedUser(request);
+    } =
+      await getAuthenticatedUser(
+        request
+      );
 
     if (!user) {
       return NextResponse.json(
@@ -344,19 +360,34 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const supabaseAdmin = getAdminClient();
+    const supabaseAdmin =
+      getAdminClient();
 
     /*
-     * First check Alumni profile.
+     * -------------------------------------------------------
+     * 1. EXISTING ALUMNI PROFILE
+     * -------------------------------------------------------
+     *
+     * Always return the Alumni profile first.
+     *
+     * This preserves professional information such as:
+     *
+     * Current Position
+     * Organization
+     * Bio
+     * LinkedIn
+     * Facebook
+     * Instagram
      */
     const {
       data: alumniProfile,
       error: alumniError,
-    } = await supabaseAdmin
-      .from("alumni_profiles")
-      .select("*")
-      .eq("id", user.id)
-      .maybeSingle();
+    } =
+      await supabaseAdmin
+        .from("alumni_profiles")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle();
 
     if (alumniError) {
       console.error(
@@ -366,7 +397,8 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json(
         {
-          error: alumniError.message,
+          error:
+            alumniError.message,
         },
         {
           status: 500,
@@ -382,26 +414,30 @@ export async function GET(request: NextRequest) {
 
         user: {
           id: user.id,
-          email: user.email || null,
-          metadata: user.user_metadata || {},
+
+          email:
+            user.email || null,
+
+          metadata:
+            user.user_metadata || {},
         },
       });
     }
 
     /*
-     * If no Alumni row exists, check Student profile.
-     *
-     * This protects accounts that have not yet
-     * reached their graduation date.
+     * -------------------------------------------------------
+     * 2. CHECK STUDENT PROFILE
+     * -------------------------------------------------------
      */
     const {
       data: studentProfile,
       error: studentError,
-    } = await supabaseAdmin
-      .from("student_profiles")
-      .select("*")
-      .eq("id", user.id)
-      .maybeSingle();
+    } =
+      await supabaseAdmin
+        .from("student_profiles")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle();
 
     if (studentError) {
       console.error(
@@ -411,7 +447,8 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json(
         {
-          error: studentError.message,
+          error:
+            studentError.message,
         },
         {
           status: 500,
@@ -420,7 +457,7 @@ export async function GET(request: NextRequest) {
     }
 
     /*
-     * No profile at all.
+     * No Student or Alumni profile exists.
      */
     if (!studentProfile) {
       return NextResponse.json({
@@ -430,22 +467,42 @@ export async function GET(request: NextRequest) {
 
         user: {
           id: user.id,
-          email: user.email || null,
-          metadata: user.user_metadata || {},
+
+          email:
+            user.email || null,
+
+          metadata:
+            user.user_metadata || {},
         },
       });
     }
 
     /*
-     * A student profile exists but has not graduated.
+     * -------------------------------------------------------
+     * 3. RUNNING STUDENT
+     * -------------------------------------------------------
      */
-    const today = getDhakaTodayString();
+    const today =
+      getDhakaTodayString();
 
-    const graduationDate = studentProfile.graduation_date
-      ? String(studentProfile.graduation_date).slice(0, 10)
-      : null;
+    const graduationDate =
+      studentProfile.graduation_date
+        ? String(
+            studentProfile.graduation_date
+          ).slice(0, 10)
+        : null;
 
-    if (!graduationDate || graduationDate > today) {
+    /*
+     * No graduation date:
+     * remain Student.
+     *
+     * Future graduation date:
+     * remain Student.
+     */
+    if (
+      !graduationDate ||
+      graduationDate > today
+    ) {
       return NextResponse.json({
         profile: studentProfile,
 
@@ -453,65 +510,93 @@ export async function GET(request: NextRequest) {
 
         user: {
           id: user.id,
-          email: user.email || null,
-          metadata: user.user_metadata || {},
+
+          email:
+            user.email || null,
+
+          metadata:
+            user.user_metadata || {},
         },
       });
     }
 
     /*
+     * -------------------------------------------------------
+     * 4. STUDENT → ALUMNI
+     * -------------------------------------------------------
+     *
      * Graduation month has started.
      *
-     * Automatically create the Alumni profile
-     * using the SAME user.id.
+     * Use the SAME Supabase Auth user ID.
+     *
+     * NEVER create another Auth account.
      */
-    const graduationYear = Number(
-      graduationDate.slice(0, 4)
-    );
+    const graduationYear =
+      Number(
+        graduationDate.slice(0, 4)
+      );
 
     const alumniPayload = {
       id: user.id,
 
-      full_name: studentProfile.full_name || "",
+      full_name:
+        studentProfile.full_name ||
+        "",
 
       email:
         studentProfile.email ||
         user.email ||
         "",
 
-      batch: studentProfile.batch || "",
+      batch:
+        studentProfile.batch ||
+        "",
 
-      section: studentProfile.section || "",
+      section:
+        studentProfile.section ||
+        "",
 
-      graduation_date: graduationDate,
+      graduation_date:
+        graduationDate,
 
-      graduation_year: Number.isFinite(graduationYear)
-        ? graduationYear
-        : null,
+      graduation_year:
+        Number.isFinite(
+          graduationYear
+        )
+          ? graduationYear
+          : null,
 
       profile_photo_url:
-        studentProfile.profile_photo_url || null,
+        studentProfile.profile_photo_url ||
+        null,
 
       linkedin_url:
-        studentProfile.linkedin_url || null,
+        studentProfile.linkedin_url ||
+        null,
 
       facebook_url:
-        studentProfile.facebook_url || null,
+        studentProfile.facebook_url ||
+        null,
 
       instagram_url:
-        studentProfile.instagram_url || null,
+        studentProfile.instagram_url ||
+        null,
     };
 
     const {
-      data: convertedAlumni,
+      data: createdAlumni,
       error: conversionError,
-    } = await supabaseAdmin
-      .from("alumni_profiles")
-      .upsert(alumniPayload, {
-        onConflict: "id",
-      })
-      .select("*")
-      .single();
+    } =
+      await supabaseAdmin
+        .from("alumni_profiles")
+        .upsert(
+          alumniPayload,
+          {
+            onConflict: "id",
+          }
+        )
+        .select("*")
+        .single();
 
     if (conversionError) {
       console.error(
@@ -533,32 +618,51 @@ export async function GET(request: NextRequest) {
     /*
      * Update Auth metadata.
      */
-    await supabaseAdmin.auth.admin.updateUserById(
-      user.id,
-      {
-        user_metadata: {
-          ...(user.user_metadata || {}),
+    const {
+      error: metadataError,
+    } =
+      await supabaseAdmin.auth.admin.updateUserById(
+        user.id,
+        {
+          user_metadata: {
+            ...(user.user_metadata || {}),
 
-          account_type: "alumni",
+            account_type:
+              "alumni",
 
-          graduation_date: graduationDate,
+            graduation_date:
+              graduationDate,
 
-          graduation_year: Number.isFinite(graduationYear)
-            ? graduationYear
-            : null,
-        },
-      }
-    );
+            graduation_year:
+              Number.isFinite(
+                graduationYear
+              )
+                ? graduationYear
+                : null,
+          },
+        }
+      );
+
+    if (metadataError) {
+      console.warn(
+        "Alumni Auth metadata update warning:",
+        metadataError
+      );
+    }
 
     return NextResponse.json({
-      profile: convertedAlumni,
+      profile: createdAlumni,
 
       account_type: "alumni",
 
       user: {
         id: user.id,
-        email: user.email || null,
-        metadata: user.user_metadata || {},
+
+        email:
+          user.email || null,
+
+        metadata:
+          user.user_metadata || {},
       },
     });
   } catch (error) {
@@ -582,14 +686,21 @@ export async function GET(request: NextRequest) {
 }
 
 /*
+ * ---------------------------------------------------------
  * PUT
+ * ---------------------------------------------------------
  */
-export async function PUT(request: NextRequest) {
+export async function PUT(
+  request: NextRequest
+) {
   try {
     const {
       user,
       error: authError,
-    } = await getAuthenticatedUser(request);
+    } =
+      await getAuthenticatedUser(
+        request
+      );
 
     if (!user) {
       return NextResponse.json(
@@ -602,14 +713,26 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const body = (await request
-      .json()
-      .catch(() => ({}))) as Record<string, unknown>;
+    const body =
+      (await request
+        .json()
+        .catch(
+          () => ({})
+        )) as Record<
+        string,
+        unknown
+      >;
 
-    let profileFields: ReturnType<typeof buildProfileFields>;
+    let profileFields:
+      ReturnType<
+        typeof buildProfileFields
+      >;
 
     try {
-      profileFields = buildProfileFields(body);
+      profileFields =
+        buildProfileFields(
+          body
+        );
     } catch (error) {
       return NextResponse.json(
         {
@@ -627,7 +750,9 @@ export async function PUT(request: NextRequest) {
     /*
      * Alumni graduation date is REQUIRED.
      */
-    if (!profileFields.graduation_date) {
+    if (
+      !profileFields.graduation_date
+    ) {
       return NextResponse.json(
         {
           error:
@@ -640,11 +765,16 @@ export async function PUT(request: NextRequest) {
     }
 
     /*
-     * Graduation month must have started.
+     * Alumni graduation month must have
+     * already started.
      */
-    const today = getDhakaTodayString();
+    const today =
+      getDhakaTodayString();
 
-    if (profileFields.graduation_date > today) {
+    if (
+      profileFields.graduation_date >
+      today
+    ) {
       return NextResponse.json(
         {
           error:
@@ -656,32 +786,16 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    if (!profileFields.full_name) {
+    /*
+     * Required fields.
+     */
+    if (
+      !profileFields.full_name
+    ) {
       return NextResponse.json(
         {
-          error: "Full name is required.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    if (!profileFields.batch) {
-      return NextResponse.json(
-        {
-          error: "Batch is required.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    if (!profileFields.section) {
-      return NextResponse.json(
-        {
-          error: "Section is required.",
+          error:
+            "Full name is required.",
         },
         {
           status: 400,
@@ -690,16 +804,93 @@ export async function PUT(request: NextRequest) {
     }
 
     if (
-      !["A", "B", "C", "D", "E", "F"].includes(
+      !profileFields.batch
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Batch is required.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    if (
+      !profileFields.section
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Section is required.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    /*
+     * Validate section.
+     */
+    if (
+      ![
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+      ].includes(
         profileFields.section.toUpperCase()
       )
     ) {
       return NextResponse.json(
         {
-          error: "Please select a valid section.",
+          error:
+            "Please select a valid section.",
         },
         {
           status: 400,
+        }
+      );
+    }
+
+    const supabaseAdmin =
+      getAdminClient();
+
+    /*
+     * -------------------------------------------------------
+     * GET EXISTING ALUMNI PROFILE FIRST
+     * -------------------------------------------------------
+     *
+     * This protects professional fields from being erased
+     * if the client sends an incomplete payload.
+     */
+    const {
+      data: existingAlumni,
+      error: existingAlumniError,
+    } =
+      await supabaseAdmin
+        .from("alumni_profiles")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle();
+
+    if (existingAlumniError) {
+      console.error(
+        "Existing Alumni profile lookup error:",
+        existingAlumniError
+      );
+
+      return NextResponse.json(
+        {
+          error:
+            existingAlumniError.message,
+        },
+        {
+          status: 500,
         }
       );
     }
@@ -713,7 +904,8 @@ export async function PUT(request: NextRequest) {
      * Upload new profile photo.
      */
     if (
-      typeof body.photoData === "string" &&
+      typeof body.photoData ===
+        "string" &&
       body.photoData
     ) {
       profilePhotoUrl =
@@ -726,27 +918,83 @@ export async function PUT(request: NextRequest) {
     /*
      * Remove profile photo.
      */
-    else if (body.removePhoto === true) {
-      await deleteProfilePhoto(user.id);
+    else if (
+      body.removePhoto === true
+    ) {
+      await deleteProfilePhoto(
+        user.id
+      );
 
       profilePhotoUrl = null;
     }
 
-    const supabaseAdmin = getAdminClient();
-
     /*
-     * Alumni profile payload.
+     * -------------------------------------------------------
+     * BUILD ALUMNI PAYLOAD
+     * -------------------------------------------------------
      */
-    const payload: Record<string, unknown> = {
+    const payload: Record<
+      string,
+      unknown
+    > = {
       id: user.id,
 
-      email: user.email || null,
+      email:
+        user.email || null,
 
-      ...profileFields,
+      full_name:
+        profileFields.full_name,
+
+      batch:
+        profileFields.batch,
+
+      section:
+        profileFields.section,
+
+      graduation_date:
+        profileFields.graduation_date,
+
+      graduation_year:
+        profileFields.graduation_year,
+
+      current_position:
+        profileFields.current_position,
+
+      organization:
+        profileFields.organization,
+
+      bio:
+        profileFields.bio,
+
+      linkedin_url:
+        profileFields.linkedin_url,
+
+      facebook_url:
+        profileFields.facebook_url,
+
+      instagram_url:
+        profileFields.instagram_url,
+
+      is_public:
+        profileFields.is_public,
     };
 
-    if (profilePhotoUrl !== undefined) {
-      payload.profile_photo_url = profilePhotoUrl;
+    /*
+     * Preserve the existing photo if the request
+     * does not upload/remove one.
+     */
+    if (
+      profilePhotoUrl !==
+      undefined
+    ) {
+      payload.profile_photo_url =
+        profilePhotoUrl;
+    } else if (
+      existingAlumni
+        ?.profile_photo_url
+    ) {
+      payload.profile_photo_url =
+        existingAlumni.profile_photo_url;
     }
 
     /*
@@ -755,13 +1003,17 @@ export async function PUT(request: NextRequest) {
     const {
       data: savedProfile,
       error: saveError,
-    } = await supabaseAdmin
-      .from("alumni_profiles")
-      .upsert(payload, {
-        onConflict: "id",
-      })
-      .select("*")
-      .single();
+    } =
+      await supabaseAdmin
+        .from("alumni_profiles")
+        .upsert(
+          payload,
+          {
+            onConflict: "id",
+          }
+        )
+        .select("*")
+        .single();
 
     if (saveError) {
       console.error(
@@ -771,7 +1023,8 @@ export async function PUT(request: NextRequest) {
 
       return NextResponse.json(
         {
-          error: saveError.message,
+          error:
+            saveError.message,
         },
         {
           status: 500,
@@ -780,22 +1033,23 @@ export async function PUT(request: NextRequest) {
     }
 
     /*
-     * ---------------------------------------------------------
-     * KEEP THE SAME SUPABASE AUTH ACCOUNT
-     * ---------------------------------------------------------
+     * -------------------------------------------------------
+     * KEEP AUTH METADATA IN SYNC
+     * -------------------------------------------------------
      *
-     * No new Auth user is created here.
-     *
-     * The existing user.id remains unchanged.
+     * Same Auth account.
      */
-    const { error: metadataError } =
+    const {
+      error: metadataError,
+    } =
       await supabaseAdmin.auth.admin.updateUserById(
         user.id,
         {
           user_metadata: {
             ...(user.user_metadata || {}),
 
-            account_type: "alumni",
+            account_type:
+              "alumni",
 
             full_name:
               profileFields.full_name,
@@ -823,45 +1077,54 @@ export async function PUT(request: NextRequest) {
     }
 
     /*
-     * ---------------------------------------------------------
-     * SYNC LINKED STUDENT PROFILE
-     * ---------------------------------------------------------
+     * -------------------------------------------------------
+     * SYNCHRONIZE LINKED STUDENT PROFILE
+     * -------------------------------------------------------
      *
-     * If this account originally registered as a Student,
-     * its student_profiles row uses the SAME user.id.
+     * If the same person originally had a Student profile,
+     * keep shared identity information synchronized.
      *
-     * Keep the important shared identity information synchronized.
+     * Professional Alumni information stays in Alumni.
      */
-    let studentProfile: {
-      id: string;
-      profile_photo_url?: string | null;
-    } | null = null;
-
     const {
       data: linkedStudent,
-      error: studentLookupError,
-    } = await supabaseAdmin
-      .from("student_profiles")
-      .select("id, profile_photo_url")
-      .eq("id", user.id)
-      .maybeSingle();
+      error:
+        studentLookupError,
+    } =
+      await supabaseAdmin
+        .from("student_profiles")
+        .select(
+          "id, profile_photo_url"
+        )
+        .eq(
+          "id",
+          user.id
+        )
+        .maybeSingle();
 
-    if (studentLookupError) {
+    if (
+      studentLookupError
+    ) {
       console.warn(
-        "Linked student profile lookup warning:",
+        "Linked Student profile lookup warning:",
         studentLookupError
       );
-    } else {
-      studentProfile = linkedStudent;
     }
 
-    if (studentProfile) {
-      const studentUpdate: Record<string, unknown> = {
-        full_name: profileFields.full_name,
+    if (linkedStudent) {
+      const studentUpdate:
+        Record<
+          string,
+          unknown
+        > = {
+        full_name:
+          profileFields.full_name,
 
-        batch: profileFields.batch,
+        batch:
+          profileFields.batch,
 
-        section: profileFields.section,
+        section:
+          profileFields.section,
 
         graduation_date:
           profileFields.graduation_date,
@@ -877,23 +1140,38 @@ export async function PUT(request: NextRequest) {
       };
 
       /*
-       * If Alumni uploaded a new photo, use the same
-       * photo URL for the linked Student record too.
+       * Keep the same profile photo URL
+       * when Alumni changes their photo.
        */
-      if (profilePhotoUrl !== undefined) {
+      if (
+        profilePhotoUrl !==
+        undefined
+      ) {
         studentUpdate.profile_photo_url =
           profilePhotoUrl;
       }
 
-      const { error: studentUpdateError } =
+      const {
+        error:
+          studentUpdateError,
+      } =
         await supabaseAdmin
-          .from("student_profiles")
-          .update(studentUpdate)
-          .eq("id", user.id);
+          .from(
+            "student_profiles"
+          )
+          .update(
+            studentUpdate
+          )
+          .eq(
+            "id",
+            user.id
+          );
 
-      if (studentUpdateError) {
+      if (
+        studentUpdateError
+      ) {
         console.warn(
-          "Linked student profile synchronization warning:",
+          "Linked Student profile synchronization warning:",
           studentUpdateError
         );
       }
@@ -902,9 +1180,11 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({
       success: true,
 
-      profile: savedProfile,
+      profile:
+        savedProfile,
 
-      account_type: "alumni",
+      account_type:
+        "alumni",
     });
   } catch (error) {
     console.error(
