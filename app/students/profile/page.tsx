@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/utils/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 
 type StudentProfile = {
   id: string;
@@ -23,15 +23,14 @@ type StudentProfile = {
 
 export default function StudentProfilePage() {
   const router = useRouter();
-
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const supabase = createClient();
-
   useEffect(() => {
     const loadProfile = async () => {
+      const supabase = createClient();
+
       try {
         setLoading(true);
         setError("");
@@ -75,10 +74,13 @@ export default function StudentProfilePage() {
     };
 
     loadProfile();
-  }, [router, supabase]);
+  }, [router]);
 
   const handleLogout = async () => {
+    const supabase = createClient();
+
     await supabase.auth.signOut();
+
     router.replace("/students/login");
     router.refresh();
   };
@@ -193,10 +195,9 @@ export default function StudentProfilePage() {
 
         {/* Profile Card */}
         <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-          {/* Top Section */}
+          {/* Profile Header */}
           <div className="border-b bg-muted/30 px-6 py-8 sm:px-8">
-            <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
-              {/* Photo */}
+            <div className="flex flex-col items-center gap-5 sm:flex-row">
               {profile.profile_photo_url ? (
                 <img
                   src={profile.profile_photo_url}
@@ -232,7 +233,6 @@ export default function StudentProfilePage() {
 
           {/* Information */}
           <div className="grid gap-8 p-6 sm:grid-cols-2 sm:p-8">
-            {/* Personal Information */}
             <section>
               <h3 className="mb-4 text-lg font-semibold">
                 Personal Information
@@ -261,7 +261,6 @@ export default function StudentProfilePage() {
               </div>
             </section>
 
-            {/* Academic Information */}
             <section>
               <h3 className="mb-4 text-lg font-semibold">
                 Academic Information
@@ -337,7 +336,7 @@ export default function StudentProfilePage() {
             </div>
           )}
 
-          {/* Actions */}
+          {/* Bottom Actions */}
           <div className="flex flex-col gap-3 border-t bg-muted/20 p-6 sm:flex-row sm:justify-between sm:p-8">
             <Link
               href="/students"
