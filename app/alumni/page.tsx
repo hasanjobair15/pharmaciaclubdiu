@@ -12,6 +12,7 @@ type Alumni = {
   profile_photo_url: string | null;
   current_position: string | null;
   organization: string | null;
+  country: string | null;
   bio: string | null;
   linkedin_url: string | null;
   facebook_url: string | null;
@@ -30,7 +31,7 @@ export default function AlumniPage() {
       const { data, error } = await supabase
         .from("alumni_profiles")
         .select(
-          "id, full_name, batch, section, graduation_year, profile_photo_url, current_position, organization, bio, linkedin_url, facebook_url, instagram_url"
+          "id, full_name, batch, section, graduation_year, profile_photo_url, current_position, organization, country, bio, linkedin_url, facebook_url, instagram_url"
         )
         .eq("is_public", true)
         .order("full_name", { ascending: true });
@@ -54,6 +55,7 @@ export default function AlumniPage() {
       person.section,
       person.current_position,
       person.organization,
+      person.country,
     ]
       .filter(Boolean)
       .join(" ")
@@ -277,6 +279,13 @@ export default function AlumniPage() {
                                   {person.organization && (
                                     <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                                       {person.organization}
+                                    </p>
+                                  )}
+
+                                  {person.country && (
+                                    <p className="mt-2 flex items-center gap-2 text-sm font-medium text-[#087f8c]">
+                                      <span aria-hidden="true">🌍</span>
+                                      <span>{person.country}</span>
                                     </p>
                                   )}
 
