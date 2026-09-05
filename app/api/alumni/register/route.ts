@@ -201,6 +201,11 @@ export async function POST(
         body.organization
       );
 
+    const country =
+      nullableString(
+        body.country
+      );
+
     const bio =
       nullableString(body.bio);
 
@@ -316,12 +321,6 @@ export async function POST(
       getAdminClient();
 
     /* ---------------- DUPLICATE CHECK ---------------- */
-
-    /*
-     * Do not rely only on createUser's error message.
-     * Search Auth users explicitly so duplicate-email
-     * handling is consistent.
-     */
 
     let existingUser = null;
 
@@ -465,6 +464,7 @@ export async function POST(
           current_position:
             currentPosition,
           organization,
+          country,
           bio,
           linkedin_url:
             linkedinUrl,
