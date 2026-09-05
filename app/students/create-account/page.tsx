@@ -82,36 +82,6 @@ export default function CreateStudentAccountPage() {
     setPhotoPreview(URL.createObjectURL(file));
   }
 
-  async function uploadPhoto() {
-    if (!photo) {
-      return photoUrl || "";
-    }
-
-    const extension =
-      photo.name.split(".").pop()?.toLowerCase() || "jpg";
-
-    const fileName = `${crypto.randomUUID()}.${extension}`;
-    const filePath = `student-profiles/${fileName}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("profile-photos")
-      .upload(filePath, photo, {
-        cacheControl: "3600",
-        upsert: false,
-      });
-
-    if (uploadError) {
-      throw new Error(
-        `Profile photo upload failed: ${uploadError.message}`
-      );
-    }
-
-    const { data } = supabase.storage
-      .from("profile-photos")
-      .getPublicUrl(filePath);
-
-    return data.publicUrl;
-  }
 
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>
@@ -176,27 +146,27 @@ export default function CreateStudentAccountPage() {
     setLoading(true);
 
     try {
-      const finalPhoto = await uploadPhoto();
+      const formData = new FormData();
+      formData.append("full_name", fullName.trim());
+      formData.append("email", email.trim().toLowerCase());
+      formData.append("password", password);
+      formData.append("batch", String(Number(batch)));
+      formData.append("section", section);
+      formData.append("student_id", studentId.trim());
+      formData.append("blood_group", bloodGroup);
+      formData.append("graduation_date", graduationDate || "");
+      formData.append("linkedin_url", linkedin.trim());
+      formData.append("instagram_url", instagram.trim());
+      formData.append("facebook_url", facebook.trim());
+      formData.append("profile_photo_url", photoUrl.trim());
+
+      if (photo) {
+        formData.append("profile_photo", photo);
+      }
 
       const response = await fetch("/api/students/register", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          full_name: fullName.trim(),
-          email: email.trim().toLowerCase(),
-          password,
-          batch: Number(batch),
-          section,
-          student_id: studentId.trim(),
-          blood_group: bloodGroup,
-          graduation_date: graduationDate || null,
-          linkedin_url: linkedin.trim(),
-          instagram_url: instagram.trim(),
-          facebook_url: facebook.trim(),
-          profile_photo_url: finalPhoto,
-        }),
+        body: formData,
       });
 
       const data = await response.json();
@@ -470,8 +440,28 @@ export default function CreateStudentAccountPage() {
 
                 <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                   JPG, PNG, WEBP or other image format. Maximum
-                  size: 5MB.
+                  size: 5MB. You can also use an image URL below.
                 </p>
+
+                <div className="mt-5">
+                  <label
+                    htmlFor="profile-photo-url"
+                    className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
+                  >
+                    Or use Image URL
+                  </label>
+                  <input
+                    id="profile-photo-url"
+                    type="url"
+                    value={photoUrl}
+                    onChange={(e) => setPhotoUrl(e.target.value)}
+                    placeholder="https://example.com/profile-photo.jpg"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    If both are provided, the uploaded photo is used.
+                  </p>
+                </div>
               </div>
             </div>
           </section>
