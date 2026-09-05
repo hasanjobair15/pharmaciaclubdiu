@@ -1,51 +1,74 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const ADMIN_EMAIL = "jobair2311091015@diu.edu.bd";
 
-/* =========================
+if (!supabaseUrl || !serviceRoleKey) {
+  console.error(
+    "Missing Supabase environment variables: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY"
+  );
+}
+
+const supabaseAdmin = createClient(
+  supabaseUrl || "",
+  serviceRoleKey || "",
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
+);
+
+/* =========================================================
    ADMIN VERIFICATION
-   Only the configured administrator may use this API.
-========================= */
+========================================================= */
 
 async function verifyAdmin(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
+  try {
+    const authHeader = request.headers.get("authorization");
 
-  if (!authHeader?.startsWith("Bearer ")) {
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return null;
+    }
+
+    const accessToken = authHeader.substring(7).trim();
+
+    if (!accessToken) {
+      return null;
+    }
+
+    const {
+      data: { user },
+      error,
+    } = await supabaseAdmin.auth.getUser(accessToken);
+
+    if (error || !user) {
+      console.error("Admin verification failed:", error?.message);
+      return null;
+    }
+
+    if (
+      !user.email ||
+      user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()
+    ) {
+      console.warn("Unauthorized admin attempt:", user.email);
+      return null;
+    }
+
+    return user;
+  } catch (error) {
+    console.error("verifyAdmin error:", error);
     return null;
   }
-
-  const accessToken = authHeader.replace("Bearer ", "").trim();
-
-  if (!accessToken) {
-    return null;
-  }
-
-  const {
-    data: { user },
-    error,
-  } = await supabaseAdmin.auth.getUser(accessToken);
-
-  if (error || !user) {
-    return null;
-  }
-
-  if (user.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-    return null;
-  }
-
-  return user;
 }
+
+/* =========================================================
+   TEMPORARY PASSWORD
+========================================================= */
 
 function generateTemporaryPassword() {
   const randomPart = Math.random().toString(36).slice(2, 10);
@@ -53,17 +76,14 @@ function generateTemporaryPassword() {
   return `PCDIU-${randomPart}-29Kp`;
 }
 
-/* =========================
-   STORAGE HELPERS
-   Profile photos live in the existing `committee-photos` bucket at
-   alumni/<userId>/profile.webp — the same path the public profile page uses.
-========================= */
+/* =========================================================
+   STORAGE
+========================================================= */
 
 function photoPath(userId: string) {
   return `alumni/${userId}/profile.webp`;
 }
 
-/** Decode a base64 data URL and upload it (server-side, replaces old file). */
 async function uploadPhoto(userId: string, dataUrl: string) {
   const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
 
@@ -81,10 +101,10 @@ async function uploadPhoto(userId: string, dataUrl: string) {
   const bytes = Buffer.from(base64, "base64");
 
   if (bytes.byteLength > 3 * 1024 * 1024) {
-    throw new Error("Image is too large (max 3 MB).");
+    throw new Error("Image is too large. Maximum size is 3 MB.");
   }
 
-  const { error: uploadError } = await supabaseAdmin.storage
+  const { error } = await supabaseAdmin.storage
     .from("committee-photos")
     .upload(photoPath(userId), bytes, {
       contentType: mime,
@@ -92,111 +112,216 @@ async function uploadPhoto(userId: string, dataUrl: string) {
       cacheControl: "3600",
     });
 
-  if (uploadError) {
-    throw uploadError;
+  if (error) {
+    throw error;
   }
 
   const {
     data: { publicUrl },
-  } = supabaseAdmin.storage.from("committee-photos").getPublicUrl(
-    photoPath(userId)
-  );
+  } = supabaseAdmin.storage
+    .from("committee-photos")
+    .getPublicUrl(photoPath(userId));
 
   return `${publicUrl}?v=${Date.now()}`;
 }
 
 async function removeStoredPhoto(userId: string) {
-  const { error: removeError } = await supabaseAdmin.storage
-    .from("committee-photos")
-    .remove([photoPath(userId)]);
+  try {
+    const { error } = await supabaseAdmin.storage
+      .from("committee-photos")
+      .remove([photoPath(userId)]);
 
-  if (removeError) {
-    console.warn("Photo removal warning:", removeError);
+    if (error) {
+      console.warn("Photo removal warning:", error.message);
+    }
+  } catch (error) {
+    console.warn("Photo removal exception:", error);
   }
 }
 
-/* =========================
-   GET — LIST ALUMNI + AUTH STATUS
-   Returns alumni profiles enriched with email-verification status so the
-   admin can see Confirmed / Pending correctly.
-========================= */
+/* =========================================================
+   GET — LOAD ALL ALUMNI
+   ========================================================= */
 
 export async function GET(request: NextRequest) {
   try {
+    /* -------------------------
+       Check environment
+    ------------------------- */
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      return NextResponse.json(
+        {
+          error:
+            "Supabase server configuration is missing. Check NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
+        },
+        { status: 500 }
+      );
+    }
+
+    /* -------------------------
+       Verify admin
+    ------------------------- */
+
     const admin = await verifyAdmin(request);
 
     if (!admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Unauthorized. Admin access required." },
+        { status: 401 }
+      );
     }
 
-    const { data: profiles, error: profilesError } = await supabaseAdmin
-      .from("alumni_profiles")
-      .select("*")
-      .order("batch", { ascending: true })
-      .order("section", { ascending: true })
-      .order("full_name", { ascending: true });
+    /* -------------------------
+       Get alumni profiles
+    ------------------------- */
+
+    const { data: profiles, error: profilesError } =
+      await supabaseAdmin
+        .from("alumni_profiles")
+        .select("*")
+        .order("batch", { ascending: true })
+        .order("section", { ascending: true })
+        .order("full_name", { ascending: true });
 
     if (profilesError) {
+      console.error(
+        "alumni_profiles query error:",
+        profilesError
+      );
+
       return NextResponse.json(
-        { error: profilesError.message },
+        {
+          error:
+            "Failed to load alumni profiles: " +
+            profilesError.message,
+        },
         { status: 500 }
       );
     }
 
-    /* Fetch auth metadata for every profile id in ONE call */
-    const { data: page, error: listError } =
-      await supabaseAdmin.auth.admin.listUsers({
-        page: 1,
-        perPage: 1000,
-      });
+    /* -------------------------
+       Get Auth users
 
-    if (listError) {
-      return NextResponse.json(
-        { error: listError.message },
-        { status: 500 }
+       IMPORTANT:
+       Failure here must NOT hide
+       alumni_profiles records.
+    ------------------------- */
+
+    const authMap = new Map<
+      string,
+      {
+        emailConfirmedAt: string | null;
+        lastSignInAt: string | null;
+        email: string | null;
+      }
+    >();
+
+    try {
+      let page = 1;
+      const perPage = 1000;
+
+      while (true) {
+        const {
+          data: authPage,
+          error: authError,
+        } = await supabaseAdmin.auth.admin.listUsers({
+          page,
+          perPage,
+        });
+
+        if (authError) {
+          console.warn(
+            "Could not load Auth users:",
+            authError.message
+          );
+          break;
+        }
+
+        const users = authPage?.users || [];
+
+        for (const user of users) {
+          authMap.set(user.id, {
+            emailConfirmedAt:
+              user.email_confirmed_at ?? null,
+            lastSignInAt:
+              user.last_sign_in_at ?? null,
+            email: user.email ?? null,
+          });
+        }
+
+        if (users.length < perPage) {
+          break;
+        }
+
+        page++;
+      }
+    } catch (authError) {
+      console.warn(
+        "Auth users lookup failed:",
+        authError
       );
     }
 
-    const authMap = new Map<string, { emailConfirmedAt: string | null; lastSignInAt: string | null }>();
+    /* -------------------------
+       Combine profile + auth data
 
-    for (const user of page?.users || []) {
-      authMap.set(user.id, {
-        emailConfirmedAt: user.email_confirmed_at ?? null,
-        lastSignInAt: user.last_sign_in_at ?? null,
-      });
-    }
+       Even if Auth lookup fails,
+       profile is still returned.
+    ------------------------- */
 
-    const alumni = (profiles || []).map((profile) => ({
-      ...profile,
-      auth: authMap.get(profile.id) || {
-        emailConfirmedAt: null,
-        lastSignInAt: null,
-      },
-    }));
+    const alumni = (profiles || []).map((profile) => {
+      const auth = authMap.get(profile.id);
 
-    return NextResponse.json({ alumni });
+      return {
+        ...profile,
+
+        auth: {
+          emailConfirmedAt:
+            auth?.emailConfirmedAt ?? null,
+
+          lastSignInAt:
+            auth?.lastSignInAt ?? null,
+
+          email:
+            auth?.email ?? profile.email ?? null,
+        },
+      };
+    });
+
+    return NextResponse.json({
+      success: true,
+      alumni,
+      count: alumni.length,
+    });
   } catch (error) {
-    console.error("GET /api/admin/alumni error:", error);
+    console.error(
+      "GET /api/admin/alumni error:",
+      error
+    );
 
     return NextResponse.json(
-      { error: "Internal server error." },
+      {
+        error: "Internal server error.",
+      },
       { status: 500 }
     );
   }
 }
 
-/* =========================
-   POST — CREATE ALUMNI ACCOUNT
-   Creates the Supabase Auth user (server-side, email pre-confirmed) and the
-   alumni_profiles row. Optionally accepts a base64 profile photo.
-========================= */
+/* =========================================================
+   POST — CREATE ALUMNI
+========================================================= */
 
 export async function POST(request: NextRequest) {
   try {
     const admin = await verifyAdmin(request);
 
     if (!admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Unauthorized. Admin access required." },
+        { status: 401 }
+      );
     }
 
     const body = await request.json();
@@ -218,38 +343,91 @@ export async function POST(request: NextRequest) {
       is_public,
     } = body;
 
+    /* -------------------------
+       Validation
+    ------------------------- */
+
     if (!full_name?.trim()) {
-      return NextResponse.json({ error: "Full name is required." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Full name is required." },
+        { status: 400 }
+      );
     }
 
     if (!email?.trim()) {
-      return NextResponse.json({ error: "Email is required." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Email is required." },
+        { status: 400 }
+      );
     }
 
     if (!batch) {
-      return NextResponse.json({ error: "Batch is required." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Batch is required." },
+        { status: 400 }
+      );
     }
 
     if (!section) {
-      return NextResponse.json({ error: "Section is required." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Section is required." },
+        { status: 400 }
+      );
     }
 
-    const temporaryPassword = generateTemporaryPassword();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    /* -------------------------
+       Prevent duplicate profile
+    ------------------------- */
+
+    const { data: existingProfile } =
+      await supabaseAdmin
+        .from("alumni_profiles")
+        .select("id,email")
+        .ilike("email", normalizedEmail)
+        .maybeSingle();
+
+    if (existingProfile) {
+      return NextResponse.json(
+        {
+          error:
+            "An alumni profile with this email already exists.",
+        },
+        { status: 409 }
+      );
+    }
+
+    /* -------------------------
+       Create Auth user
+    ------------------------- */
+
+    const temporaryPassword =
+      generateTemporaryPassword();
 
     const {
       data: createdUser,
       error: createUserError,
     } = await supabaseAdmin.auth.admin.createUser({
-      email: email.trim(),
+      email: normalizedEmail,
       password: temporaryPassword,
       email_confirm: true,
+      user_metadata: {
+        full_name: full_name.trim(),
+        batch,
+        section,
+      },
     });
 
-    if (createUserError || !createdUser.user) {
+    if (
+      createUserError ||
+      !createdUser?.user
+    ) {
       return NextResponse.json(
         {
           error:
-            createUserError?.message || "Failed to create alumni account.",
+            createUserError?.message ||
+            "Failed to create alumni account.",
         },
         { status: 400 }
       );
@@ -257,49 +435,76 @@ export async function POST(request: NextRequest) {
 
     const userId = createdUser.user.id;
 
-    /* Photo first (needs the user id for the storage path) */
+    /* -------------------------
+       Upload photo
+    ------------------------- */
+
     let profilePhotoUrl: string | null = null;
 
     if (photoData) {
       try {
-        profilePhotoUrl = await uploadPhoto(userId, photoData);
+        profilePhotoUrl = await uploadPhoto(
+          userId,
+          photoData
+        );
       } catch (photoError) {
-        await supabaseAdmin.auth.admin.deleteUser(userId);
+        await supabaseAdmin.auth.admin.deleteUser(
+          userId
+        );
 
         return NextResponse.json(
           {
             error:
               photoError instanceof Error
                 ? photoError.message
-                : "Failed to upload the profile photo.",
+                : "Failed to upload profile photo.",
           },
           { status: 400 }
         );
       }
     }
 
-    const { error: profileError } = await supabaseAdmin
-      .from("alumni_profiles")
-      .insert({
-        id: userId,
-        full_name: full_name.trim(),
-        email: email.trim(),
-        batch,
-        section,
-        graduation_year: graduation_year || null,
-        profile_photo_url: profilePhotoUrl,
-        current_position: current_position?.trim() || null,
-        organization: organization?.trim() || null,
-        bio: bio?.trim() || null,
-        phone: phone?.trim() || null,
-        linkedin_url: linkedin_url?.trim() || null,
-        facebook_url: facebook_url?.trim() || null,
-        instagram_url: instagram_url?.trim() || null,
-        is_public: typeof is_public === "boolean" ? is_public : true,
-      });
+    /* -------------------------
+       Create profile
+    ------------------------- */
+
+    const { error: profileError } =
+      await supabaseAdmin
+        .from("alumni_profiles")
+        .insert({
+          id: userId,
+          full_name: full_name.trim(),
+          email: normalizedEmail,
+          batch,
+          section,
+          graduation_year:
+            graduation_year || null,
+          profile_photo_url:
+            profilePhotoUrl,
+          current_position:
+            current_position?.trim() || null,
+          organization:
+            organization?.trim() || null,
+          bio: bio?.trim() || null,
+          phone: phone?.trim() || null,
+          linkedin_url:
+            linkedin_url?.trim() || null,
+          facebook_url:
+            facebook_url?.trim() || null,
+          instagram_url:
+            instagram_url?.trim() || null,
+          is_public:
+            typeof is_public === "boolean"
+              ? is_public
+              : true,
+        });
 
     if (profileError) {
-      await supabaseAdmin.auth.admin.deleteUser(userId);
+      await removeStoredPhoto(userId);
+
+      await supabaseAdmin.auth.admin.deleteUser(
+        userId
+      );
 
       return NextResponse.json(
         {
@@ -313,29 +518,37 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Alumni account created successfully.",
+      message:
+        "Alumni account created successfully.",
       user_id: userId,
       temporary_password: temporaryPassword,
     });
   } catch (error) {
-    console.error("POST /api/admin/alumni error:", error);
+    console.error(
+      "POST /api/admin/alumni error:",
+      error
+    );
 
-    return NextResponse.json({ error: "Internal server error." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error." },
+      { status: 500 }
+    );
   }
 }
 
-/* =========================
-   PATCH — UPDATE ALUMNI PROFILE
-   Updates the alumni_profiles row and, when provided, the auth email.
-   Also supports photoData (replace) and removePhoto (bool).
-========================= */
+/* =========================================================
+   PATCH — UPDATE ALUMNI
+========================================================= */
 
 export async function PATCH(request: NextRequest) {
   try {
     const admin = await verifyAdmin(request);
 
     if (!admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Unauthorized. Admin access required." },
+        { status: 401 }
+      );
     }
 
     const body = await request.json();
@@ -360,22 +573,65 @@ export async function PATCH(request: NextRequest) {
     } = body;
 
     if (!id) {
-      return NextResponse.json({ error: "Alumni ID is required." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Alumni ID is required." },
+        { status: 400 }
+      );
     }
 
-    /* Photo handling (only if the admin explicitly requests it) */
-    let profilePhotoUrl: string | null | undefined = undefined;
+    if (id === admin.id) {
+      return NextResponse.json(
+        {
+          error:
+            "The administrator account cannot be modified as an alumni account.",
+        },
+        { status: 403 }
+      );
+    }
+
+    /* -------------------------
+       Verify profile exists
+    ------------------------- */
+
+    const {
+      data: existingProfile,
+      error: existingProfileError,
+    } = await supabaseAdmin
+      .from("alumni_profiles")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (
+      existingProfileError ||
+      !existingProfile
+    ) {
+      return NextResponse.json(
+        { error: "Alumni profile not found." },
+        { status: 404 }
+      );
+    }
+
+    /* -------------------------
+       Photo
+    ------------------------- */
+
+    let profilePhotoUrl:
+      | string
+      | null
+      | undefined = undefined;
 
     if (photoData) {
       try {
-        profilePhotoUrl = await uploadPhoto(id, photoData);
+        profilePhotoUrl =
+          await uploadPhoto(id, photoData);
       } catch (photoError) {
         return NextResponse.json(
           {
             error:
               photoError instanceof Error
                 ? photoError.message
-                : "Failed to upload the profile photo.",
+                : "Failed to upload profile photo.",
           },
           { status: 400 }
         );
@@ -385,50 +641,161 @@ export async function PATCH(request: NextRequest) {
       profilePhotoUrl = null;
     }
 
-    const updatePayload: Record<string, unknown> = {
-      full_name: full_name?.trim(),
-      batch,
-      section,
-      graduation_year: graduation_year || null,
-      current_position: current_position?.trim() || null,
-      organization: organization?.trim() || null,
-      bio: bio?.trim() || null,
-      phone: phone?.trim() || null,
-      linkedin_url: linkedin_url?.trim() || null,
-      facebook_url: facebook_url?.trim() || null,
-      instagram_url: instagram_url?.trim() || null,
-      is_public: typeof is_public === "boolean" ? is_public : true,
-    };
+    /* -------------------------
+       Prepare profile update
+    ------------------------- */
+
+    const updatePayload: Record<
+      string,
+      unknown
+    > = {};
+
+    if (full_name !== undefined) {
+      updatePayload.full_name =
+        full_name?.trim() || null;
+    }
+
+    if (batch !== undefined) {
+      updatePayload.batch = batch;
+    }
+
+    if (section !== undefined) {
+      updatePayload.section = section;
+    }
+
+    if (graduation_year !== undefined) {
+      updatePayload.graduation_year =
+        graduation_year || null;
+    }
+
+    if (current_position !== undefined) {
+      updatePayload.current_position =
+        current_position?.trim() || null;
+    }
+
+    if (organization !== undefined) {
+      updatePayload.organization =
+        organization?.trim() || null;
+    }
+
+    if (bio !== undefined) {
+      updatePayload.bio =
+        bio?.trim() || null;
+    }
+
+    if (phone !== undefined) {
+      updatePayload.phone =
+        phone?.trim() || null;
+    }
+
+    if (linkedin_url !== undefined) {
+      updatePayload.linkedin_url =
+        linkedin_url?.trim() || null;
+    }
+
+    if (facebook_url !== undefined) {
+      updatePayload.facebook_url =
+        facebook_url?.trim() || null;
+    }
+
+    if (instagram_url !== undefined) {
+      updatePayload.instagram_url =
+        instagram_url?.trim() || null;
+    }
+
+    if (typeof is_public === "boolean") {
+      updatePayload.is_public = is_public;
+    }
 
     if (email !== undefined) {
-      updatePayload.email = email?.trim() || null;
+      updatePayload.email =
+        email?.trim().toLowerCase() || null;
     }
 
     if (profilePhotoUrl !== undefined) {
-      updatePayload.profile_photo_url = profilePhotoUrl;
+      updatePayload.profile_photo_url =
+        profilePhotoUrl;
     }
 
-    const { error: profileError } = await supabaseAdmin
-      .from("alumni_profiles")
-      .update(updatePayload)
-      .eq("id", id);
+    /* -------------------------
+       Update Auth email FIRST
+       so profile and Auth stay
+       synchronized.
+    ------------------------- */
 
-    if (profileError) {
-      return NextResponse.json({ error: profileError.message }, { status: 400 });
+    if (
+      email !== undefined &&
+      email?.trim()
+    ) {
+      const newEmail =
+        email.trim().toLowerCase();
+
+      if (
+        newEmail !==
+        existingProfile.email?.toLowerCase()
+      ) {
+        const {
+          data: duplicateProfile,
+        } = await supabaseAdmin
+          .from("alumni_profiles")
+          .select("id")
+          .ilike("email", newEmail)
+          .neq("id", id)
+          .maybeSingle();
+
+        if (duplicateProfile) {
+          return NextResponse.json(
+            {
+              error:
+                "Another alumni profile already uses this email.",
+            },
+            { status: 409 }
+          );
+        }
+
+        const {
+          error: authUpdateError,
+        } =
+          await supabaseAdmin.auth.admin.updateUserById(
+            id,
+            {
+              email: newEmail,
+              email_confirm: true,
+            }
+          );
+
+        if (authUpdateError) {
+          return NextResponse.json(
+            {
+              error:
+                "Authentication email could not be updated: " +
+                authUpdateError.message,
+            },
+            { status: 400 }
+          );
+        }
+      }
     }
 
-    if (email?.trim()) {
-      const { error: authUpdateError } =
-        await supabaseAdmin.auth.admin.updateUserById(id, {
-          email: email.trim(),
-        });
+    /* -------------------------
+       Update profile
+    ------------------------- */
 
-      if (authUpdateError) {
+    if (
+      Object.keys(updatePayload).length > 0
+    ) {
+      const {
+        error: profileError,
+      } = await supabaseAdmin
+        .from("alumni_profiles")
+        .update(updatePayload)
+        .eq("id", id);
+
+      if (profileError) {
         return NextResponse.json(
           {
             error:
-              "Profile updated, but authentication email could not be updated: " +
-              authUpdateError.message,
+              profileError.message,
           },
           { status: 400 }
         );
@@ -437,27 +804,37 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Alumni profile updated successfully.",
+      message:
+        "Alumni profile updated successfully.",
     });
   } catch (error) {
-    console.error("PATCH /api/admin/alumni error:", error);
+    console.error(
+      "PATCH /api/admin/alumni error:",
+      error
+    );
 
-    return NextResponse.json({ error: "Internal server error." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error." },
+      { status: 500 }
+    );
   }
 }
 
-/* =========================
-   DELETE — REMOVE ALUMNI
-   Removes the profile photo, the alumni_profiles row and the Auth user.
-   The administrator account itself can never be deleted.
-========================= */
+/* =========================================================
+   DELETE — DELETE ALUMNI
+========================================================= */
 
-export async function DELETE(request: NextRequest) {
+export async function DELETE(
+  request: NextRequest
+) {
   try {
     const admin = await verifyAdmin(request);
 
     if (!admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Unauthorized. Admin access required." },
+        { status: 401 }
+      );
     }
 
     const body = await request.json();
@@ -465,62 +842,128 @@ export async function DELETE(request: NextRequest) {
     const { id } = body;
 
     if (!id) {
-      return NextResponse.json({ error: "Alumni ID is required." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Alumni ID is required." },
+        { status: 400 }
+      );
     }
+
+    /* -------------------------
+       Never delete admin
+    ------------------------- */
 
     if (id === admin.id) {
       return NextResponse.json(
-        { error: "You cannot delete the administrator account." },
+        {
+          error:
+            "You cannot delete the administrator account.",
+        },
         { status: 403 }
       );
     }
+
+    /* -------------------------
+       Get Auth user
+    ------------------------- */
 
     const {
       data: targetUser,
       error: targetUserError,
-    } = await supabaseAdmin.auth.admin.getUserById(id);
+    } =
+      await supabaseAdmin.auth.admin.getUserById(
+        id
+      );
 
-    if (targetUserError || !targetUser.user) {
+    if (
+      targetUserError ||
+      !targetUser?.user
+    ) {
       return NextResponse.json(
-        { error: "Alumni account not found." },
+        {
+          error:
+            "Alumni authentication account not found.",
+        },
         { status: 404 }
       );
     }
 
-    if (targetUser.user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+    if (
+      targetUser.user.email?.toLowerCase() ===
+      ADMIN_EMAIL.toLowerCase()
+    ) {
       return NextResponse.json(
-        { error: "The administrator account cannot be deleted." },
+        {
+          error:
+            "The administrator account cannot be deleted.",
+        },
         { status: 403 }
       );
     }
 
-    /* 1. Remove the profile photo (best effort — no data loss on failure) */
+    /* -------------------------
+       Delete photo
+    ------------------------- */
+
     await removeStoredPhoto(id);
 
-    /* 2. Remove the alumni_profiles row explicitly (no orphaned records) */
-    const { error: profileDeleteError } = await supabaseAdmin
+    /* -------------------------
+       Delete profile
+    ------------------------- */
+
+    const {
+      error: profileDeleteError,
+    } = await supabaseAdmin
       .from("alumni_profiles")
       .delete()
       .eq("id", id);
 
     if (profileDeleteError) {
-      console.warn("Profile delete warning:", profileDeleteError);
+      return NextResponse.json(
+        {
+          error:
+            "Failed to delete alumni profile: " +
+            profileDeleteError.message,
+        },
+        { status: 500 }
+      );
     }
 
-    /* 3. Delete the Auth user */
-    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(id);
+    /* -------------------------
+       Delete Auth user
+    ------------------------- */
+
+    const {
+      error: deleteError,
+    } =
+      await supabaseAdmin.auth.admin.deleteUser(
+        id
+      );
 
     if (deleteError) {
-      return NextResponse.json({ error: deleteError.message }, { status: 400 });
+      return NextResponse.json(
+        {
+          error:
+            "Profile was deleted, but authentication account could not be deleted: " +
+            deleteError.message,
+        },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
       success: true,
-      message: "Alumni account deleted successfully.",
+      message:
+        "Alumni account deleted successfully.",
     });
   } catch (error) {
-    console.error("DELETE /api/admin/alumni error:", error);
+    console.error(
+      "DELETE /api/admin/alumni error:",
+      error
+    );
 
-    return NextResponse.json({ error: "Internal server error." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error." },
+      { status: 500 }
+    );
   }
 }
