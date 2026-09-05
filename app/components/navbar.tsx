@@ -308,7 +308,5 @@ return ( <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg
     )}
   </nav>
 </header>
-```
-
 );
 }
