@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const links = [
   { name: "Home", href: "/" },
@@ -32,7 +32,39 @@ const links = [
 
 export default function Navbar() {
   const pathname = usePathname();
+
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  // Load saved theme
+  useEffect(() => {
+    setMounted(true);
+
+    const savedTheme = localStorage.getItem("theme");
+
+    if (savedTheme === "light") {
+      document.documentElement.classList.remove("dark");
+      setDarkMode(false);
+    } else {
+      document.documentElement.classList.add("dark");
+      setDarkMode(true);
+    }
+  }, []);
+
+  function toggleTheme() {
+    const html = document.documentElement;
+
+    if (html.classList.contains("dark")) {
+      html.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+      setDarkMode(false);
+    } else {
+      html.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+      setDarkMode(true);
+    }
+  }
 
   function isActive(href: string, external?: boolean) {
     if (external) return false;
@@ -45,9 +77,10 @@ export default function Navbar() {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-gray-800 bg-gray-950/95 backdrop-blur">
+    <header className="sticky top-0 z-50 border-b border-gray-800 bg-gray-950/95 backdrop-blur dark:bg-gray-950/95">
       <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex min-h-16 items-center justify-between gap-4">
+
           {/* Brand / Logo */}
           <Link
             href="/"
@@ -105,52 +138,120 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Mobile Menu Button */}
-          <button
-            type="button"
-            aria-label={mobileOpen ? "Close menu" : "Open menu"}
-            aria-expanded={mobileOpen}
-            onClick={() => setMobileOpen((value) => !value)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-700 text-gray-200 transition hover:bg-gray-800 xl:hidden"
-          >
-            {mobileOpen ? (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
+          {/* Right Side Controls */}
+          <div className="flex items-center gap-2">
+
+            {/* Dark / Light Mode */}
+            {mounted && (
+              <button
+                type="button"
+                onClick={toggleTheme}
+                aria-label={
+                  darkMode
+                    ? "Switch to light mode"
+                    : "Switch to dark mode"
+                }
+                title={
+                  darkMode
+                    ? "Switch to light mode"
+                    : "Switch to dark mode"
+                }
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-700 text-gray-200 transition hover:bg-gray-800 hover:text-yellow-300"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 6l12 12M18 6L6 18"
-                />
-              </svg>
-            ) : (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
-              </svg>
+                {darkMode ? (
+                  /* Sun */
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="4"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
+                    />
+                  </svg>
+                ) : (
+                  /* Moon */
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"
+                    />
+                  </svg>
+                )}
+              </button>
             )}
-          </button>
+
+            {/* Mobile Menu Button */}
+            <button
+              type="button"
+              aria-label={
+                mobileOpen
+                  ? "Close menu"
+                  : "Open menu"
+              }
+              aria-expanded={mobileOpen}
+              onClick={() =>
+                setMobileOpen((value) => !value)
+              }
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-700 text-gray-200 transition hover:bg-gray-800 xl:hidden"
+            >
+              {mobileOpen ? (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 6l12 12M18 6L6 18"
+                  />
+                </svg>
+              ) : (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4 6h16M4 12h16M4 18h16"
+                  />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Mobile Navigation */}
         {mobileOpen && (
           <div className="border-t border-gray-800 py-3 xl:hidden">
             <div className="flex max-h-[75vh] flex-col overflow-y-auto">
+
               {links.map((link) =>
                 link.external ? (
                   <a
@@ -158,19 +259,25 @@ export default function Navbar() {
                     href={link.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    onClick={() => setMobileOpen(false)}
+                    onClick={() =>
+                      setMobileOpen(false)
+                    }
                     className="rounded-xl px-4 py-3 text-sm font-medium text-gray-300 transition hover:bg-gray-800"
                   >
                     <span className="flex items-center justify-between">
                       {link.name}
-                      <span className="text-xs text-gray-500">↗</span>
+                      <span className="text-xs text-gray-500">
+                        ↗
+                      </span>
                     </span>
                   </a>
                 ) : (
                   <Link
                     key={link.name}
                     href={link.href}
-                    onClick={() => setMobileOpen(false)}
+                    onClick={() =>
+                      setMobileOpen(false)
+                    }
                     className={`rounded-xl px-4 py-3 text-sm font-medium transition ${
                       isActive(link.href)
                         ? "bg-green-950/70 text-green-400"
@@ -182,10 +289,29 @@ export default function Navbar() {
                 ),
               )}
 
+              {/* Mobile Theme Toggle */}
               <div className="mt-2 border-t border-gray-800 pt-3">
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  className="mb-3 flex w-full items-center justify-between rounded-xl border border-gray-700 px-4 py-3 text-sm font-medium text-gray-200 transition hover:bg-gray-800"
+                >
+                  <span>
+                    {darkMode
+                      ? "☀️ Light Mode"
+                      : "🌙 Dark Mode"}
+                  </span>
+
+                  <span className="text-xs text-gray-500">
+                    Switch
+                  </span>
+                </button>
+
                 <Link
                   href="/students/login"
-                  onClick={() => setMobileOpen(false)}
+                  onClick={() =>
+                    setMobileOpen(false)
+                  }
                   className="block rounded-xl bg-green-600 px-4 py-3 text-center text-sm font-bold text-white transition hover:bg-green-700"
                 >
                   Student Login
