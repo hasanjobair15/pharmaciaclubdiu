@@ -1,6 +1,12 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  ChangeEvent,
+  FormEvent,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import imageCompression from "browser-image-compression";
@@ -13,6 +19,7 @@ type AlumniProfile = {
   batch: string;
   section: string;
   graduation_year: number | null;
+  graduation_date: string | null;
   profile_photo_url: string | null;
   current_position: string | null;
   organization: string | null;
@@ -41,36 +48,73 @@ export default function AlumniProfilePage() {
 
   const [userId, setUserId] = useState("");
 
-  const [profile, setProfile] = useState<AlumniProfile | null>(null);
+  const [profile, setProfile] =
+    useState<AlumniProfile | null>(null);
 
   const [fullName, setFullName] = useState("");
   const [batch, setBatch] = useState("");
   const [section, setSection] = useState("");
-  const [graduationYear, setGraduationYear] = useState("");
-  const [currentPosition, setCurrentPosition] = useState("");
-  const [organization, setOrganization] = useState("");
+
+  // YYYY-MM for the month input.
+  const [graduationDate, setGraduationDate] =
+    useState("");
+
+  const [currentPosition, setCurrentPosition] =
+    useState("");
+
+  const [organization, setOrganization] =
+    useState("");
+
   const [bio, setBio] = useState("");
-  const [linkedinUrl, setLinkedinUrl] = useState("");
-  const [facebookUrl, setFacebookUrl] = useState("");
-  const [instagramUrl, setInstagramUrl] = useState("");
-  const [isPublic, setIsPublic] = useState(true);
 
-  const [photoUrl, setPhotoUrl] = useState("");
-  const [photoPreview, setPhotoPreview] = useState("");
-  const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null);
+  const [linkedinUrl, setLinkedinUrl] =
+    useState("");
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
+  const [facebookUrl, setFacebookUrl] =
+    useState("");
 
-  const [message, setMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  const [instagramUrl, setInstagramUrl] =
+    useState("");
 
-  /* true when the auth user exists but no alumni_profiles row yet
-     (e.g. just confirmed the sign-up email) — the form then INSERTs */
-  const [needsProfile, setNeedsProfile] = useState(false);
-  const [userEmail, setUserEmail] = useState("");
+  const [isPublic, setIsPublic] =
+    useState(true);
+
+  const [photoUrl, setPhotoUrl] =
+    useState("");
+
+  const [photoPreview, setPhotoPreview] =
+    useState("");
+
+  const [selectedPhoto, setSelectedPhoto] =
+    useState<File | null>(null);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [saving, setSaving] =
+    useState(false);
+
+  const [uploadingPhoto, setUploadingPhoto] =
+    useState(false);
+
+  const [loggingOut, setLoggingOut] =
+    useState(false);
+
+  const [message, setMessage] =
+    useState("");
+
+  const [errorMessage, setErrorMessage] =
+    useState("");
+
+  /*
+   * true when the auth user exists but no
+   * alumni_profiles row exists yet.
+   */
+  const [needsProfile, setNeedsProfile] =
+    useState(false);
+
+  const [userEmail, setUserEmail] =
+    useState("");
 
   async function getAccessToken() {
     const {
@@ -85,58 +129,171 @@ export default function AlumniProfilePage() {
     return session.access_token;
   }
 
-  function fillFormFromProfile(alumni: AlumniProfile) {
+  function fillFormFromProfile(
+    alumni: AlumniProfile
+  ) {
     setProfile(alumni);
     setNeedsProfile(false);
 
-    setFullName(alumni.full_name || "");
-    setBatch(alumni.batch || "");
-    setSection(alumni.section || "");
-    setGraduationYear(
-      alumni.graduation_year ? String(alumni.graduation_year) : ""
+    setFullName(
+      alumni.full_name || ""
     );
-    setCurrentPosition(alumni.current_position || "");
-    setOrganization(alumni.organization || "");
-    setBio(alumni.bio || "");
-    setLinkedinUrl(alumni.linkedin_url || "");
-    setFacebookUrl(alumni.facebook_url || "");
-    setInstagramUrl(alumni.instagram_url || "");
-    setIsPublic(alumni.is_public ?? true);
 
-    setPhotoUrl(alumni.profile_photo_url || "");
-    setPhotoPreview(alumni.profile_photo_url || "");
+    setBatch(
+      alumni.batch || ""
+    );
+
+    setSection(
+      alumni.section || ""
+    );
+
+    /*
+     * Database:
+     * YYYY-MM-01
+     *
+     * Input:
+     * YYYY-MM
+     */
+    setGraduationDate(
+      alumni.graduation_date
+        ? String(
+            alumni.graduation_date
+          ).slice(0, 7)
+        : ""
+    );
+
+    setCurrentPosition(
+      alumni.current_position || ""
+    );
+
+    setOrganization(
+      alumni.organization || ""
+    );
+
+    setBio(
+      alumni.bio || ""
+    );
+
+    setLinkedinUrl(
+      alumni.linkedin_url || ""
+    );
+
+    setFacebookUrl(
+      alumni.facebook_url || ""
+    );
+
+    setInstagramUrl(
+      alumni.instagram_url || ""
+    );
+
+    setIsPublic(
+      alumni.is_public ?? true
+    );
+
+    setPhotoUrl(
+      alumni.profile_photo_url || ""
+    );
+
+    setPhotoPreview(
+      alumni.profile_photo_url || ""
+    );
   }
 
-  function fillNewProfileForm(metadata: Record<string, unknown>) {
+  function fillNewProfileForm(
+    metadata: Record<string, unknown>
+  ) {
     try {
       const draft = JSON.parse(
-        localStorage.getItem("pharmacia_alumni_draft") || "{}"
+        localStorage.getItem(
+          "pharmacia_alumni_draft"
+        ) || "{}"
       );
 
       setFullName(
         draft.full_name ||
-          (typeof metadata.full_name === "string" ? metadata.full_name : "")
+          (typeof metadata.full_name ===
+          "string"
+            ? metadata.full_name
+            : "")
       );
+
       setBatch(
         draft.batch ||
-          (typeof metadata.batch === "string" ? metadata.batch : "")
+          (typeof metadata.batch ===
+          "string"
+            ? metadata.batch
+            : "")
       );
+
       setSection(
         draft.section ||
-          (typeof metadata.section === "string" ? metadata.section : "")
+          (typeof metadata.section ===
+          "string"
+            ? metadata.section
+            : "")
       );
-      setGraduationYear(draft.graduation_year || "");
-      setCurrentPosition(draft.current_position || "");
-      setOrganization(draft.organization || "");
-      setBio(draft.bio || "");
-      setLinkedinUrl(draft.linkedin_url || "");
-      setFacebookUrl(draft.facebook_url || "");
-      setInstagramUrl(draft.instagram_url || "");
-      setIsPublic(draft.is_public ?? true);
+
+      /*
+       * Prefer the new graduation_date.
+       *
+       * The graduation_year fallback is
+       * kept so older drafts do not break.
+       */
+      setGraduationDate(
+        draft.graduation_date ||
+          (draft.graduation_year
+            ? `${draft.graduation_year}-01`
+            : "")
+      );
+
+      setCurrentPosition(
+        draft.current_position || ""
+      );
+
+      setOrganization(
+        draft.organization || ""
+      );
+
+      setBio(
+        draft.bio || ""
+      );
+
+      setLinkedinUrl(
+        draft.linkedin_url || ""
+      );
+
+      setFacebookUrl(
+        draft.facebook_url || ""
+      );
+
+      setInstagramUrl(
+        draft.instagram_url || ""
+      );
+
+      setIsPublic(
+        draft.is_public ?? true
+      );
     } catch {
-      setFullName(typeof metadata.full_name === "string" ? metadata.full_name : "");
-      setBatch(typeof metadata.batch === "string" ? metadata.batch : "");
-      setSection(typeof metadata.section === "string" ? metadata.section : "");
+      setFullName(
+        typeof metadata.full_name ===
+          "string"
+          ? metadata.full_name
+          : ""
+      );
+
+      setBatch(
+        typeof metadata.batch ===
+          "string"
+          ? metadata.batch
+          : ""
+      );
+
+      setSection(
+        typeof metadata.section ===
+          "string"
+          ? metadata.section
+          : ""
+      );
     }
   }
 
@@ -146,46 +303,67 @@ export default function AlumniProfilePage() {
       setErrorMessage("");
 
       try {
-        const token = await getAccessToken();
+        const token =
+          await getAccessToken();
 
         if (!token) {
           return;
         }
 
-        const response = await fetch("/api/alumni/profile", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await fetch(
+          "/api/alumni/profile",
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
-        const result = await response.json();
+        const result =
+          await response.json();
 
         if (!response.ok) {
-          throw new Error(result.error || "Unable to load your alumni profile.");
+          throw new Error(
+            result.error ||
+              "Unable to load your alumni profile."
+          );
         }
 
-        const authUser = result.user as {
-          id: string;
-          email: string | null;
-          metadata?: Record<string, unknown>;
-        };
+        const authUser =
+          result.user as {
+            id: string;
+            email: string | null;
+            metadata?: Record<
+              string,
+              unknown
+            >;
+          };
 
         setUserId(authUser.id);
-        setUserEmail(authUser.email || "");
+
+        setUserEmail(
+          authUser.email || ""
+        );
 
         if (!result.profile) {
-          /* Auth user exists but the profile row does not yet (normal after
-             email confirmation). Complete the row here through the server API
-             so Row Level Security / Storage policies cannot block the user. */
           setProfile(null);
           setNeedsProfile(true);
-          fillNewProfileForm(authUser.metadata || {});
+
+          fillNewProfileForm(
+            authUser.metadata || {}
+          );
+
           return;
         }
 
-        fillFormFromProfile(result.profile as AlumniProfile);
+        fillFormFromProfile(
+          result.profile as AlumniProfile
+        );
       } catch (error) {
-        console.error("Load alumni profile error:", error);
+        console.error(
+          "Load alumni profile error:",
+          error
+        );
 
         setErrorMessage(
           error instanceof Error
@@ -198,30 +376,47 @@ export default function AlumniProfilePage() {
     }
 
     loadProfile();
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, supabase]);
 
-  function handlePhotoSelect(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+  function handlePhotoSelect(
+    event: ChangeEvent<HTMLInputElement>
+  ) {
+    const file =
+      event.target.files?.[0];
 
-    if (!file) return;
+    if (!file) {
+      return;
+    }
 
     setMessage("");
     setErrorMessage("");
 
     if (!file.type.startsWith("image/")) {
-      setErrorMessage("Please select a valid image file.");
+      setErrorMessage(
+        "Please select a valid image file."
+      );
+
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setErrorMessage("Please select an image smaller than 10 MB.");
+    if (
+      file.size >
+      10 * 1024 * 1024
+    ) {
+      setErrorMessage(
+        "Please select an image smaller than 10 MB."
+      );
+
       return;
     }
 
     setSelectedPhoto(file);
 
-    const previewUrl = URL.createObjectURL(file);
+    const previewUrl =
+      URL.createObjectURL(file);
+
     setPhotoPreview(previewUrl);
   }
 
@@ -233,21 +428,44 @@ export default function AlumniProfilePage() {
     setUploadingPhoto(true);
 
     try {
-      const compressedFile = await imageCompression(selectedPhoto, {
-        maxSizeMB: 0.7,
-        maxWidthOrHeight: 1200,
-        useWebWorker: true,
-        fileType: "image/webp",
-      });
+      const compressedFile =
+        await imageCompression(
+          selectedPhoto,
+          {
+            maxSizeMB: 0.7,
+            maxWidthOrHeight: 1200,
+            useWebWorker: true,
+            fileType: "image/webp",
+          }
+        );
 
-      return await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = () => reject(new Error("Failed to read the selected photo."));
-        reader.readAsDataURL(compressedFile);
-      });
+      return await new Promise<string>(
+        (resolve, reject) => {
+          const reader =
+            new FileReader();
+
+          reader.onload = () =>
+            resolve(
+              String(reader.result)
+            );
+
+          reader.onerror = () =>
+            reject(
+              new Error(
+                "Failed to read the selected photo."
+              )
+            );
+
+          reader.readAsDataURL(
+            compressedFile
+          );
+        }
+      );
     } catch (error) {
-      console.error("Photo processing error:", error);
+      console.error(
+        "Photo processing error:",
+        error
+      );
 
       throw new Error(
         error instanceof Error
@@ -260,52 +478,77 @@ export default function AlumniProfilePage() {
   }
 
   async function removePhoto() {
-    if (!userId) return;
+    if (!userId) {
+      return;
+    }
 
     setSaving(true);
     setMessage("");
     setErrorMessage("");
 
     try {
-      const token = await getAccessToken();
+      const token =
+        await getAccessToken();
 
       if (!token) {
         return;
       }
 
-      const response = await fetch("/api/alumni/profile", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          full_name: fullName,
-          batch,
-          section,
-          graduation_year: graduationYear,
-          current_position: currentPosition,
-          organization,
-          bio,
-          linkedin_url: linkedinUrl,
-          facebook_url: facebookUrl,
-          instagram_url: instagramUrl,
-          is_public: isPublic,
-          removePhoto: true,
-        }),
-      });
+      const response = await fetch(
+        "/api/alumni/profile",
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            full_name: fullName,
+            batch,
+            section,
+            graduation_date:
+              graduationDate,
+            current_position:
+              currentPosition,
+            organization,
+            bio,
+            linkedin_url:
+              linkedinUrl,
+            facebook_url:
+              facebookUrl,
+            instagram_url:
+              instagramUrl,
+            is_public: isPublic,
+            removePhoto: true,
+          }),
+        }
+      );
 
-      const result = await response.json();
+      const result =
+        await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "Unable to remove profile photo.");
+        throw new Error(
+          result.error ||
+            "Unable to remove profile photo."
+        );
       }
 
-      fillFormFromProfile(result.profile as AlumniProfile);
+      fillFormFromProfile(
+        result.profile as AlumniProfile
+      );
+
       setSelectedPhoto(null);
-      setMessage("Profile photo removed successfully.");
+
+      setMessage(
+        "Profile photo removed successfully."
+      );
     } catch (error) {
-      console.error("Remove photo error:", error);
+      console.error(
+        "Remove photo error:",
+        error
+      );
 
       setErrorMessage(
         error instanceof Error
@@ -317,7 +560,9 @@ export default function AlumniProfilePage() {
     }
   }
 
-  async function handleSave(event: FormEvent<HTMLFormElement>) {
+  async function handleSave(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
     setSaving(true);
@@ -325,68 +570,131 @@ export default function AlumniProfilePage() {
     setErrorMessage("");
 
     if (!fullName.trim()) {
-      setErrorMessage("Please enter your full name.");
+      setErrorMessage(
+        "Please enter your full name."
+      );
+
       setSaving(false);
       return;
     }
 
     if (!batch) {
-      setErrorMessage("Please select your batch.");
+      setErrorMessage(
+        "Please select your batch."
+      );
+
       setSaving(false);
       return;
     }
 
     if (!section) {
-      setErrorMessage("Please select your section.");
+      setErrorMessage(
+        "Please select your section."
+      );
+
+      setSaving(false);
+      return;
+    }
+
+    /*
+     * IMPORTANT:
+     *
+     * Alumni graduation date is mandatory.
+     *
+     * Running Students are allowed to clear
+     * their graduation date, but an Alumni
+     * profile cannot be saved without one.
+     */
+    if (!graduationDate) {
+      setErrorMessage(
+        "Graduation Month & Year is required for an alumni profile."
+      );
+
       setSaving(false);
       return;
     }
 
     try {
-      const token = await getAccessToken();
+      const token =
+        await getAccessToken();
 
       if (!token) {
         return;
       }
 
-      const wasCreatingProfile = needsProfile;
-      const photoData = await prepareSelectedPhotoData();
+      const wasCreatingProfile =
+        needsProfile;
 
-      const response = await fetch("/api/alumni/profile", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          full_name: fullName.trim(),
-          batch,
-          section,
-          graduation_year: graduationYear,
-          current_position: currentPosition,
-          organization,
-          bio,
-          linkedin_url: linkedinUrl,
-          facebook_url: facebookUrl,
-          instagram_url: instagramUrl,
-          is_public: isPublic,
-          photoData: photoData || undefined,
-        }),
-      });
+      const photoData =
+        await prepareSelectedPhotoData();
 
-      const result = await response.json();
+      const response = await fetch(
+        "/api/alumni/profile",
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            full_name:
+              fullName.trim(),
+
+            batch,
+
+            section,
+
+            graduation_date:
+              graduationDate,
+
+            current_position:
+              currentPosition,
+
+            organization,
+
+            bio,
+
+            linkedin_url:
+              linkedinUrl,
+
+            facebook_url:
+              facebookUrl,
+
+            instagram_url:
+              instagramUrl,
+
+            is_public:
+              isPublic,
+
+            photoData:
+              photoData || undefined,
+          }),
+        }
+      );
+
+      const result =
+        await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "Unable to save your alumni profile.");
+        throw new Error(
+          result.error ||
+            "Unable to save your alumni profile."
+        );
       }
 
       try {
-        localStorage.removeItem("pharmacia_alumni_draft");
+        localStorage.removeItem(
+          "pharmacia_alumni_draft"
+        );
       } catch {
-        /* ignore */
+        // Ignore localStorage errors.
       }
 
-      fillFormFromProfile(result.profile as AlumniProfile);
+      fillFormFromProfile(
+        result.profile as AlumniProfile
+      );
+
       setSelectedPhoto(null);
 
       setMessage(
@@ -395,7 +703,10 @@ export default function AlumniProfilePage() {
           : "Your alumni profile has been updated successfully."
       );
     } catch (error) {
-      console.error("Save alumni profile error:", error);
+      console.error(
+        "Save alumni profile error:",
+        error
+      );
 
       setErrorMessage(
         error instanceof Error
@@ -412,10 +723,18 @@ export default function AlumniProfilePage() {
 
     try {
       await supabase.auth.signOut();
-      router.replace("/alumni/login");
+
+      router.replace(
+        "/alumni/login"
+      );
+
       router.refresh();
     } catch (error) {
-      console.error("Logout error:", error);
+      console.error(
+        "Logout error:",
+        error
+      );
+
       setLoggingOut(false);
     }
   }
@@ -425,6 +744,7 @@ export default function AlumniProfilePage() {
       <main className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-[#0a0f1a]">
         <div className="text-center">
           <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-300 border-t-[#087f8c]" />
+
           <p className="mt-4 text-sm font-medium text-slate-600 dark:text-slate-300">
             Loading your alumni profile...
           </p>
@@ -508,7 +828,9 @@ export default function AlumniProfilePage() {
                 disabled={loggingOut}
                 className="rounded-xl bg-[#0b1736] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#087f8c] disabled:opacity-60"
               >
-                {loggingOut ? "Logging out..." : "Logout"}
+                {loggingOut
+                  ? "Logging out..."
+                  : "Logout"}
               </button>
             </div>
           </div>
@@ -533,7 +855,10 @@ export default function AlumniProfilePage() {
                 {photoPreview ? (
                   <img
                     src={photoPreview}
-                    alt={fullName || "Alumni profile"}
+                    alt={
+                      fullName ||
+                      "Alumni profile"
+                    }
                     className="h-full w-full object-cover"
                   />
                 ) : (
@@ -544,13 +869,20 @@ export default function AlumniProfilePage() {
               </div>
 
               <label className="mt-6 block cursor-pointer rounded-full bg-[#0b1736] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#087f8c]">
-                {uploadingPhoto ? "Uploading..." : "📷 Choose Photo"}
+                {uploadingPhoto
+                  ? "Uploading..."
+                  : "📷 Choose Photo"}
 
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
-                  onChange={handlePhotoSelect}
-                  disabled={saving || uploadingPhoto}
+                  onChange={
+                    handlePhotoSelect
+                  }
+                  disabled={
+                    saving ||
+                    uploadingPhoto
+                  }
                   className="hidden"
                 />
               </label>
@@ -564,20 +896,26 @@ export default function AlumniProfilePage() {
               {selectedPhoto && (
                 <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-left text-xs leading-5 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">
                   New photo selected. Click{" "}
-                  <strong>Save Profile</strong> to upload it.
+                  <strong>
+                    Save Profile
+                  </strong>{" "}
+                  to upload it.
                 </div>
               )}
 
-              {photoUrl && !selectedPhoto && (
-                <button
-                  type="button"
-                  onClick={removePhoto}
-                  disabled={saving}
-                  className="mt-4 text-sm font-semibold text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
-                >
-                  Remove Photo
-                </button>
-              )}
+              {photoUrl &&
+                !selectedPhoto && (
+                  <button
+                    type="button"
+                    onClick={
+                      removePhoto
+                    }
+                    disabled={saving}
+                    className="mt-4 text-sm font-semibold text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
+                  >
+                    Remove Photo
+                  </button>
+                )}
             </div>
 
             {/* VISIBILITY */}
@@ -591,7 +929,11 @@ export default function AlumniProfilePage() {
                   <input
                     type="checkbox"
                     checked={isPublic}
-                    onChange={(e) => setIsPublic(e.target.checked)}
+                    onChange={(e) =>
+                      setIsPublic(
+                        e.target.checked
+                      )
+                    }
                     className="mt-1 h-4 w-4 accent-[#087f8c]"
                   />
 
@@ -601,8 +943,7 @@ export default function AlumniProfilePage() {
                     </span>
 
                     <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">
-                      Your profile will appear in the Our Proud Alumni
-                      directory.
+                      Your profile will appear in the Our Proud Alumni directory.
                     </span>
                   </span>
                 </label>
@@ -614,7 +955,9 @@ export default function AlumniProfilePage() {
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
             <div>
               <h2 className="text-2xl font-extrabold text-[#0b1736] dark:text-white">
-                {needsProfile ? "Complete Your Profile" : "Edit Profile"}
+                {needsProfile
+                  ? "Complete Your Profile"
+                  : "Edit Profile"}
               </h2>
 
               <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
@@ -626,13 +969,18 @@ export default function AlumniProfilePage() {
 
             {needsProfile && (
               <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm leading-6 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200">
-                🎉 <strong>Your email is verified and you are signed in.</strong>{" "}
-                Just complete the details below to publish your alumni profile. Your
-                sign-up details have been filled in for you.
+                🎉{" "}
+                <strong>
+                  Your email is verified and you are signed in.
+                </strong>{" "}
+                Just complete the details below to publish your alumni profile. Your sign-up details have been filled in for you.
               </div>
             )}
 
-            <form onSubmit={handleSave} className="mt-8 space-y-6">
+            <form
+              onSubmit={handleSave}
+              className="mt-8 space-y-6"
+            >
               {/* NAME */}
               <div>
                 <label
@@ -645,7 +993,11 @@ export default function AlumniProfilePage() {
                 <input
                   id="fullName"
                   value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  onChange={(e) =>
+                    setFullName(
+                      e.target.value
+                    )
+                  }
                   required
                   className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 />
@@ -662,7 +1014,10 @@ export default function AlumniProfilePage() {
 
                 <input
                   id="email"
-                  value={profile?.email || userEmail}
+                  value={
+                    profile?.email ||
+                    userEmail
+                  }
                   disabled
                   className="w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
                 />
@@ -685,17 +1040,28 @@ export default function AlumniProfilePage() {
                   <select
                     id="batch"
                     value={batch}
-                    onChange={(e) => setBatch(e.target.value)}
+                    onChange={(e) =>
+                      setBatch(
+                        e.target.value
+                      )
+                    }
                     required
                     className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   >
-                    <option value="">Select Batch</option>
+                    <option value="">
+                      Select Batch
+                    </option>
 
-                    {batches.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
+                    {batches.map(
+                      (item) => (
+                        <option
+                          key={item}
+                          value={item}
+                        >
+                          {item}
+                        </option>
+                      )
+                    )}
                   </select>
                 </div>
 
@@ -710,40 +1076,59 @@ export default function AlumniProfilePage() {
                   <select
                     id="section"
                     value={section}
-                    onChange={(e) => setSection(e.target.value)}
+                    onChange={(e) =>
+                      setSection(
+                        e.target.value
+                      )
+                    }
                     required
                     className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   >
-                    <option value="">Select Section</option>
+                    <option value="">
+                      Select Section
+                    </option>
 
-                    {sections.map((item) => (
-                      <option key={item} value={item}>
-                        Section {item}
-                      </option>
-                    ))}
+                    {sections.map(
+                      (item) => (
+                        <option
+                          key={item}
+                          value={item}
+                        >
+                          Section {item}
+                        </option>
+                      )
+                    )}
                   </select>
                 </div>
               </div>
 
-              {/* GRADUATION YEAR */}
+              {/* GRADUATION DATE */}
               <div>
                 <label
-                  htmlFor="graduationYear"
+                  htmlFor="graduationDate"
                   className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200"
                 >
-                  Graduation Year
+                  Graduation Month & Year *
                 </label>
 
                 <input
-                  id="graduationYear"
-                  type="number"
-                  min="2000"
-                  max="2100"
-                  value={graduationYear}
-                  onChange={(e) => setGraduationYear(e.target.value)}
-                  placeholder="e.g. 2026"
+                  id="graduationDate"
+                  type="month"
+                  value={
+                    graduationDate
+                  }
+                  onChange={(e) =>
+                    setGraduationDate(
+                      e.target.value
+                    )
+                  }
+                  required
                   className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 />
+
+                <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                  Required for Alumni. The selected month is the official graduation month. Once that month begins, the person is considered an Alumni.
+                </p>
               </div>
 
               {/* POSITION + ORGANIZATION */}
@@ -758,8 +1143,14 @@ export default function AlumniProfilePage() {
 
                   <input
                     id="currentPosition"
-                    value={currentPosition}
-                    onChange={(e) => setCurrentPosition(e.target.value)}
+                    value={
+                      currentPosition
+                    }
+                    onChange={(e) =>
+                      setCurrentPosition(
+                        e.target.value
+                      )
+                    }
                     placeholder="e.g. Production Officer"
                     className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   />
@@ -775,8 +1166,14 @@ export default function AlumniProfilePage() {
 
                   <input
                     id="organization"
-                    value={organization}
-                    onChange={(e) => setOrganization(e.target.value)}
+                    value={
+                      organization
+                    }
+                    onChange={(e) =>
+                      setOrganization(
+                        e.target.value
+                      )
+                    }
                     placeholder="e.g. Pharmaceutical Company"
                     className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   />
@@ -795,7 +1192,11 @@ export default function AlumniProfilePage() {
                 <textarea
                   id="bio"
                   value={bio}
-                  onChange={(e) => setBio(e.target.value)}
+                  onChange={(e) =>
+                    setBio(
+                      e.target.value
+                    )
+                  }
                   rows={5}
                   maxLength={500}
                   placeholder="Write a short professional introduction..."
@@ -803,7 +1204,8 @@ export default function AlumniProfilePage() {
                 />
 
                 <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  {bio.length}/500 characters
+                  {bio.length}/500
+                  characters
                 </p>
               </div>
 
@@ -825,8 +1227,14 @@ export default function AlumniProfilePage() {
                     <input
                       id="linkedin"
                       type="url"
-                      value={linkedinUrl}
-                      onChange={(e) => setLinkedinUrl(e.target.value)}
+                      value={
+                        linkedinUrl
+                      }
+                      onChange={(e) =>
+                        setLinkedinUrl(
+                          e.target.value
+                        )
+                      }
                       placeholder="https://www.linkedin.com/in/..."
                       className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                     />
@@ -843,8 +1251,14 @@ export default function AlumniProfilePage() {
                     <input
                       id="facebook"
                       type="url"
-                      value={facebookUrl}
-                      onChange={(e) => setFacebookUrl(e.target.value)}
+                      value={
+                        facebookUrl
+                      }
+                      onChange={(e) =>
+                        setFacebookUrl(
+                          e.target.value
+                        )
+                      }
                       placeholder="https://www.facebook.com/..."
                       className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                     />
@@ -861,8 +1275,14 @@ export default function AlumniProfilePage() {
                     <input
                       id="instagram"
                       type="url"
-                      value={instagramUrl}
-                      onChange={(e) => setInstagramUrl(e.target.value)}
+                      value={
+                        instagramUrl
+                      }
+                      onChange={(e) =>
+                        setInstagramUrl(
+                          e.target.value
+                        )
+                      }
                       placeholder="https://www.instagram.com/..."
                       className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                     />
@@ -886,7 +1306,10 @@ export default function AlumniProfilePage() {
               {/* SAVE */}
               <button
                 type="submit"
-                disabled={saving || uploadingPhoto}
+                disabled={
+                  saving ||
+                  uploadingPhoto
+                }
                 className="w-full rounded-full bg-[#0b1736] px-6 py-3.5 text-sm font-bold text-white transition hover:bg-[#087f8c] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving
