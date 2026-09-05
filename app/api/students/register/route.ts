@@ -22,6 +22,31 @@ const supabaseAdmin = createClient(
   }
 );
 
+function cleanGraduationDate(value: unknown): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const valueString = String(value).trim();
+
+  if (!/^\d{4}-\d{2}$/.test(valueString)) {
+    return null;
+  }
+
+  const [year, month] = valueString.split("-").map(Number);
+
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    month < 1 ||
+    month > 12
+  ) {
+    return null;
+  }
+
+  return `${year}-${String(month).padStart(2, "0")}-01`;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -34,13 +59,13 @@ export async function POST(request: Request) {
       section,
       student_id,
       blood_group,
+      graduation_date,
       linkedin_url,
       instagram_url,
       facebook_url,
       profile_photo_url,
     } = body;
 
-    // Required fields
     if (
       !full_name ||
       !email ||
@@ -59,10 +84,12 @@ export async function POST(request: Request) {
 
     const cleanName = String(full_name).trim();
     const cleanEmail = String(email).trim().toLowerCase();
-    const cleanSection = String(section).trim().toUpperCase();
+    const cleanSection = String(section)
+      .trim()
+      .toUpperCase();
+
     const numericBatch = Number(batch);
 
-    // Name validation
     if (cleanName.length < 2) {
       return NextResponse.json(
         {
@@ -72,8 +99,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Email validation
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)
+    ) {
       return NextResponse.json(
         {
           error: "Please enter a valid email address.",
@@ -82,7 +110,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Password validation
     if (String(password).length < 6) {
       return NextResponse.json(
         {
@@ -92,7 +119,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Section validation
     if (!["A", "B"].includes(cleanSection)) {
       return NextResponse.json(
         {
@@ -102,7 +128,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Batch validation
     if (!Number.isInteger(numericBatch)) {
       return NextResponse.json(
         {
@@ -112,8 +137,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Only currently running batches are allowed
-    const currentBatches = getCurrentRunningBatches();
+    const currentBatches =
+      getCurrentRunningBatches();
 
     if (!currentBatches.includes(numericBatch)) {
       return NextResponse.json(
@@ -126,7 +151,23 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create Supabase Auth account
+    let cleanGraduationDate: string | null = null;
+
+    if (graduation_date) {
+      cleanGraduationDate =
+        cleanGraduationDateValue(graduation_date);
+
+      if (!cleanGraduationDate) {
+        return NextResponse.json(
+          {
+            error:
+              "Please enter a valid graduation month and year.",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const {
       data: authData,
       error: authError,
@@ -142,7 +183,9 @@ export async function POST(request: Request) {
     });
 
     if (authError || !authData.user) {
-      const message = authError?.message || "Unable to create account.";
+      const message =
+        authError?.message ||
+        "Unable to create account.";
 
       if (
         message.toLowerCase().includes("already") ||
@@ -168,43 +211,47 @@ export async function POST(request: Request) {
 
     const userId = authData.user.id;
 
-    // Create student profile
-    const { error: profileError } = await supabaseAdmin
-      .from("student_profiles")
-      .insert({
-        id: userId,
-        full_name: cleanName,
-        email: cleanEmail,
-        batch: numericBatch,
-        section: cleanSection,
+    const { error: profileError } =
+      await supabaseAdmin
+        .from("student_profiles")
+        .insert({
+          id: userId,
+          full_name: cleanName,
+          email: cleanEmail,
+          batch: numericBatch,
+          section: cleanSection,
 
-        student_id: student_id
-          ? String(student_id).trim()
-          : null,
+          student_id: student_id
+            ? String(student_id).trim()
+            : null,
 
-        blood_group: blood_group
-          ? String(blood_group).trim()
-          : null,
+          blood_group: blood_group
+            ? String(blood_group).trim()
+            : null,
 
-        profile_photo_url:
-          profile_photo_url || null,
+          graduation_date:
+            cleanGraduationDate,
 
-        linkedin_url: linkedin_url
-          ? String(linkedin_url).trim()
-          : null,
+          profile_photo_url:
+            profile_photo_url || null,
 
-        instagram_url: instagram_url
-          ? String(instagram_url).trim()
-          : null,
+          linkedin_url: linkedin_url
+            ? String(linkedin_url).trim()
+            : null,
 
-        facebook_url: facebook_url
-          ? String(facebook_url).trim()
-          : null,
-      });
+          instagram_url: instagram_url
+            ? String(instagram_url).trim()
+            : null,
 
-    // If profile creation fails, remove the Auth account
+          facebook_url: facebook_url
+            ? String(facebook_url).trim()
+            : null,
+        });
+
     if (profileError) {
-      await supabaseAdmin.auth.admin.deleteUser(userId);
+      await supabaseAdmin.auth.admin.deleteUser(
+        userId
+      );
 
       if (
         profileError.message
@@ -239,7 +286,10 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Student registration error:", error);
+    console.error(
+      "Student registration error:",
+      error
+    );
 
     return NextResponse.json(
       {
@@ -251,4 +301,28 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+
+function cleanGraduationDateValue(
+  value: unknown
+): string | null {
+  const valueString = String(value ?? "").trim();
+
+  if (!/^\d{4}-\d{2}$/.test(valueString)) {
+    return null;
+  }
+
+  const [year, month] =
+    valueString.split("-").map(Number);
+
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    month < 1 ||
+    month > 12
+  ) {
+    return null;
+  }
+
+  return `${year}-${String(month).padStart(2, "0")}-01`;
 }
