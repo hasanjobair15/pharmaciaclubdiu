@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { supabase } from "@/app/lib/supabase";
 
 type StudentProfile = {
   id: string;
@@ -51,18 +51,49 @@ export default function StudentProfilePage() {
     loadProfile();
   }, []);
 
-  async function loadProfile() {
-    const supabase = createClient();
+  async function getFreshAccessToken() {
+    /*
+     * Always use the same Supabase client as Student Login.
+     *
+     * refreshSession() makes sure we don't send an old access
+     * token to /api/students/profile.
+     */
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.refreshSession();
 
+    if (sessionError) {
+      console.error("Session refresh error:", sessionError);
+    }
+
+    if (session?.access_token && session.user) {
+      return session.access_token;
+    }
+
+    /*
+     * If refresh did not return a session, check the existing
+     * session one more time.
+     */
+    const {
+      data: { session: existingSession },
+    } = await supabase.auth.getSession();
+
+    if (existingSession?.access_token && existingSession.user) {
+      return existingSession.access_token;
+    }
+
+    return null;
+  }
+
+  async function loadProfile() {
     try {
       setLoading(true);
       setError("");
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const accessToken = await getFreshAccessToken();
 
-      if (!session?.user) {
+      if (!accessToken) {
         router.replace("/students/login");
         return;
       }
@@ -70,15 +101,98 @@ export default function StudentProfilePage() {
       const response = await fetch("/api/students/profile", {
         method: "GET",
         headers: {
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/json",
         },
+        cache: "no-store",
       });
 
       const data = await response.json();
 
+      /*
+       * If the API says the account is now Alumni, do not try
+       * to render it as a Student profile.
+       */
+      if (
+        response.ok &&
+        data?.account_type === "alumni" &&
+        data?.redirect_to
+      ) {
+        router.replace(data.redirect_to);
+        return;
+      }
+
       if (!response.ok) {
+        /*
+         * If the server rejected the token, try one final fresh
+         * session and retry the request once.
+         */
+        if (response.status === 401) {
+          const retryToken = await getFreshAccessToken();
+
+          if (retryToken && retryToken !== accessToken) {
+            const retryResponse = await fetch(
+              "/api/students/profile",
+              {
+                method: "GET",
+                headers: {
+                  Authorization: `Bearer ${retryToken}`,
+                  Accept: "application/json",
+                },
+                cache: "no-store",
+              }
+            );
+
+            const retryData = await retryResponse.json();
+
+            if (
+              retryResponse.ok &&
+              retryData?.account_type === "alumni" &&
+              retryData?.redirect_to
+            ) {
+              router.replace(retryData.redirect_to);
+              return;
+            }
+
+            if (retryResponse.ok && retryData?.profile) {
+              const student = retryData.profile as StudentProfile;
+
+              setProfile(student);
+
+              setForm({
+                full_name: student.full_name || "",
+                student_id: student.student_id || "",
+                batch: String(student.batch || ""),
+                section: student.section || "A",
+                blood_group: student.blood_group || "",
+                graduation_date: student.graduation_date
+                  ? String(student.graduation_date).slice(0, 7)
+                  : "",
+                linkedin_url: student.linkedin_url || "",
+                instagram_url: student.instagram_url || "",
+                facebook_url: student.facebook_url || "",
+                profile_photo_url:
+                  student.profile_photo_url || "",
+              });
+
+              return;
+            }
+
+            throw new Error(
+              retryData?.error ||
+                "Your session could not be verified. Please log in again."
+            );
+          }
+        }
+
         throw new Error(
-          data.error || "Unable to load your profile."
+          data?.error || "Unable to load your profile."
+        );
+      }
+
+      if (!data?.profile) {
+        throw new Error(
+          "Your profile could not be found."
         );
       }
 
@@ -98,7 +212,8 @@ export default function StudentProfilePage() {
         linkedin_url: student.linkedin_url || "",
         instagram_url: student.instagram_url || "",
         facebook_url: student.facebook_url || "",
-        profile_photo_url: student.profile_photo_url || "",
+        profile_photo_url:
+          student.profile_photo_url || "",
       });
     } catch (err) {
       console.error("Student profile error:", err);
@@ -144,7 +259,8 @@ export default function StudentProfilePage() {
       linkedin_url: profile.linkedin_url || "",
       instagram_url: profile.instagram_url || "",
       facebook_url: profile.facebook_url || "",
-      profile_photo_url: profile.profile_photo_url || "",
+      profile_photo_url:
+        profile.profile_photo_url || "",
     });
 
     setError("");
@@ -162,13 +278,9 @@ export default function StudentProfilePage() {
     setSuccess("");
 
     try {
-      const supabase = createClient();
+      const accessToken = await getFreshAccessToken();
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.user) {
+      if (!accessToken) {
         router.replace("/students/login");
         return;
       }
@@ -177,8 +289,10 @@ export default function StudentProfilePage() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/json",
         },
+        cache: "no-store",
         body: JSON.stringify({
           full_name: form.full_name,
           student_id: form.student_id,
@@ -186,21 +300,45 @@ export default function StudentProfilePage() {
           section: form.section,
           blood_group: form.blood_group,
 
-          // Empty value becomes NULL in the API.
-          graduation_date: form.graduation_date || null,
+          /*
+           * Empty value becomes NULL in the API.
+           */
+          graduation_date:
+            form.graduation_date || null,
 
           linkedin_url: form.linkedin_url,
           instagram_url: form.instagram_url,
           facebook_url: form.facebook_url,
-          profile_photo_url: form.profile_photo_url,
+          profile_photo_url:
+            form.profile_photo_url,
         }),
       });
 
       const data = await response.json();
 
+      /*
+       * A student who has reached their graduation month
+       * may be converted to Alumni by the API.
+       */
+      if (
+        response.ok &&
+        data?.account_type === "alumni" &&
+        data?.redirect_to
+      ) {
+        router.replace(data.redirect_to);
+        return;
+      }
+
       if (!response.ok) {
         throw new Error(
-          data.error || "Profile could not be updated."
+          data?.error ||
+            "Profile could not be updated."
+        );
+      }
+
+      if (!data?.profile) {
+        throw new Error(
+          "Profile was updated but no profile data was returned."
         );
       }
 
@@ -211,13 +349,18 @@ export default function StudentProfilePage() {
 
       setForm({
         full_name: updatedProfile.full_name || "",
-        student_id: updatedProfile.student_id || "",
+        student_id:
+          updatedProfile.student_id || "",
         batch: String(updatedProfile.batch || ""),
         section: updatedProfile.section || "A",
-        blood_group: updatedProfile.blood_group || "",
-        graduation_date: updatedProfile.graduation_date
-          ? String(updatedProfile.graduation_date).slice(0, 7)
-          : "",
+        blood_group:
+          updatedProfile.blood_group || "",
+        graduation_date:
+          updatedProfile.graduation_date
+            ? String(
+                updatedProfile.graduation_date
+              ).slice(0, 7)
+            : "",
         linkedin_url:
           updatedProfile.linkedin_url || "",
         instagram_url:
@@ -229,7 +372,9 @@ export default function StudentProfilePage() {
       });
 
       setEditing(false);
-      setSuccess("Profile updated successfully.");
+      setSuccess(
+        "Profile updated successfully."
+      );
 
       window.scrollTo({
         top: 0,
@@ -249,8 +394,6 @@ export default function StudentProfilePage() {
   }
 
   const handleLogout = async () => {
-    const supabase = createClient();
-
     await supabase.auth.signOut();
 
     router.replace("/students/login");
@@ -380,7 +523,6 @@ export default function StudentProfilePage() {
   return (
     <main className="min-h-screen bg-background px-4 py-10 sm:px-6">
       <div className="mx-auto max-w-4xl">
-
         {/* Header */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -421,11 +563,9 @@ export default function StudentProfilePage() {
 
         {/* Profile Card */}
         <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-
           {/* Profile Header */}
           <div className="border-b bg-muted/30 px-6 py-8 sm:px-8">
             <div className="flex flex-col items-center gap-5 sm:flex-row">
-
               {profile.profile_photo_url ? (
                 <img
                   src={profile.profile_photo_url}
@@ -464,7 +604,6 @@ export default function StudentProfilePage() {
           {!editing && (
             <>
               <div className="grid gap-8 p-6 sm:grid-cols-2 sm:p-8">
-
                 {/* Personal Information */}
                 <section>
                   <h3 className="mb-4 text-lg font-semibold">
@@ -629,9 +768,7 @@ export default function StudentProfilePage() {
           {/* EDIT MODE */}
           {editing && (
             <form onSubmit={handleSave}>
-
               <div className="space-y-8 p-6 sm:p-8">
-
                 {/* Personal Information */}
                 <section>
                   <h3 className="mb-5 text-lg font-semibold">
@@ -639,7 +776,6 @@ export default function StudentProfilePage() {
                   </h3>
 
                   <div className="grid gap-5 sm:grid-cols-2">
-
                     <FormField
                       label="Full Name"
                       value={form.full_name}
@@ -718,7 +854,6 @@ export default function StudentProfilePage() {
                   </h3>
 
                   <div className="grid gap-5 sm:grid-cols-2">
-
                     <FormField
                       label="Batch"
                       type="number"
@@ -871,7 +1006,6 @@ export default function StudentProfilePage() {
 
               {/* Save / Cancel */}
               <div className="flex flex-col gap-3 border-t bg-muted/20 p-6 sm:flex-row sm:justify-end sm:p-8">
-
                 <button
                   type="button"
                   onClick={cancelEditing}
