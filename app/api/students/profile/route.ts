@@ -20,10 +20,6 @@ function studentPhotoPath(userId: string) {
   return `students/${userId}/profile.webp`;
 }
 
-function alumniPhotoPath(userId: string) {
-  return `alumni/${userId}/profile.webp`;
-}
-
 function isValidHttpUrl(value: string) {
   try {
     const url = new URL(value);
@@ -38,11 +34,11 @@ function isValidHttpUrl(value: string) {
 }
 
 /**
- * Processes profile photo input.
+ * Process profile photo.
  *
- * Supported:
- * 1. Base64 data URL from uploaded image
- * 2. Normal public image URL
+ * Supports:
+ * 1. Uploaded image converted to Base64 data URL
+ * 2. Normal HTTP/HTTPS image URL
  */
 async function processProfilePhoto(
   userId: string,
@@ -65,11 +61,9 @@ async function processProfilePhoto(
   }
 
   /*
-   * CASE 1:
-   * Uploaded image converted to Base64 data URL
-   *
-   * Example:
-   * data:image/webp;base64,UklGR...
+   * =====================================================
+   * BASE64 IMAGE UPLOAD
+   * =====================================================
    */
   if (trimmed.startsWith("data:image/")) {
     const match =
@@ -78,31 +72,41 @@ async function processProfilePhoto(
       );
 
     if (!match) {
-      throw new Error("Invalid profile photo data.");
+      throw new Error(
+        "Invalid profile photo data."
+      );
     }
 
     const mimeType = match[1];
     const base64Data = match[2];
 
     if (!base64Data) {
-      throw new Error("Profile photo data is empty.");
+      throw new Error(
+        "Profile photo data is empty."
+      );
     }
 
     let bytes: Buffer;
 
     try {
-      bytes = Buffer.from(base64Data, "base64");
+      bytes = Buffer.from(
+        base64Data,
+        "base64"
+      );
     } catch {
-      throw new Error("Unable to process profile photo.");
+      throw new Error(
+        "Unable to process profile photo."
+      );
     }
 
     if (!bytes.length) {
-      throw new Error("Profile photo is empty.");
+      throw new Error(
+        "Profile photo is empty."
+      );
     }
 
     /*
-     * Limit server-side upload size to approximately 5 MB.
-     * The frontend normally compresses the image before sending it.
+     * Maximum 5 MB after compression.
      */
     if (bytes.length > 5 * 1024 * 1024) {
       throw new Error(
@@ -113,8 +117,8 @@ async function processProfilePhoto(
     const path = studentPhotoPath(userId);
 
     /*
-     * Frontend converts uploaded images to WebP.
-     * Keep WebP as the stored format.
+     * Server-side upload using SERVICE ROLE.
+     * This bypasses browser Storage RLS.
      */
     const { error: uploadError } =
       await supabaseAdmin.storage
@@ -158,15 +162,18 @@ async function processProfilePhoto(
   }
 
   /*
-   * CASE 2:
-   * User entered a normal image URL.
+   * =====================================================
+   * IMAGE URL
+   * =====================================================
    */
   if (
     trimmed.startsWith("http://") ||
     trimmed.startsWith("https://")
   ) {
     if (!isValidHttpUrl(trimmed)) {
-      throw new Error("Please enter a valid image URL.");
+      throw new Error(
+        "Please enter a valid image URL."
+      );
     }
 
     return {
@@ -181,14 +188,17 @@ async function processProfilePhoto(
 }
 
 /**
- * Deletes a stored student profile photo.
+ * Delete student's stored profile photo.
  */
-async function deleteStudentPhoto(userId: string) {
+async function deleteStudentPhoto(
+  userId: string
+) {
   const path = studentPhotoPath(userId);
 
-  const { error } = await supabaseAdmin.storage
-    .from(PHOTO_BUCKET)
-    .remove([path]);
+  const { error } =
+    await supabaseAdmin.storage
+      .from(PHOTO_BUCKET)
+      .remove([path]);
 
   if (error) {
     console.error(
@@ -199,7 +209,7 @@ async function deleteStudentPhoto(userId: string) {
 }
 
 /**
- * Gets the authenticated user from the Authorization header.
+ * Authenticate request.
  */
 async function getAuthenticatedUser(
   request: NextRequest
@@ -210,14 +220,14 @@ async function getAuthenticatedUser(
   if (!authorization) {
     return {
       user: null,
-      error: "Authorization header is missing.",
+      error:
+        "Authorization header is missing.",
     };
   }
 
-  const token = authorization.replace(
-    /^Bearer\s+/i,
-    ""
-  ).trim();
+  const token = authorization
+    .replace(/^Bearer\s+/i, "")
+    .trim();
 
   if (!token) {
     return {
@@ -229,12 +239,14 @@ async function getAuthenticatedUser(
   const {
     data: { user },
     error,
-  } = await supabaseAdmin.auth.getUser(token);
+  } =
+    await supabaseAdmin.auth.getUser(token);
 
   if (error || !user) {
     return {
       user: null,
-      error: "Invalid or expired authentication token.",
+      error:
+        "Invalid or expired authentication token.",
     };
   }
 
@@ -245,7 +257,7 @@ async function getAuthenticatedUser(
 }
 
 /**
- * Student profile fields returned by the API.
+ * Student profile fields.
  */
 const studentProfileSelect = `
   id,
@@ -277,35 +289,41 @@ const studentProfileSelect = `
   updated_at
 `;
 
+/**
+ * Get today's date in Bangladesh.
+ */
 function getDhakaToday() {
-  const formatter = new Intl.DateTimeFormat(
-    "en-CA",
-    {
+  const formatter =
+    new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Dhaka",
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
-    }
-  );
+    });
 
   return formatter.format(new Date());
 }
 
 /**
- * GET
- * Fetch logged-in student's profile.
+ * =====================================================
+ * GET STUDENT PROFILE
+ * =====================================================
  */
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest
+) {
   try {
-    const { user, error: authError } =
+    const {
+      user,
+      error: authError,
+    } =
       await getAuthenticatedUser(request);
 
     if (!user) {
       return NextResponse.json(
         {
           error:
-            authError ||
-            "Unauthorized.",
+            authError || "Unauthorized.",
         },
         { status: 401 }
       );
@@ -314,7 +332,10 @@ export async function GET(request: NextRequest) {
     /*
      * Check alumni first.
      */
-    const { data: alumniProfile, error: alumniError } =
+    const {
+      data: alumniProfile,
+      error: alumniError,
+    } =
       await supabaseAdmin
         .from("alumni_profiles")
         .select("*")
@@ -336,16 +357,17 @@ export async function GET(request: NextRequest) {
     }
 
     /*
-     * Otherwise check student profile.
+     * Check student profile.
      */
     const {
       data: studentProfile,
       error: studentError,
-    } = await supabaseAdmin
-      .from("student_profiles")
-      .select(studentProfileSelect)
-      .eq("user_id", user.id)
-      .maybeSingle();
+    } =
+      await supabaseAdmin
+        .from("student_profiles")
+        .select(studentProfileSelect)
+        .eq("user_id", user.id)
+        .maybeSingle();
 
     if (studentError) {
       console.error(
@@ -357,7 +379,8 @@ export async function GET(request: NextRequest) {
         {
           error:
             "Failed to load student profile.",
-          details: studentError.message,
+          details:
+            studentError.message,
         },
         { status: 500 }
       );
@@ -374,7 +397,7 @@ export async function GET(request: NextRequest) {
     }
 
     /*
-     * Automatically convert a student to alumni
+     * Automatically convert student to alumni
      * after graduation date.
      */
     let finalProfile = studentProfile;
@@ -388,14 +411,19 @@ export async function GET(request: NextRequest) {
       try {
         const {
           data: existingAlumni,
-        } = await supabaseAdmin
-          .from("alumni_profiles")
-          .select("id")
-          .eq("user_id", user.id)
-          .maybeSingle();
+        } =
+          await supabaseAdmin
+            .from("alumni_profiles")
+            .select("id")
+            .eq("user_id", user.id)
+            .maybeSingle();
 
         if (!existingAlumni) {
-          const { data: newAlumni, error: alumniInsertError } =
+          const {
+            data: newAlumni,
+            error:
+              alumniInsertError,
+          } =
             await supabaseAdmin
               .from("alumni_profiles")
               .insert({
@@ -442,14 +470,19 @@ export async function GET(request: NextRequest) {
               .select("*")
               .single();
 
-          if (!alumniInsertError && newAlumni) {
+          if (
+            !alumniInsertError &&
+            newAlumni
+          ) {
             await supabaseAdmin
               .from("student_profiles")
               .delete()
               .eq("user_id", user.id);
 
-            finalProfile = newAlumni;
-            finalProfileType = "alumni";
+            finalProfile =
+              newAlumni;
+            finalProfileType =
+              "alumni";
           }
         }
       } catch (conversionError) {
@@ -457,11 +490,6 @@ export async function GET(request: NextRequest) {
           "Student to alumni conversion error:",
           conversionError
         );
-
-        /*
-         * If automatic conversion fails,
-         * continue showing the student profile.
-         */
       }
     }
 
@@ -488,20 +516,25 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * PUT
- * Update logged-in student's profile.
+ * =====================================================
+ * UPDATE PROFILE
+ * =====================================================
  */
-export async function PUT(request: NextRequest) {
+export async function PUT(
+  request: NextRequest
+) {
   try {
-    const { user, error: authError } =
+    const {
+      user,
+      error: authError,
+    } =
       await getAuthenticatedUser(request);
 
     if (!user) {
       return NextResponse.json(
         {
           error:
-            authError ||
-            "Unauthorized.",
+            authError || "Unauthorized.",
         },
         { status: 401 }
       );
@@ -514,23 +547,27 @@ export async function PUT(request: NextRequest) {
     } catch {
       return NextResponse.json(
         {
-          error: "Invalid JSON request body.",
+          error:
+            "Invalid JSON request body.",
         },
         { status: 400 }
       );
     }
 
     /*
-     * Check whether this user is already an alumni.
+     * =====================================================
+     * CHECK ALUMNI
+     * =====================================================
      */
     const {
       data: existingAlumni,
       error: alumniLookupError,
-    } = await supabaseAdmin
-      .from("alumni_profiles")
-      .select("*")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    } =
+      await supabaseAdmin
+        .from("alumni_profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
     if (alumniLookupError) {
       console.error(
@@ -548,11 +585,11 @@ export async function PUT(request: NextRequest) {
       let profilePhotoUrl =
         existingAlumni.profile_photo_url;
 
-      let uploadedPath: string | null = null;
+      let uploadedPath: string | null =
+        null;
 
       /*
-       * Only process a new photo if the field was
-       * actually supplied.
+       * Process new photo only when supplied.
        */
       if (
         Object.prototype.hasOwnProperty.call(
@@ -567,7 +604,9 @@ export async function PUT(request: NextRequest) {
             body.profile_photo_url
           );
 
-        profilePhotoUrl = photoResult.url;
+        profilePhotoUrl =
+          photoResult.url;
+
         uploadedPath =
           photoResult.uploadedPath;
       }
@@ -594,7 +633,10 @@ export async function PUT(request: NextRequest) {
         "emergency_contact_relation",
       ];
 
-      const updateData: Record<string, any> = {};
+      const updateData: Record<
+        string,
+        any
+      > = {};
 
       for (const field of allowedFields) {
         if (
@@ -603,7 +645,8 @@ export async function PUT(request: NextRequest) {
             field
           )
         ) {
-          updateData[field] = body[field];
+          updateData[field] =
+            body[field];
         }
       }
 
@@ -617,23 +660,21 @@ export async function PUT(request: NextRequest) {
           profilePhotoUrl;
       }
 
-      updateData.updated_at = new Date().toISOString();
+      updateData.updated_at =
+        new Date().toISOString();
 
       const {
         data: updatedAlumni,
         error: updateError,
-      } = await supabaseAdmin
-        .from("alumni_profiles")
-        .update(updateData)
-        .eq("user_id", user.id)
-        .select("*")
-        .single();
+      } =
+        await supabaseAdmin
+          .from("alumni_profiles")
+          .update(updateData)
+          .eq("user_id", user.id)
+          .select("*")
+          .single();
 
       if (updateError) {
-        /*
-         * If DB update fails after uploading a new
-         * Storage file, clean up that file.
-         */
         if (uploadedPath) {
           await supabaseAdmin.storage
             .from(PHOTO_BUCKET)
@@ -665,17 +706,18 @@ export async function PUT(request: NextRequest) {
 
     /*
      * =====================================================
-     * STUDENT LOOKUP
+     * FIND STUDENT
      * =====================================================
      */
     const {
       data: studentProfile,
       error: studentLookupError,
-    } = await supabaseAdmin
-      .from("student_profiles")
-      .select("*")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    } =
+      await supabaseAdmin
+        .from("student_profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
     if (studentLookupError) {
       console.error(
@@ -706,13 +748,14 @@ export async function PUT(request: NextRequest) {
 
     /*
      * =====================================================
-     * STUDENT PHOTO
+     * PROCESS STUDENT PROFILE PHOTO
      * =====================================================
      */
     let profilePhotoUrl =
       studentProfile.profile_photo_url;
 
-    let uploadedPath: string | null = null;
+    let uploadedPath: string | null =
+      null;
 
     if (
       Object.prototype.hasOwnProperty.call(
@@ -727,14 +770,16 @@ export async function PUT(request: NextRequest) {
           body.profile_photo_url
         );
 
-      profilePhotoUrl = photoResult.url;
+      profilePhotoUrl =
+        photoResult.url;
+
       uploadedPath =
         photoResult.uploadedPath;
     }
 
     /*
      * =====================================================
-     * AUTOMATIC STUDENT → ALUMNI CONVERSION
+     * STUDENT → ALUMNI CONVERSION
      * =====================================================
      */
     const graduationDate =
@@ -748,66 +793,88 @@ export async function PUT(request: NextRequest) {
       try {
         const alumniData = {
           user_id: user.id,
+
           student_id:
             body.student_id ??
             studentProfile.student_id,
+
           full_name:
             body.full_name ??
             studentProfile.full_name,
+
           email:
             studentProfile.email,
+
           phone:
             body.phone ??
             studentProfile.phone,
+
           date_of_birth:
             body.date_of_birth ??
             studentProfile.date_of_birth,
+
           gender:
             body.gender ??
             studentProfile.gender,
+
           blood_group:
             body.blood_group ??
             studentProfile.blood_group,
+
           address:
             body.address ??
             studentProfile.address,
+
           city:
             body.city ??
             studentProfile.city,
+
           country:
             body.country ??
             studentProfile.country,
+
           department:
             body.department ??
             studentProfile.department,
+
           program:
             body.program ??
             studentProfile.program,
+
           batch:
             body.batch ??
             studentProfile.batch,
+
           section:
             body.section ??
             studentProfile.section,
+
           graduation_date:
             graduationDate,
+
           profile_photo_url:
             profilePhotoUrl,
+
           linkedin_url:
             body.linkedin_url ??
             studentProfile.linkedin_url,
+
           facebook_url:
             body.facebook_url ??
             studentProfile.facebook_url,
+
           instagram_url:
             body.instagram_url ??
             studentProfile.instagram_url,
+
           emergency_contact_name:
             body.emergency_contact_name ??
             studentProfile.emergency_contact_name,
+
           emergency_contact_phone:
             body.emergency_contact_phone ??
             studentProfile.emergency_contact_phone,
+
           emergency_contact_relation:
             body.emergency_contact_relation ??
             studentProfile.emergency_contact_relation,
@@ -815,16 +882,20 @@ export async function PUT(request: NextRequest) {
 
         const {
           data: newAlumni,
-          error: alumniInsertError,
-        } = await supabaseAdmin
-          .from("alumni_profiles")
-          .insert(alumniData)
-          .select("*")
-          .single();
+          error:
+            alumniInsertError,
+        } =
+          await supabaseAdmin
+            .from("alumni_profiles")
+            .insert(alumniData)
+            .select("*")
+            .single();
 
         if (alumniInsertError) {
           if (uploadedPath) {
-            await deleteStudentPhoto(user.id);
+            await deleteStudentPhoto(
+              user.id
+            );
           }
 
           console.error(
@@ -845,10 +916,11 @@ export async function PUT(request: NextRequest) {
 
         const {
           error: studentDeleteError,
-        } = await supabaseAdmin
-          .from("student_profiles")
-          .delete()
-          .eq("user_id", user.id);
+        } =
+          await supabaseAdmin
+            .from("student_profiles")
+            .delete()
+            .eq("user_id", user.id);
 
         if (studentDeleteError) {
           console.error(
@@ -865,7 +937,9 @@ export async function PUT(request: NextRequest) {
         });
       } catch (conversionError) {
         if (uploadedPath) {
-          await deleteStudentPhoto(user.id);
+          await deleteStudentPhoto(
+            user.id
+          );
         }
 
         console.error(
@@ -890,7 +964,6 @@ export async function PUT(request: NextRequest) {
      * NORMAL STUDENT UPDATE
      * =====================================================
      */
-
     const allowedFields = [
       "full_name",
       "phone",
@@ -914,7 +987,10 @@ export async function PUT(request: NextRequest) {
       "emergency_contact_relation",
     ];
 
-    const updateData: Record<string, any> = {};
+    const updateData: Record<
+      string,
+      any
+    > = {};
 
     for (const field of allowedFields) {
       if (
@@ -923,12 +999,13 @@ export async function PUT(request: NextRequest) {
           field
         )
       ) {
-        updateData[field] = body[field];
+        updateData[field] =
+          body[field];
       }
     }
 
     /*
-     * Save profile photo URL when supplied.
+     * Save profile photo URL.
      */
     if (
       Object.prototype.hasOwnProperty.call(
@@ -946,20 +1023,23 @@ export async function PUT(request: NextRequest) {
     const {
       data: updatedStudent,
       error: updateError,
-    } = await supabaseAdmin
-      .from("student_profiles")
-      .update(updateData)
-      .eq("user_id", user.id)
-      .select(studentProfileSelect)
-      .single();
+    } =
+      await supabaseAdmin
+        .from("student_profiles")
+        .update(updateData)
+        .eq("user_id", user.id)
+        .select(studentProfileSelect)
+        .single();
 
     if (updateError) {
       /*
-       * If database update fails after successful
-       * Storage upload, remove the uploaded file.
+       * If Storage upload succeeded but
+       * database update failed, clean up.
        */
       if (uploadedPath) {
-        await deleteStudentPhoto(user.id);
+        await deleteStudentPhoto(
+          user.id
+        );
       }
 
       console.error(
