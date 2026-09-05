@@ -35,7 +35,10 @@ async function getAuthenticatedUser(request: NextRequest) {
   const accessToken = getBearerToken(request);
 
   if (!accessToken) {
-    return { user: null, error: "Login is required." };
+    return {
+      user: null,
+      error: "Login is required.",
+    };
   }
 
   const supabaseAdmin = getAdminClient();
@@ -46,14 +49,22 @@ async function getAuthenticatedUser(request: NextRequest) {
   } = await supabaseAdmin.auth.getUser(accessToken);
 
   if (error || !user) {
-    return { user: null, error: "Your session has expired. Please log in again." };
+    return {
+      user: null,
+      error: "Your session has expired. Please log in again.",
+    };
   }
 
-  return { user, error: null };
+  return {
+    user,
+    error: null,
+  };
 }
 
 function toNullableString(value: unknown) {
-  if (typeof value !== "string") return null;
+  if (typeof value !== "string") {
+    return null;
+  }
 
   const trimmed = value.trim();
 
@@ -61,66 +72,173 @@ function toNullableString(value: unknown) {
 }
 
 function toRequiredString(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
+  return typeof value === "string"
+    ? value.trim()
+    : "";
 }
 
-function toNullableNumber(value: unknown) {
-  if (value === null || value === undefined || value === "") return null;
+/**
+ * Accept:
+ * YYYY-MM
+ * YYYY-MM-DD
+ *
+ * Always store as:
+ * YYYY-MM-01
+ */
+function cleanGraduationDate(
+  value: unknown
+): string | null {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return null;
+  }
 
-  const numberValue = Number(value);
+  const raw = String(value).trim();
 
-  return Number.isFinite(numberValue) ? numberValue : null;
+  if (!raw) {
+    return null;
+  }
+
+  let year: number;
+  let month: number;
+
+  const monthMatch =
+    raw.match(/^(\d{4})-(\d{2})$/);
+
+  const dateMatch =
+    raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (monthMatch) {
+    year = Number(monthMatch[1]);
+    month = Number(monthMatch[2]);
+  } else if (dateMatch) {
+    year = Number(dateMatch[1]);
+    month = Number(dateMatch[2]);
+  } else {
+    return null;
+  }
+
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month)
+  ) {
+    return null;
+  }
+
+  if (year < 1900 || year > 2200) {
+    return null;
+  }
+
+  if (month < 1 || month > 12) {
+    return null;
+  }
+
+  return `${year}-${String(month).padStart(
+    2,
+    "0"
+  )}-01`;
 }
 
-function buildProfileFields(body: Record<string, unknown>) {
-  return {
-    full_name: toRequiredString(body.full_name),
-    batch: toRequiredString(body.batch),
-    section: toRequiredString(body.section),
-    graduation_year: toNullableNumber(body.graduation_year),
-    current_position: toNullableString(body.current_position),
-    organization: toNullableString(body.organization),
-    bio: toNullableString(body.bio),
-    linkedin_url: toNullableString(body.linkedin_url),
-    facebook_url: toNullableString(body.facebook_url),
-    instagram_url: toNullableString(body.instagram_url),
-    is_public: typeof body.is_public === "boolean" ? body.is_public : true,
-  };
+function getGraduationYear(
+  graduationDate: string
+): number {
+  return Number(
+    String(graduationDate).slice(0, 4)
+  );
+}
+
+function getDhakaTodayString() {
+  const parts = new Intl.DateTimeFormat(
+    "en-CA",
+    {
+      timeZone: "Asia/Dhaka",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }
+  ).formatToParts(new Date());
+
+  const year = parts.find(
+    (part) => part.type === "year"
+  )?.value;
+
+  const month = parts.find(
+    (part) => part.type === "month"
+  )?.value;
+
+  const day = parts.find(
+    (part) => part.type === "day"
+  )?.value;
+
+  if (!year || !month || !day) {
+    return new Date()
+      .toISOString()
+      .slice(0, 10);
+  }
+
+  return `${year}-${month}-${day}`;
 }
 
 function photoPath(userId: string) {
   return `alumni/${userId}/profile.webp`;
 }
 
-async function uploadProfilePhoto(userId: string, dataUrl: string) {
-  const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+async function uploadProfilePhoto(
+  userId: string,
+  dataUrl: string
+) {
+  const match =
+    /^data:([^;]+);base64,(.+)$/.exec(
+      dataUrl
+    );
 
   if (!match) {
-    throw new Error("Invalid image data.");
+    throw new Error(
+      "Invalid image data."
+    );
   }
 
   const mime = match[1];
   const base64 = match[2];
 
   if (!mime.startsWith("image/")) {
-    throw new Error("Only image files are supported.");
+    throw new Error(
+      "Only image files are supported."
+    );
   }
 
-  const bytes = Buffer.from(base64, "base64");
+  const bytes = Buffer.from(
+    base64,
+    "base64"
+  );
 
-  if (bytes.byteLength > 3 * 1024 * 1024) {
-    throw new Error("Image is too large. Please use an image under 3 MB after compression.");
+  if (
+    bytes.byteLength >
+    3 * 1024 * 1024
+  ) {
+    throw new Error(
+      "Image is too large. Please use an image under 3 MB after compression."
+    );
   }
 
-  const supabaseAdmin = getAdminClient();
+  const supabaseAdmin =
+    getAdminClient();
 
-  const { error: uploadError } = await supabaseAdmin.storage
+  const {
+    error: uploadError,
+  } = await supabaseAdmin.storage
     .from("committee-photos")
-    .upload(photoPath(userId), bytes, {
-      contentType: mime,
-      upsert: true,
-      cacheControl: "3600",
-    });
+    .upload(
+      photoPath(userId),
+      bytes,
+      {
+        contentType: mime,
+        upsert: true,
+        cacheControl: "3600",
+      }
+    );
 
   if (uploadError) {
     throw uploadError;
@@ -128,43 +246,81 @@ async function uploadProfilePhoto(userId: string, dataUrl: string) {
 
   const {
     data: { publicUrl },
-  } = supabaseAdmin.storage
-    .from("committee-photos")
-    .getPublicUrl(photoPath(userId));
+  } =
+    supabaseAdmin.storage
+      .from("committee-photos")
+      .getPublicUrl(
+        photoPath(userId)
+      );
 
   return `${publicUrl}?v=${Date.now()}`;
 }
 
-async function deleteProfilePhoto(userId: string) {
-  const supabaseAdmin = getAdminClient();
+async function deleteProfilePhoto(
+  userId: string
+) {
+  const supabaseAdmin =
+    getAdminClient();
 
-  const { error } = await supabaseAdmin.storage
-    .from("committee-photos")
-    .remove([photoPath(userId)]);
+  const { error } =
+    await supabaseAdmin.storage
+      .from("committee-photos")
+      .remove([
+        photoPath(userId),
+      ]);
 
   if (error) {
-    console.warn("Alumni profile photo removal warning:", error);
+    console.warn(
+      "Alumni profile photo removal warning:",
+      error
+    );
   }
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest
+) {
   try {
-    const { user, error: authError } = await getAuthenticatedUser(request);
+    const {
+      user,
+      error: authError,
+    } =
+      await getAuthenticatedUser(
+        request
+      );
 
     if (!user) {
-      return NextResponse.json({ error: authError }, { status: 401 });
+      return NextResponse.json(
+        {
+          error: authError,
+        },
+        {
+          status: 401,
+        }
+      );
     }
 
-    const supabaseAdmin = getAdminClient();
+    const supabaseAdmin =
+      getAdminClient();
 
-    const { data: profile, error } = await supabaseAdmin
+    const {
+      data: profile,
+      error,
+    } = await supabaseAdmin
       .from("alumni_profiles")
       .select("*")
       .eq("id", user.id)
       .maybeSingle();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json(
+        {
+          error: error.message,
+        },
+        {
+          status: 500,
+        }
+      );
     }
 
     return NextResponse.json({
@@ -172,11 +328,15 @@ export async function GET(request: NextRequest) {
       user: {
         id: user.id,
         email: user.email || null,
-        metadata: user.user_metadata || {},
+        metadata:
+          user.user_metadata || {},
       },
     });
   } catch (error) {
-    console.error("GET /api/alumni/profile error:", error);
+    console.error(
+      "GET /api/alumni/profile error:",
+      error
+    );
 
     return NextResponse.json(
       {
@@ -185,72 +345,383 @@ export async function GET(request: NextRequest) {
             ? error.message
             : "Unable to load your alumni profile.",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
 
-export async function PUT(request: NextRequest) {
+export async function PUT(
+  request: NextRequest
+) {
   try {
-    const { user, error: authError } = await getAuthenticatedUser(request);
+    const {
+      user,
+      error: authError,
+    } =
+      await getAuthenticatedUser(
+        request
+      );
 
     if (!user) {
-      return NextResponse.json({ error: authError }, { status: 401 });
+      return NextResponse.json(
+        {
+          error: authError,
+        },
+        {
+          status: 401,
+        }
+      );
     }
 
-    const body = (await request.json().catch(() => ({}))) as Record<
-      string,
-      unknown
-    >;
+    const body =
+      (await request
+        .json()
+        .catch(() => ({}))) as Record<
+        string,
+        unknown
+      >;
 
-    const profileFields = buildProfileFields(body);
+    // ---------------------------------------------------------
+    // Basic fields
+    // ---------------------------------------------------------
 
-    if (!profileFields.full_name) {
-      return NextResponse.json({ error: "Full name is required." }, { status: 400 });
+    const fullName =
+      toRequiredString(
+        body.full_name
+      );
+
+    const batch =
+      toRequiredString(body.batch);
+
+    const section =
+      toRequiredString(body.section);
+
+    if (!fullName) {
+      return NextResponse.json(
+        {
+          error:
+            "Full name is required.",
+        },
+        {
+          status: 400,
+        }
+      );
     }
 
-    if (!profileFields.batch) {
-      return NextResponse.json({ error: "Batch is required." }, { status: 400 });
+    if (!batch) {
+      return NextResponse.json(
+        {
+          error:
+            "Batch is required.",
+        },
+        {
+          status: 400,
+        }
+      );
     }
 
-    if (!profileFields.section) {
-      return NextResponse.json({ error: "Section is required." }, { status: 400 });
+    if (!section) {
+      return NextResponse.json(
+        {
+          error:
+            "Section is required.",
+        },
+        {
+          status: 400,
+        }
+      );
     }
 
-    let profilePhotoUrl: string | null | undefined;
+    // ---------------------------------------------------------
+    // Graduation date
+    // ---------------------------------------------------------
 
-    if (typeof body.photoData === "string" && body.photoData) {
-      profilePhotoUrl = await uploadProfilePhoto(user.id, body.photoData);
-    } else if (body.removePhoto === true) {
-      await deleteProfilePhoto(user.id);
+    const graduationDate =
+      cleanGraduationDate(
+        body.graduation_date
+      );
+
+    /*
+     * Graduation date is mandatory.
+     *
+     * This is intentional:
+     * An Alumni profile cannot exist without
+     * a graduation date.
+     */
+    if (!graduationDate) {
+      return NextResponse.json(
+        {
+          error:
+            "Graduation month and year are required. An Alumni profile must have a graduation date.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const graduationYear =
+      getGraduationYear(
+        graduationDate
+      );
+
+    // ---------------------------------------------------------
+    // Graduation status
+    // ---------------------------------------------------------
+
+    const today =
+      getDhakaTodayString();
+
+    const isGraduated =
+      graduationDate <= today;
+
+    /*
+     * An Alumni profile cannot use a future
+     * graduation date.
+     */
+    if (!isGraduated) {
+      return NextResponse.json(
+        {
+          error:
+            "The graduation date must be today or earlier for an Alumni profile.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    // ---------------------------------------------------------
+    // Photo
+    // ---------------------------------------------------------
+
+    let profilePhotoUrl:
+      | string
+      | null
+      | undefined;
+
+    if (
+      typeof body.photoData ===
+        "string" &&
+      body.photoData
+    ) {
+      profilePhotoUrl =
+        await uploadProfilePhoto(
+          user.id,
+          body.photoData
+        );
+    } else if (
+      body.removePhoto === true
+    ) {
+      await deleteProfilePhoto(
+        user.id
+      );
+
       profilePhotoUrl = null;
     }
 
-    const supabaseAdmin = getAdminClient();
+    // ---------------------------------------------------------
+    // Supabase
+    // ---------------------------------------------------------
 
-    const payload: Record<string, unknown> = {
+    const supabaseAdmin =
+      getAdminClient();
+
+    // ---------------------------------------------------------
+    // Alumni profile payload
+    // ---------------------------------------------------------
+
+    const payload: Record<
+      string,
+      unknown
+    > = {
       id: user.id,
       email: user.email || null,
-      ...profileFields,
+
+      full_name: fullName,
+      batch,
+      section,
+
+      // New source-of-truth date
+      graduation_date:
+        graduationDate,
+
+      // Keep old column synchronized
+      // for compatibility.
+      graduation_year:
+        graduationYear,
+
+      current_position:
+        toNullableString(
+          body.current_position
+        ),
+
+      organization:
+        toNullableString(
+          body.organization
+        ),
+
+      bio: toNullableString(
+        body.bio
+      ),
+
+      linkedin_url:
+        toNullableString(
+          body.linkedin_url
+        ),
+
+      facebook_url:
+        toNullableString(
+          body.facebook_url
+        ),
+
+      instagram_url:
+        toNullableString(
+          body.instagram_url
+        ),
+
+      is_public:
+        typeof body.is_public ===
+        "boolean"
+          ? body.is_public
+          : true,
     };
 
-    if (profilePhotoUrl !== undefined) {
-      payload.profile_photo_url = profilePhotoUrl;
+    if (
+      profilePhotoUrl !== undefined
+    ) {
+      payload.profile_photo_url =
+        profilePhotoUrl;
     }
 
-    const { data, error } = await supabaseAdmin
+    // ---------------------------------------------------------
+    // Save Alumni profile
+    // ---------------------------------------------------------
+
+    const {
+      data,
+      error,
+    } = await supabaseAdmin
       .from("alumni_profiles")
-      .upsert(payload, { onConflict: "id" })
+      .upsert(payload, {
+        onConflict: "id",
+      })
       .select()
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json(
+        {
+          error: error.message,
+        },
+        {
+          status: 500,
+        }
+      );
     }
 
-    return NextResponse.json({ profile: data });
+    // ---------------------------------------------------------
+    // Synchronize linked student profile
+    // ---------------------------------------------------------
+
+    /*
+     * If this Auth user already has a student_profiles row,
+     * keep its graduation_date synchronized.
+     *
+     * This is what makes the graduation date the actual
+     * source of truth for the Running Students / Alumni
+     * transition.
+     */
+
+    const {
+      data: studentProfile,
+      error:
+        studentLookupError,
+    } = await supabaseAdmin
+      .from("student_profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (studentLookupError) {
+      console.warn(
+        "Unable to check linked student profile:",
+        studentLookupError
+      );
+    }
+
+    if (studentProfile) {
+      const {
+        error:
+          studentUpdateError,
+      } = await supabaseAdmin
+        .from("student_profiles")
+        .update({
+          graduation_date:
+            graduationDate,
+        })
+        .eq("id", user.id);
+
+      if (studentUpdateError) {
+        console.error(
+          "Unable to synchronize student graduation date:",
+          studentUpdateError
+        );
+
+        return NextResponse.json(
+          {
+            error:
+              "Alumni profile was saved, but the linked student graduation date could not be synchronized.",
+          },
+          {
+            status: 500,
+          }
+        );
+      }
+    }
+
+    // ---------------------------------------------------------
+    // Synchronize Auth metadata
+    // ---------------------------------------------------------
+
+    const {
+      error:
+        metadataError,
+    } =
+      await supabaseAdmin.auth.admin.updateUserById(
+        user.id,
+        {
+          user_metadata: {
+            ...user.user_metadata,
+            full_name: fullName,
+            batch,
+            section,
+            graduation_date:
+              graduationDate,
+            graduation_year:
+              graduationYear,
+          },
+        }
+      );
+
+    if (metadataError) {
+      console.warn(
+        "Unable to update alumni Auth metadata:",
+        metadataError
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      profile: data,
+    });
   } catch (error) {
-    console.error("PUT /api/alumni/profile error:", error);
+    console.error(
+      "PUT /api/alumni/profile error:",
+      error
+    );
 
     return NextResponse.json(
       {
@@ -259,7 +730,9 @@ export async function PUT(request: NextRequest) {
             ? error.message
             : "Unable to save your alumni profile.",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
