@@ -89,25 +89,25 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg-gray-950/95 backdrop-blur">
-      <nav className="mx-auto w-full max-w-7xl px-3 sm:px-5 lg:px-6 xl:px-8">
-        <div className="flex min-h-16 items-center justify-between gap-3">
+      <nav className="mx-auto w-full max-w-7xl px-3 sm:px-5 lg:px-4 xl:px-6">
+        <div className="flex min-h-16 items-center justify-between gap-2">
           <Link
             href="/"
             onClick={closeMobileMenu}
-            className="flex shrink-0 items-center gap-2.5"
+            className="flex shrink-0 items-center gap-2"
           >
-            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-white sm:h-11 sm:w-11">
+            <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full bg-white sm:h-10 sm:w-10">
               <Image
                 src="/pharmacialogo.png"
                 alt="Pharmacia Club DIU"
                 fill
                 priority
-                sizes="44px"
+                sizes="40px"
                 className="object-contain p-0.5"
               />
             </div>
 
-            <div className="hidden sm:block">
+            <div className="hidden md:block">
               <p className="whitespace-nowrap text-sm font-bold leading-tight text-white">
                 Pharmacia Club DIU
               </p>
@@ -119,7 +119,7 @@ export default function Navbar() {
           </Link>
 
           <div className="hidden min-w-0 flex-1 items-center justify-center lg:flex">
-            <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-0.5 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {links.map((link) =>
                 link.external ? (
                   
@@ -127,7 +127,7 @@ export default function Navbar() {
                     href={link.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="whitespace-nowrap rounded-lg px-2 py-2 text-xs font-medium text-gray-300 transition hover:bg-gray-800 hover:text-green-400 xl:px-2.5"
+                    className="shrink-0 whitespace-nowrap rounded-lg px-2 py-2 text-[11px] font-medium text-gray-300 transition hover:bg-gray-800 hover:text-green-400 lg:text-xs xl:px-2.5"
                   >
                     {link.name}
                   </a>
@@ -135,7 +135,7 @@ export default function Navbar() {
                   <Link
                     key={link.name}
                     href={link.href}
-                    className={`whitespace-nowrap rounded-lg px-2 py-2 text-xs font-medium transition xl:px-2.5 ${
+                    className={`shrink-0 whitespace-nowrap rounded-lg px-2 py-2 text-[11px] font-medium transition lg:text-xs xl:px-2.5 ${
                       isActive(link.href, link.external)
                         ? "bg-green-950/70 text-green-400"
                         : "text-gray-300 hover:bg-gray-800 hover:text-green-400"
