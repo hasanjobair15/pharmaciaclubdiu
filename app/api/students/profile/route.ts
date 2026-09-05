@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
@@ -7,7 +7,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !serviceRoleKey) {
-  throw new Error("Supabase server configuration is missing.");
+  throw new Error("Missing Supabase environment variables.");
 }
 
 const supabaseAdmin = createClient(
@@ -21,381 +21,397 @@ const supabaseAdmin = createClient(
   }
 );
 
-function getAccessToken(request: Request) {
-  const authorization =
-    request.headers.get("authorization");
+function getBearerToken(request: NextRequest) {
+  const authorization = request.headers.get("authorization");
 
   if (!authorization) {
     return null;
   }
 
-  if (
-    !authorization
-      .toLowerCase()
-      .startsWith("bearer ")
-  ) {
+  const [type, token] = authorization.split(" ");
+
+  if (type?.toLowerCase() !== "bearer" || !token) {
     return null;
   }
 
-  return authorization.substring(7).trim();
+  return token;
 }
 
-function cleanGraduationDate(
-  value: unknown
-): string | null {
-  if (!value) {
+function cleanText(value: unknown) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value.trim();
+}
+
+/**
+ * Accepts:
+ *   "2026-09"
+ *   "2026-09-01"
+ *   ""
+ *   null
+ *
+ * Stores the first day of the selected graduation month.
+ *
+ * Empty value means no graduation date, so the student
+ * remains in Running Students.
+ */
+function cleanGraduationDate(value: unknown): string | null {
+  if (value === null || value === undefined) {
     return null;
   }
 
-  const valueString = String(value).trim();
+  const raw = String(value).trim();
 
-  if (!/^\d{4}-\d{2}$/.test(valueString)) {
+  if (!raw) {
     return null;
   }
 
-  const [year, month] =
-    valueString.split("-").map(Number);
+  let year: number;
+  let month: number;
 
-  if (
-    !Number.isInteger(year) ||
-    !Number.isInteger(month) ||
-    month < 1 ||
-    month > 12
-  ) {
+  const monthMatch = raw.match(/^(\d{4})-(\d{2})$/);
+  const dateMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (monthMatch) {
+    year = Number(monthMatch[1]);
+    month = Number(monthMatch[2]);
+  } else if (dateMatch) {
+    year = Number(dateMatch[1]);
+    month = Number(dateMatch[2]);
+
+    // We only care about the graduation month.
+    // Always store the first day of that month.
+  } else {
+    return null;
+  }
+
+  if (!Number.isInteger(year) || !Number.isInteger(month)) {
+    return null;
+  }
+
+  if (year < 1900 || year > 2200) {
+    return null;
+  }
+
+  if (month < 1 || month > 12) {
     return null;
   }
 
   return `${year}-${String(month).padStart(2, "0")}-01`;
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const accessToken =
-      getAccessToken(request);
+    const token = getBearerToken(request);
 
-    if (!accessToken) {
+    if (!token) {
       return NextResponse.json(
         {
-          error: "You are not logged in.",
+          error: "Unauthorized.",
         },
-        { status: 401 }
+        {
+          status: 401,
+        }
       );
     }
 
     const {
       data: { user },
       error: userError,
-    } =
-      await supabaseAdmin.auth.getUser(
-        accessToken
-      );
+    } = await supabaseAdmin.auth.getUser(token);
 
     if (userError || !user) {
       return NextResponse.json(
         {
-          error:
-            "Your login session is invalid or expired.",
+          error: "Invalid or expired session.",
         },
-        { status: 401 }
+        {
+          status: 401,
+        }
       );
     }
 
-    const {
-      data: profile,
-      error: profileError,
-    } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from("student_profiles")
-      .select("*")
+      .select(
+        `
+          id,
+          full_name,
+          student_id,
+          email,
+          batch,
+          section,
+          blood_group,
+          profile_photo_url,
+          linkedin_url,
+          instagram_url,
+          facebook_url,
+          graduation_date,
+          created_at,
+          updated_at
+        `
+      )
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
-    if (profileError) {
-      console.error(
-        "Profile fetch error:",
-        profileError
-      );
+    if (error) {
+      console.error("Student profile GET error:", error);
 
       return NextResponse.json(
         {
-          error:
-            "Student profile could not be found.",
+          error: "Failed to load student profile.",
         },
-        { status: 404 }
+        {
+          status: 500,
+        }
       );
     }
 
-    return NextResponse.json(
-      {
-        success: true,
-        profile,
-      },
-      { status: 200 }
-    );
+    if (!data) {
+      return NextResponse.json(
+        {
+          error: "Student profile not found.",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
+    return NextResponse.json({
+      profile: data,
+    });
   } catch (error) {
-    console.error(
-      "GET student profile error:",
-      error
-    );
+    console.error("Student profile GET exception:", error);
 
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Something went wrong.",
+        error: "Something went wrong.",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
 
-export async function PUT(request: Request) {
+export async function PUT(request: NextRequest) {
   try {
-    const accessToken =
-      getAccessToken(request);
+    const token = getBearerToken(request);
 
-    if (!accessToken) {
+    if (!token) {
       return NextResponse.json(
         {
-          error: "You are not logged in.",
+          error: "Unauthorized.",
         },
-        { status: 401 }
+        {
+          status: 401,
+        }
       );
     }
 
     const {
       data: { user },
       error: userError,
-    } =
-      await supabaseAdmin.auth.getUser(
-        accessToken
-      );
+    } = await supabaseAdmin.auth.getUser(token);
 
     if (userError || !user) {
       return NextResponse.json(
         {
-          error:
-            "Your login session is invalid or expired.",
+          error: "Invalid or expired session.",
         },
-        { status: 401 }
+        {
+          status: 401,
+        }
       );
     }
 
-    const body = await request.json();
+    let body: Record<string, unknown>;
 
-    const {
-      full_name,
-      batch,
-      section,
-      student_id,
-      blood_group,
-      graduation_date,
-      linkedin_url,
-      instagram_url,
-      facebook_url,
-      profile_photo_url,
-    } = body;
-
-    const cleanName =
-      String(full_name ?? "").trim();
-
-    if (cleanName.length < 2) {
+    try {
+      body = await request.json();
+    } catch {
       return NextResponse.json(
         {
-          error:
-            "Please enter a valid full name.",
+          error: "Invalid request body.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
-    const numericBatch = Number(batch);
+    const fullName = cleanText(body.full_name);
+    const studentId = cleanText(body.student_id);
+    const section = cleanText(body.section).toUpperCase();
+    const bloodGroup = cleanText(body.blood_group);
+    const linkedinUrl = cleanText(body.linkedin_url);
+    const instagramUrl = cleanText(body.instagram_url);
+    const facebookUrl = cleanText(body.facebook_url);
+    const profilePhotoUrl = cleanText(body.profile_photo_url);
 
-    if (!Number.isInteger(numericBatch)) {
+    const graduationDate = cleanGraduationDate(
+      body.graduation_date
+    );
+
+    if (!fullName) {
       return NextResponse.json(
         {
-          error:
-            "Please enter a valid batch.",
+          error: "Full name is required.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
-    const cleanSection =
-      String(section ?? "")
-        .trim()
-        .toUpperCase();
-
-    if (!["A", "B"].includes(cleanSection)) {
+    if (fullName.length > 150) {
       return NextResponse.json(
         {
-          error:
-            "Section must be either A or B.",
+          error: "Full name is too long.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
-    let cleanGraduationDate: string | null =
-      null;
+    const numericBatch = Number(body.batch);
 
-    if (graduation_date) {
-      cleanGraduationDate =
-        cleanGraduationDateValue(
-          graduation_date
-        );
-
-      if (!cleanGraduationDate) {
-        return NextResponse.json(
-          {
-            error:
-              "Please enter a valid graduation month and year.",
-          },
-          { status: 400 }
-        );
-      }
+    if (
+      !Number.isInteger(numericBatch) ||
+      numericBatch < 1 ||
+      numericBatch > 100
+    ) {
+      return NextResponse.json(
+        {
+          error: "Please provide a valid batch.",
+        },
+        {
+          status: 400,
+        }
+      );
     }
 
-    const {
-      data: updatedProfile,
-      error: updateError,
-    } =
+    if (!["A", "B"].includes(section)) {
+      return NextResponse.json(
+        {
+          error: "Section must be A or B.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    /*
+     * Graduation date is optional.
+     *
+     * If it is NULL:
+     *   Student remains in Running Students.
+     *
+     * If it is something like:
+     *   2026-09-01
+     *
+     * then the Alumni page can automatically treat the student
+     * as an alumnus once that month has arrived.
+     */
+
+    const { data: updatedProfile, error: updateError } =
       await supabaseAdmin
         .from("student_profiles")
         .update({
-          full_name: cleanName,
-
+          full_name: fullName,
+          student_id: studentId || null,
           batch: numericBatch,
-
-          section: cleanSection,
-
-          student_id: student_id
-            ? String(student_id).trim()
-            : null,
-
-          blood_group: blood_group
-            ? String(blood_group).trim()
-            : null,
-
-          graduation_date:
-            cleanGraduationDate,
-
-          linkedin_url: linkedin_url
-            ? String(linkedin_url).trim()
-            : null,
-
-          instagram_url: instagram_url
-            ? String(instagram_url).trim()
-            : null,
-
-          facebook_url: facebook_url
-            ? String(facebook_url).trim()
-            : null,
-
-          profile_photo_url:
-            profile_photo_url || null,
+          section,
+          blood_group: bloodGroup || null,
+          profile_photo_url: profilePhotoUrl || null,
+          linkedin_url: linkedinUrl || null,
+          instagram_url: instagramUrl || null,
+          facebook_url: facebookUrl || null,
+          graduation_date: graduationDate,
+          updated_at: new Date().toISOString(),
         })
         .eq("id", user.id)
-        .select()
+        .select(
+          `
+            id,
+            full_name,
+            student_id,
+            email,
+            batch,
+            section,
+            blood_group,
+            profile_photo_url,
+            linkedin_url,
+            instagram_url,
+            facebook_url,
+            graduation_date,
+            created_at,
+            updated_at
+          `
+        )
         .single();
 
     if (updateError) {
-      console.error(
-        "Profile update error:",
-        updateError
-      );
-
-      if (
-        updateError.message
-          .toLowerCase()
-          .includes("student_id")
-      ) {
-        return NextResponse.json(
-          {
-            error:
-              "This Student ID is already registered.",
-          },
-          { status: 409 }
-        );
-      }
+      console.error("Student profile update error:", updateError);
 
       return NextResponse.json(
         {
-          error:
-            "Profile could not be updated. Please try again.",
+          error: "Failed to update student profile.",
+          details: updateError.message,
         },
-        { status: 400 }
+        {
+          status: 500,
+        }
       );
     }
 
+    /*
+     * Keep Supabase Auth metadata synchronized with the profile.
+     */
     const { error: metadataError } =
       await supabaseAdmin.auth.admin.updateUserById(
         user.id,
         {
           user_metadata: {
-            ...user.user_metadata,
-            full_name: cleanName,
+            ...(user.user_metadata || {}),
+            full_name: fullName,
             batch: numericBatch,
-            section: cleanSection,
+            section,
           },
         }
       );
 
     if (metadataError) {
       console.error(
-        "Auth metadata update warning:",
+        "Student auth metadata update error:",
         metadataError
       );
+
+      /*
+       * We do not fail the whole profile update here because
+       * the database profile has already been updated successfully.
+       */
     }
 
-    return NextResponse.json(
-      {
-        success: true,
-        message:
-          "Profile updated successfully.",
-        profile: updatedProfile,
-      },
-      { status: 200 }
-    );
+    return NextResponse.json({
+      message: "Profile updated successfully.",
+      profile: updatedProfile,
+    });
   } catch (error) {
-    console.error(
-      "PUT student profile error:",
-      error
-    );
+    console.error("Student profile PUT exception:", error);
 
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Something went wrong while updating your profile.",
+        error: "Something went wrong.",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
-}
-
-function cleanGraduationDateValue(
-  value: unknown
-): string | null {
-  const valueString =
-    String(value ?? "").trim();
-
-  if (!/^\d{4}-\d{2}$/.test(valueString)) {
-    return null;
-  }
-
-  const [year, month] =
-    valueString.split("-").map(Number);
-
-  if (
-    !Number.isInteger(year) ||
-    !Number.isInteger(month) ||
-    month < 1 ||
-    month > 12
-  ) {
-    return null;
-  }
-
-  return `${year}-${String(month).padStart(2, "0")}-01`;
 }
