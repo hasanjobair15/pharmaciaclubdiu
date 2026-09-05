@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const ADMIN_EMAIL = "jobair2311091015@diu.edu.bd";
+const ADMIN_EMAIL = "diupc@diu.edu.bd";
 
 if (!supabaseUrl || !serviceRoleKey) {
   console.error(
