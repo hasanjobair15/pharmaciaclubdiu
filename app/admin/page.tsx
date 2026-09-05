@@ -4,6 +4,8 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
+const ADMIN_EMAIL = "jobair2311091015@diu.edu.bd";
+
 export default function AdminLoginPage() {
   const router = useRouter();
   const supabase = createClient();
@@ -13,24 +15,46 @@ export default function AdminLoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleLogin(e: React.FormEvent) {
+  async function handleLogin(
+    e: React.FormEvent<HTMLFormElement>
+  ) {
     e.preventDefault();
 
     setLoading(true);
     setError("");
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const cleanEmail = email.trim().toLowerCase();
 
-    if (error) {
-      setError(error.message);
+    /*
+     * IMPORTANT:
+     * Only the configured administrator email
+     * is allowed to use the admin login.
+     */
+    if (
+      cleanEmail !== ADMIN_EMAIL.toLowerCase()
+    ) {
+      setError(
+        "This account is not authorized to access the Admin Dashboard."
+      );
       setLoading(false);
       return;
     }
 
-    router.push("/admin/dashboard");
+    const {
+      error: loginError,
+    } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password,
+    });
+
+    if (loginError) {
+      setError(loginError.message);
+      setLoading(false);
+      return;
+    }
+
+    router.replace("/admin/dashboard");
+    router.refresh();
   }
 
   return (
@@ -51,17 +75,23 @@ export default function AdminLoginPage() {
             </p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-5">
+          <form
+            onSubmit={handleLogin}
+            className="space-y-5"
+          >
             <div>
               <label className="mb-2 block text-sm font-semibold text-[#0b1736]">
-                Email
+                Admin Email
               </label>
 
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) =>
+                  setEmail(e.target.value)
+                }
                 placeholder="Enter admin email"
+                autoComplete="email"
                 required
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20"
               />
@@ -75,15 +105,18 @@ export default function AdminLoginPage() {
               <input
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password"
+                onChange={(e) =>
+                  setPassword(e.target.value)
+                }
+                placeholder="Enter admin password"
+                autoComplete="current-password"
                 required
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20"
               />
             </div>
 
             {error && (
-              <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
                 {error}
               </div>
             )}
@@ -93,7 +126,9 @@ export default function AdminLoginPage() {
               disabled={loading}
               className="w-full rounded-xl bg-[#087f8c] px-4 py-3 font-bold text-white transition hover:bg-[#066b76] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? "Signing in..." : "Sign In"}
+              {loading
+                ? "Checking..."
+                : "Sign In"}
             </button>
           </form>
 
