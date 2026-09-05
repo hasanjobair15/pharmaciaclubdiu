@@ -5,7 +5,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-const links = [
+type NavLink = {
+name: string;
+href: string;
+external?: boolean;
+};
+
+const links: NavLink[] = [
 { name: "Home", href: "/" },
 { name: "About", href: "/about" },
 { name: "Committee", href: "/committee" },
@@ -33,9 +39,9 @@ external: true,
 export default function Navbar() {
 const pathname = usePathname();
 
-const [mobileOpen, setMobileOpen] = useState(false);
-const [darkMode, setDarkMode] = useState(true);
-const [mounted, setMounted] = useState(false);
+const [mobileOpen, setMobileOpen] = useState<boolean>(false);
+const [darkMode, setDarkMode] = useState<boolean>(true);
+const [mounted, setMounted] = useState<boolean>(false);
 
 useEffect(() => {
 setMounted(true);
@@ -54,7 +60,7 @@ if (savedTheme === "light") {
 
 }, []);
 
-function toggleTheme() {
+function toggleTheme(): void {
 const html = document.documentElement;
 
 ```
@@ -71,8 +77,10 @@ if (html.classList.contains("dark")) {
 
 }
 
-function isActive(href: string, external?: boolean) {
-if (external) return false;
+function isActive(href: string, external?: boolean): boolean {
+if (external) {
+return false;
+}
 
 ```
 if (href === "/") {
@@ -84,31 +92,27 @@ return pathname === href || pathname.startsWith(`${href}/`);
 
 }
 
-function closeMobileMenu() {
+function closeMobileMenu(): void {
 setMobileOpen(false);
 }
 
-return ( <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg-gray-950/95 backdrop-blur"> <nav className="mx-auto w-full max-w-7xl px-3 sm:px-5 lg:px-6 xl:px-8"> <div className="grid min-h-16 grid-cols-[auto_1fr_auto] items-center gap-3">
+return ( <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg-gray-950/95 backdrop-blur"> <nav className="mx-auto w-full max-w-7xl px-3 sm:px-5 lg:px-6 xl:px-8">
+{/* ==================== TOP BAR ==================== */} <div className="flex min-h-16 items-center justify-between gap-3">
+{/* ==================== LOGO ==================== */} <Link
+         href="/"
+         onClick={closeMobileMenu}
+         className="flex shrink-0 items-center gap-2.5"
+       > <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-white sm:h-11 sm:w-11"> <Image
+             src="/pharmacialogo.png"
+             alt="Pharmacia Club DIU"
+             fill
+             priority
+             sizes="44px"
+             className="object-contain p-0.5"
+           /> </div>
 
 ```
-      {/* ==================== BRAND ==================== */}
-      <Link
-        href="/"
-        onClick={closeMobileMenu}
-        className="flex min-w-0 shrink-0 items-center gap-2.5"
-      >
-        <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-white sm:h-11 sm:w-11">
-          <Image
-            src="/pharmacialogo.png"
-            alt="Pharmacia Club DIU"
-            fill
-            priority
-            sizes="44px"
-            className="object-contain p-0.5"
-          />
-        </div>
-
-        <div className="hidden min-w-0 sm:block">
+        <div className="hidden sm:block">
           <p className="whitespace-nowrap text-sm font-bold leading-tight text-white">
             Pharmacia Club DIU
           </p>
@@ -120,37 +124,38 @@ return ( <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg
       </Link>
 
       {/* ==================== DESKTOP NAVIGATION ==================== */}
-      <div className="hidden min-w-0 items-center justify-center gap-0.5 lg:flex">
-        {links.map((link) =>
-          link.external ? (
-            <a
-              key={link.name}
-              href={link.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="whitespace-nowrap rounded-lg px-2 py-2 text-xs font-medium text-gray-300 transition hover:bg-gray-800 hover:text-green-400 xl:px-2.5"
-            >
-              {link.name}
-            </a>
-          ) : (
-            <Link
-              key={link.name}
-              href={link.href}
-              className={`whitespace-nowrap rounded-lg px-2 py-2 text-xs font-medium transition xl:px-2.5 ${
-                isActive(link.href)
-                  ? "bg-green-950/70 text-green-400"
-                  : "text-gray-300 hover:bg-gray-800 hover:text-green-400"
-              }`}
-            >
-              {link.name}
-            </Link>
-          ),
-        )}
+      <div className="hidden min-w-0 flex-1 items-center justify-center lg:flex">
+        <div className="flex items-center gap-0.5">
+          {links.map((link) =>
+            link.external ? (
+              <a
+                key={link.name}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="whitespace-nowrap rounded-lg px-2 py-2 text-xs font-medium text-gray-300 transition hover:bg-gray-800 hover:text-green-400 xl:px-2.5"
+              >
+                {link.name}
+              </a>
+            ) : (
+              <Link
+                key={link.name}
+                href={link.href}
+                className={`whitespace-nowrap rounded-lg px-2 py-2 text-xs font-medium transition xl:px-2.5 ${
+                  isActive(link.href)
+                    ? "bg-green-950/70 text-green-400"
+                    : "text-gray-300 hover:bg-gray-800 hover:text-green-400"
+                }`}
+              >
+                {link.name}
+              </Link>
+            ),
+          )}
+        </div>
       </div>
 
       {/* ==================== RIGHT CONTROLS ==================== */}
-      <div className="flex shrink-0 items-center justify-end gap-2">
-
+      <div className="flex shrink-0 items-center gap-2">
         {/* Theme Toggle */}
         {mounted && (
           <button
@@ -171,11 +176,12 @@ return ( <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg
             {darkMode ? (
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-4.5 w-4.5 sm:h-5 sm:w-5"
+                className="h-5 w-5"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="2"
+                strokeWidth={2}
+                aria-hidden="true"
               >
                 <circle cx="12" cy="12" r="4" />
                 <path
@@ -186,11 +192,12 @@ return ( <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg
             ) : (
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-4.5 w-4.5 sm:h-5 sm:w-5"
+                className="h-5 w-5"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="2"
+                strokeWidth={2}
+                aria-hidden="true"
               >
                 <path
                   strokeLinecap="round"
@@ -202,7 +209,7 @@ return ( <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg
           </button>
         )}
 
-        {/* Mobile / Tablet Menu */}
+        {/* Mobile / Tablet Menu Button */}
         <button
           type="button"
           aria-label={mobileOpen ? "Close menu" : "Open menu"}
@@ -217,7 +224,8 @@ return ( <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth={2}
+              aria-hidden="true"
             >
               <path
                 strokeLinecap="round"
@@ -232,7 +240,8 @@ return ( <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth={2}
+              aria-hidden="true"
             >
               <path
                 strokeLinecap="round"
@@ -249,7 +258,6 @@ return ( <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg
     {mobileOpen && (
       <div className="border-t border-gray-800 py-3 lg:hidden">
         <div className="flex max-h-[75vh] flex-col overflow-y-auto">
-
           {links.map((link) =>
             link.external ? (
               <a
@@ -261,11 +269,8 @@ return ( <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg
                 className="rounded-xl px-4 py-3 text-sm font-medium text-gray-300 transition hover:bg-gray-800 hover:text-green-400"
               >
                 <span className="flex items-center justify-between">
-                  {link.name}
-
-                  <span className="text-xs text-gray-500">
-                    ↗
-                  </span>
+                  <span>{link.name}</span>
+                  <span className="text-xs text-gray-500">↗</span>
                 </span>
               </a>
             ) : (
@@ -292,14 +297,10 @@ return ( <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg
               className="flex w-full items-center justify-between rounded-xl border border-gray-700 px-4 py-3 text-sm font-medium text-gray-200 transition hover:bg-gray-800"
             >
               <span>
-                {darkMode
-                  ? "☀️ Light Mode"
-                  : "🌙 Dark Mode"}
+                {darkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
               </span>
 
-              <span className="text-xs text-gray-500">
-                Switch
-              </span>
+              <span className="text-xs text-gray-500">Switch</span>
             </button>
           </div>
         </div>
