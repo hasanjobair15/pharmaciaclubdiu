@@ -59,14 +59,25 @@ const BLOOD_GROUPS = [
   "O-",
 ];
 
-function formatGraduationDate(
-  value: string | null
-) {
+const INITIAL_FORM: StudentForm = {
+  full_name: "",
+  student_id: "",
+  email: "",
+  batch: "",
+  section: "",
+  blood_group: "",
+  cr_status: "no",
+  graduation_date: "",
+  profile_photo_url: "",
+  linkedin_url: "",
+  instagram_url: "",
+  facebook_url: "",
+};
+
+function formatGraduationDate(value: string | null) {
   if (!value) return "Not provided";
 
-  const date = new Date(
-    `${value.slice(0, 10)}T00:00:00`
-  );
+  const date = new Date(`${value.slice(0, 10)}T00:00:00`);
 
   if (Number.isNaN(date.getTime())) {
     return value;
@@ -78,17 +89,13 @@ function formatGraduationDate(
   });
 }
 
-function getCRLabel(
-  status: CRStatus | null
-) {
+function getCRLabel(status: CRStatus | null) {
   if (status === "cr") return "CR";
   if (status === "co_cr") return "Co-CR";
   return "No";
 }
 
-function getCRBadgeClass(
-  status: CRStatus | null
-) {
+function getCRBadgeClass(status: CRStatus | null) {
   if (status === "cr") {
     return "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300";
   }
@@ -104,54 +111,28 @@ export default function AdminStudentsPage() {
   const router = useRouter();
   const supabase = createClient();
 
-  const [students, setStudents] = useState<
-    Student[]
-  >([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  const [saving, setSaving] =
-    useState(false);
-
-  const [error, setError] =
-    useState("");
-
-  const [success, setSuccess] =
-    useState("");
-
-  const [search, setSearch] =
-    useState("");
-
-  const [selectedBatch, setSelectedBatch] =
-    useState("all");
+  const [search, setSearch] = useState("");
+  const [selectedBatch, setSelectedBatch] = useState("all");
 
   const [selectedStudent, setSelectedStudent] =
     useState<Student | null>(null);
 
-  const [form, setForm] =
-    useState<StudentForm>({
-      full_name: "",
-      student_id: "",
-      email: "",
-      batch: "",
-      section: "",
-      blood_group: "",
-      cr_status: "no",
-      graduation_date: "",
-      profile_photo_url: "",
-      linkedin_url: "",
-      instagram_url: "",
-      facebook_url: "",
-    });
+  const [form, setForm] = useState<StudentForm>(INITIAL_FORM);
 
   const [profilePhoto, setProfilePhoto] =
     useState<File | null>(null);
 
   /*
-   * ============================
+   * ==========================================
    * CHECK ADMIN
-   * ============================
+   * ==========================================
    */
   useEffect(() => {
     let mounted = true;
@@ -167,17 +148,10 @@ export default function AdminStudentsPage() {
           return;
         }
 
-        const userEmail =
-          user.email
-            ?.trim()
-            .toLowerCase();
+        const userEmail = user.email?.trim().toLowerCase();
 
-        if (
-          userEmail !==
-          ADMIN_EMAIL.toLowerCase()
-        ) {
+        if (userEmail !== ADMIN_EMAIL.toLowerCase()) {
           await supabase.auth.signOut();
-
           router.replace("/admin");
           return;
         }
@@ -186,10 +160,7 @@ export default function AdminStudentsPage() {
           await loadStudents();
         }
       } catch (err) {
-        console.error(
-          "Admin authentication error:",
-          err
-        );
+        console.error("Admin authentication error:", err);
 
         await supabase.auth.signOut();
 
@@ -205,9 +176,9 @@ export default function AdminStudentsPage() {
   }, [router]);
 
   /*
-   * ============================
+   * ==========================================
    * LOAD STUDENTS
-   * ============================
+   * ==========================================
    */
   async function loadStudents() {
     try {
@@ -223,18 +194,19 @@ export default function AdminStudentsPage() {
         return;
       }
 
-      const response = await fetch(
-        "/api/admin/students",
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          cache: "no-store",
-        }
-      );
+      const response = await fetch("/api/admin/students", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        cache: "no-store",
+      });
 
-      let result: any = null;
+      let result: {
+        students?: Student[];
+        error?: string;
+        message?: string;
+      } | null = null;
 
       try {
         result = await response.json();
@@ -245,6 +217,7 @@ export default function AdminStudentsPage() {
       if (!response.ok) {
         throw new Error(
           result?.error ||
+            result?.message ||
             "Unable to load students."
         );
       }
@@ -255,10 +228,7 @@ export default function AdminStudentsPage() {
           : []
       );
     } catch (err) {
-      console.error(
-        "Load students error:",
-        err
-      );
+      console.error("Load students error:", err);
 
       setError(
         err instanceof Error
@@ -271,9 +241,9 @@ export default function AdminStudentsPage() {
   }
 
   /*
-   * ============================
-   * FILTER STUDENTS
-   * ============================
+   * ==========================================
+   * BATCHES
+   * ==========================================
    */
   const batches = useMemo(() => {
     const unique = Array.from(
@@ -285,94 +255,69 @@ export default function AdminStudentsPage() {
     );
 
     return unique.sort(
-      (a, b) =>
-        Number(a) - Number(b)
+      (a, b) => Number(a) - Number(b)
     );
   }, [students]);
 
-  const filteredStudents =
-    useMemo(() => {
-      const searchTerm =
-        search.trim().toLowerCase();
+  /*
+   * ==========================================
+   * FILTER STUDENTS
+   * ==========================================
+   */
+  const filteredStudents = useMemo(() => {
+    const searchTerm = search.trim().toLowerCase();
 
-      return students.filter(
-        (student) => {
-          const matchesSearch =
-            !searchTerm ||
-            student.full_name
-              .toLowerCase()
-              .includes(searchTerm) ||
-            student.student_id
-              .toLowerCase()
-              .includes(searchTerm) ||
-            student.email
-              .toLowerCase()
-              .includes(searchTerm) ||
-            String(student.batch)
-              .toLowerCase()
-              .includes(searchTerm) ||
-            student.section
-              .toLowerCase()
-              .includes(searchTerm);
+    return students.filter((student) => {
+      const matchesSearch =
+        !searchTerm ||
+        (student.full_name || "")
+          .toLowerCase()
+          .includes(searchTerm) ||
+        (student.student_id || "")
+          .toLowerCase()
+          .includes(searchTerm) ||
+        (student.email || "")
+          .toLowerCase()
+          .includes(searchTerm) ||
+        String(student.batch)
+          .toLowerCase()
+          .includes(searchTerm) ||
+        (student.section || "")
+          .toLowerCase()
+          .includes(searchTerm);
 
-          const matchesBatch =
-            selectedBatch === "all" ||
-            String(student.batch) ===
-              selectedBatch;
+      const matchesBatch =
+        selectedBatch === "all" ||
+        String(student.batch) === selectedBatch;
 
-          return (
-            matchesSearch &&
-            matchesBatch
-          );
-        }
-      );
-    }, [
-      students,
-      search,
-      selectedBatch,
-    ]);
+      return matchesSearch && matchesBatch;
+    });
+  }, [students, search, selectedBatch]);
 
   /*
-   * ============================
-   * OPEN EDIT MODAL
-   * ============================
+   * ==========================================
+   * OPEN EDIT
+   * ==========================================
    */
-  function openEdit(
-    student: Student
-  ) {
+  function openEdit(student: Student) {
     setSelectedStudent(student);
 
     setForm({
-      full_name:
-        student.full_name || "",
-      student_id:
-        student.student_id || "",
+      full_name: student.full_name || "",
+      student_id: student.student_id || "",
       email: student.email || "",
-      batch: String(
-        student.batch || ""
-      ),
-      section:
-        student.section || "",
-      blood_group:
-        student.blood_group || "",
-      cr_status:
-        student.cr_status || "no",
-      graduation_date:
-        student.graduation_date
-          ? student.graduation_date.slice(
-              0,
-              7
-            )
-          : "",
+      batch: String(student.batch || ""),
+      section: student.section || "",
+      blood_group: student.blood_group || "",
+      cr_status: student.cr_status || "no",
+      graduation_date: student.graduation_date
+        ? student.graduation_date.slice(0, 7)
+        : "",
       profile_photo_url:
-        student.profile_photo_url ||
-        "",
-      linkedin_url:
-        student.linkedin_url || "",
-      instagram_url:
-        student.instagram_url || "",
-      facebook_url:
-        student.facebook_url || "",
+        student.profile_photo_url || "",
+      linkedin_url: student.linkedin_url || "",
+      instagram_url: student.instagram_url || "",
+      facebook_url: student.facebook_url || "",
     });
 
     setProfilePhoto(null);
@@ -381,21 +326,22 @@ export default function AdminStudentsPage() {
   }
 
   /*
-   * ============================
-   * CLOSE EDIT MODAL
-   * ============================
+   * ==========================================
+   * CLOSE EDIT
+   * ==========================================
    */
   function closeEdit() {
     if (saving) return;
 
     setSelectedStudent(null);
     setProfilePhoto(null);
+    setError("");
   }
 
   /*
-   * ============================
-   * FORM CHANGE
-   * ============================
+   * ==========================================
+   * UPDATE FORM FIELD
+   * ==========================================
    */
   function updateField(
     field: keyof StudentForm,
@@ -407,12 +353,15 @@ export default function AdminStudentsPage() {
     }));
   }
 
+  /*
+   * ==========================================
+   * PHOTO
+   * ==========================================
+   */
   function handlePhotoChange(
     event: ChangeEvent<HTMLInputElement>
   ) {
-    const file =
-      event.target.files?.[0] ||
-      null;
+    const file = event.target.files?.[0] || null;
 
     if (!file) {
       setProfilePhoto(null);
@@ -420,22 +369,15 @@ export default function AdminStudentsPage() {
     }
 
     if (!file.type.startsWith("image/")) {
-      setError(
-        "Please select a valid image file."
-      );
-
+      setError("Please select a valid image file.");
       event.target.value = "";
       return;
     }
 
-    if (
-      file.size >
-      5 * 1024 * 1024
-    ) {
+    if (file.size > 5 * 1024 * 1024) {
       setError(
         "Profile photo must be smaller than 5 MB."
       );
-
       event.target.value = "";
       return;
     }
@@ -445,9 +387,9 @@ export default function AdminStudentsPage() {
   }
 
   /*
-   * ============================
+   * ==========================================
    * SAVE STUDENT
-   * ============================
+   * ==========================================
    */
   async function handleSave(
     event: FormEvent<HTMLFormElement>
@@ -462,30 +404,22 @@ export default function AdminStudentsPage() {
     setSuccess("");
 
     if (!form.full_name.trim()) {
-      setError(
-        "Full name is required."
-      );
+      setError("Full name is required.");
       return;
     }
 
     if (!form.student_id.trim()) {
-      setError(
-        "Student ID is required."
-      );
+      setError("Student ID is required.");
       return;
     }
 
     if (!form.email.trim()) {
-      setError(
-        "Email address is required."
-      );
+      setError("Email address is required.");
       return;
     }
 
     if (!form.batch.trim()) {
-      setError(
-        "Batch is required."
-      );
+      setError("Batch is required.");
       return;
     }
 
@@ -493,9 +427,16 @@ export default function AdminStudentsPage() {
       form.section !== "A" &&
       form.section !== "B"
     ) {
-      setError(
-        "Section must be A or B."
-      );
+      setError("Section must be A or B.");
+      return;
+    }
+
+    if (
+      form.cr_status !== "cr" &&
+      form.cr_status !== "co_cr" &&
+      form.cr_status !== "no"
+    ) {
+      setError("Invalid CR status.");
       return;
     }
 
@@ -511,8 +452,7 @@ export default function AdminStudentsPage() {
         return;
       }
 
-      const formData =
-        new FormData();
+      const formData = new FormData();
 
       formData.append(
         "id",
@@ -597,7 +537,11 @@ export default function AdminStudentsPage() {
         }
       );
 
-      let result: any = null;
+      let result: {
+        student?: Student;
+        error?: string;
+        message?: string;
+      } | null = null;
 
       try {
         result = await response.json();
@@ -613,22 +557,21 @@ export default function AdminStudentsPage() {
         );
       }
 
-      setSuccess(
-        "Student profile updated successfully."
-      );
-
       if (result?.student) {
         setStudents((previous) =>
           previous.map((student) =>
-            student.id ===
-            result.student.id
-              ? result.student
+            student.id === result.student!.id
+              ? result.student!
               : student
           )
         );
       } else {
         await loadStudents();
       }
+
+      setSuccess(
+        "Student profile updated successfully."
+      );
 
       setSelectedStudent(null);
       setProfilePhoto(null);
@@ -649,9 +592,9 @@ export default function AdminStudentsPage() {
   }
 
   /*
-   * ============================
+   * ==========================================
    * LOGOUT
-   * ============================
+   * ==========================================
    */
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -661,9 +604,9 @@ export default function AdminStudentsPage() {
   }
 
   /*
-   * ============================
+   * ==========================================
    * LOADING
-   * ============================
+   * ==========================================
    */
   if (loading) {
     return (
@@ -675,9 +618,14 @@ export default function AdminStudentsPage() {
     );
   }
 
+  /*
+   * ==========================================
+   * MAIN PAGE
+   * ==========================================
+   */
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-[#070b14]">
-      {/* ================= HEADER ================= */}
+      {/* HEADER */}
       <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-[#0b1120]">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
           <div>
@@ -693,8 +641,7 @@ export default function AdminStudentsPage() {
             </h1>
 
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              View and edit student accounts and
-              profiles.
+              View and edit student accounts and profiles.
             </p>
           </div>
 
@@ -708,7 +655,7 @@ export default function AdminStudentsPage() {
         </div>
       </header>
 
-      {/* ================= CONTENT ================= */}
+      {/* CONTENT */}
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* SUMMARY */}
         <div className="grid gap-4 sm:grid-cols-3">
@@ -731,8 +678,7 @@ export default function AdminStudentsPage() {
               {
                 students.filter(
                   (student) =>
-                    student.cr_status ===
-                    "cr"
+                    student.cr_status === "cr"
                 ).length
               }
             </p>
@@ -747,8 +693,7 @@ export default function AdminStudentsPage() {
               {
                 students.filter(
                   (student) =>
-                    student.cr_status ===
-                    "co_cr"
+                    student.cr_status === "co_cr"
                 ).length
               }
             </p>
@@ -767,9 +712,7 @@ export default function AdminStudentsPage() {
                 type="text"
                 value={search}
                 onChange={(event) =>
-                  setSearch(
-                    event.target.value
-                  )
+                  setSearch(event.target.value)
                 }
                 placeholder="Search by name, student ID, email..."
                 className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
@@ -784,9 +727,7 @@ export default function AdminStudentsPage() {
               <select
                 value={selectedBatch}
                 onChange={(event) =>
-                  setSelectedBatch(
-                    event.target.value
-                  )
+                  setSelectedBatch(event.target.value)
                 }
                 className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#087f8c]/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
               >
@@ -794,16 +735,14 @@ export default function AdminStudentsPage() {
                   All batches
                 </option>
 
-                {batches.map(
-                  (batch) => (
-                    <option
-                      key={batch}
-                      value={batch}
-                    >
-                      Batch {batch}
-                    </option>
-                  )
-                )}
+                {batches.map((batch) => (
+                  <option
+                    key={batch}
+                    value={batch}
+                  >
+                    Batch {batch}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -819,7 +758,7 @@ export default function AdminStudentsPage() {
           </div>
         </div>
 
-        {/* ERROR */}
+        {/* PAGE ERROR */}
         {error && !selectedStudent && (
           <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
             {error}
@@ -841,14 +780,13 @@ export default function AdminStudentsPage() {
             </h2>
 
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Showing{" "}
-              {filteredStudents.length}{" "}
-              of {students.length} students
+              Showing {filteredStudents.length} of{" "}
+              {students.length} students
             </p>
           </div>
         </div>
 
-        {/* ================= STUDENT LIST ================= */}
+        {/* STUDENT LIST */}
         {filteredStudents.length === 0 ? (
           <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center dark:border-slate-700 dark:bg-[#0b1120]">
             <div className="text-4xl">
@@ -860,8 +798,7 @@ export default function AdminStudentsPage() {
             </h3>
 
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-              Try changing your search or
-              batch filter.
+              Try changing your search or batch filter.
             </p>
           </div>
         ) : (
@@ -901,97 +838,82 @@ export default function AdminStudentsPage() {
                 </thead>
 
                 <tbody>
-                  {filteredStudents.map(
-                    (student) => (
-                      <tr
-                        key={student.id}
-                        className="border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800/70 dark:hover:bg-slate-900/40"
-                      >
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-3">
-                            {student.profile_photo_url ? (
-                              <img
-                                src={
-                                  student.profile_photo_url
-                                }
-                                alt={
-                                  student.full_name
-                                }
-                                className="h-11 w-11 rounded-full object-cover ring-2 ring-slate-100 dark:ring-slate-800"
-                              />
-                            ) : (
-                              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#087f8c]/10 text-lg font-bold text-[#087f8c]">
-                                {student.full_name
-                                  ?.charAt(0)
-                                  .toUpperCase() ||
-                                  "S"}
-                              </div>
-                            )}
-
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-bold text-slate-800 dark:text-white">
-                                {
-                                  student.full_name
-                                }
-                              </p>
-
-                              <p className="max-w-[250px] truncate text-xs text-slate-500 dark:text-slate-400">
-                                {
-                                  student.email
-                                }
-                              </p>
+                  {filteredStudents.map((student) => (
+                    <tr
+                      key={student.id}
+                      className="border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800/70 dark:hover:bg-slate-900/40"
+                    >
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          {student.profile_photo_url ? (
+                            <img
+                              src={student.profile_photo_url}
+                              alt={student.full_name}
+                              className="h-11 w-11 rounded-full object-cover ring-2 ring-slate-100 dark:ring-slate-800"
+                            />
+                          ) : (
+                            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#087f8c]/10 text-lg font-bold text-[#087f8c]">
+                              {student.full_name
+                                ?.charAt(0)
+                                .toUpperCase() || "S"}
                             </div>
-                          </div>
-                        </td>
-
-                        <td className="px-5 py-4 text-sm font-medium text-slate-700 dark:text-slate-200">
-                          {
-                            student.student_id
-                          }
-                        </td>
-
-                        <td className="px-5 py-4 text-sm text-slate-600 dark:text-slate-300">
-                          {student.batch}
-                        </td>
-
-                        <td className="px-5 py-4 text-sm text-slate-600 dark:text-slate-300">
-                          {student.section}
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <span
-                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${getCRBadgeClass(
-                              student.cr_status
-                            )}`}
-                          >
-                            {getCRLabel(
-                              student.cr_status
-                            )}
-                          </span>
-                        </td>
-
-                        <td className="px-5 py-4 text-sm text-slate-600 dark:text-slate-300">
-                          {formatGraduationDate(
-                            student.graduation_date
                           )}
-                        </td>
 
-                        <td className="px-5 py-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openEdit(
-                                student
-                              )
-                            }
-                            className="inline-flex items-center rounded-lg bg-[#087f8c] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#066d78]"
-                          >
-                            Edit
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  )}
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-bold text-slate-800 dark:text-white">
+                              {student.full_name}
+                            </p>
+
+                            <p className="max-w-[250px] truncate text-xs text-slate-500 dark:text-slate-400">
+                              {student.email}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-4 text-sm font-medium text-slate-700 dark:text-slate-200">
+                        {student.student_id}
+                      </td>
+
+                      <td className="px-5 py-4 text-sm text-slate-600 dark:text-slate-300">
+                        {student.batch}
+                      </td>
+
+                      <td className="px-5 py-4 text-sm text-slate-600 dark:text-slate-300">
+                        {student.section}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${getCRBadgeClass(
+                            student.cr_status
+                          )}`}
+                        >
+                          {getCRLabel(
+                            student.cr_status
+                          )}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-4 text-sm text-slate-600 dark:text-slate-300">
+                        {formatGraduationDate(
+                          student.graduation_date
+                        )}
+                      </td>
+
+                      <td className="px-5 py-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openEdit(student)
+                          }
+                          className="inline-flex items-center rounded-lg bg-[#087f8c] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#066d78]"
+                        >
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -999,13 +921,31 @@ export default function AdminStudentsPage() {
         )}
       </section>
 
-      {/* ================= EDIT MODAL ================= */}
+      {/* ====================================================== */}
+      {/* EDIT MODAL                                             */}
+      {/* ====================================================== */}
       {selectedStudent && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-sm">
-          <div className="flex min-h-full items-center justify-center">
-            <div className="my-8 w-full max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-[#0b1120]">
+        <div className="fixed inset-0 z-[9999]">
+          {/* BACKDROP ONLY */}
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => {
+              if (!saving) {
+                closeEdit();
+              }
+            }}
+          />
+
+          {/* MODAL */}
+          <div className="relative z-[10000] flex min-h-screen items-center justify-center p-4">
+            <div
+              className="relative my-6 flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-[#0b1120]"
+              onClick={(event) =>
+                event.stopPropagation()
+              }
+            >
               {/* MODAL HEADER */}
-              <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5 dark:border-slate-800">
+              <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6 py-5 dark:border-slate-800 dark:bg-[#0b1120]">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#087f8c]">
                     Admin Access
@@ -1016,8 +956,7 @@ export default function AdminStudentsPage() {
                   </h2>
 
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                    You can edit any information for
-                    this student.
+                    You can edit any information for this student.
                   </p>
                 </div>
 
@@ -1025,7 +964,8 @@ export default function AdminStudentsPage() {
                   type="button"
                   onClick={closeEdit}
                   disabled={saving}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-xl text-slate-500 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                  aria-label="Close"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-2xl leading-none text-slate-500 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                 >
                   ×
                 </button>
@@ -1034,14 +974,16 @@ export default function AdminStudentsPage() {
               {/* FORM */}
               <form
                 onSubmit={handleSave}
-                className="max-h-[75vh] overflow-y-auto px-6 py-6"
+                className="min-h-0 flex-1 overflow-y-auto px-6 py-6"
               >
+                {/* ERROR */}
                 {error && (
                   <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
                     {error}
                   </div>
                 )}
 
+                {/* SUCCESS */}
                 {success && (
                   <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">
                     {success}
@@ -1057,20 +999,15 @@ export default function AdminStudentsPage() {
                   <div className="mt-4 flex flex-col gap-5 sm:flex-row sm:items-center">
                     {form.profile_photo_url ? (
                       <img
-                        src={
-                          form.profile_photo_url
-                        }
-                        alt={
-                          form.full_name
-                        }
-                        className="h-24 w-24 rounded-2xl object-cover ring-4 ring-white shadow-md dark:ring-slate-800"
+                        src={form.profile_photo_url}
+                        alt={form.full_name}
+                        className="h-24 w-24 shrink-0 rounded-2xl object-cover ring-4 ring-white shadow-md dark:ring-slate-800"
                       />
                     ) : (
-                      <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-[#087f8c]/10 text-3xl font-bold text-[#087f8c]">
+                      <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl bg-[#087f8c]/10 text-3xl font-bold text-[#087f8c]">
                         {form.full_name
                           ?.charAt(0)
-                          .toUpperCase() ||
-                          "S"}
+                          .toUpperCase() || "S"}
                       </div>
                     )}
 
@@ -1082,15 +1019,12 @@ export default function AdminStudentsPage() {
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={
-                          handlePhotoChange
-                        }
+                        onChange={handlePhotoChange}
                         className="mt-2 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 file:mr-4 file:rounded-lg file:border-0 file:bg-[#087f8c] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                       />
 
                       <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                        JPG, PNG, WEBP. Maximum
-                        5 MB.
+                        JPG, PNG, WEBP. Maximum 5 MB.
                       </p>
                     </div>
                   </div>
@@ -1102,9 +1036,7 @@ export default function AdminStudentsPage() {
 
                     <input
                       type="url"
-                      value={
-                        form.profile_photo_url
-                      }
+                      value={form.profile_photo_url}
                       onChange={(event) =>
                         updateField(
                           "profile_photo_url",
@@ -1124,6 +1056,7 @@ export default function AdminStudentsPage() {
                   </h3>
 
                   <div className="grid gap-5 md:grid-cols-2">
+                    {/* NAME */}
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
                         Full Name *
@@ -1131,9 +1064,7 @@ export default function AdminStudentsPage() {
 
                       <input
                         type="text"
-                        value={
-                          form.full_name
-                        }
+                        value={form.full_name}
                         onChange={(event) =>
                           updateField(
                             "full_name",
@@ -1145,6 +1076,7 @@ export default function AdminStudentsPage() {
                       />
                     </div>
 
+                    {/* STUDENT ID */}
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
                         Student ID *
@@ -1152,9 +1084,7 @@ export default function AdminStudentsPage() {
 
                       <input
                         type="text"
-                        value={
-                          form.student_id
-                        }
+                        value={form.student_id}
                         onChange={(event) =>
                           updateField(
                             "student_id",
@@ -1166,6 +1096,7 @@ export default function AdminStudentsPage() {
                       />
                     </div>
 
+                    {/* EMAIL */}
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
                         Email *
@@ -1173,9 +1104,7 @@ export default function AdminStudentsPage() {
 
                       <input
                         type="email"
-                        value={
-                          form.email
-                        }
+                        value={form.email}
                         onChange={(event) =>
                           updateField(
                             "email",
@@ -1187,11 +1116,11 @@ export default function AdminStudentsPage() {
                       />
 
                       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        Changing this also updates the
-                        student's login email.
+                        Changing this also updates the student's login email.
                       </p>
                     </div>
 
+                    {/* BATCH */}
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
                         Batch *
@@ -1199,9 +1128,7 @@ export default function AdminStudentsPage() {
 
                       <input
                         type="number"
-                        value={
-                          form.batch
-                        }
+                        value={form.batch}
                         onChange={(event) =>
                           updateField(
                             "batch",
@@ -1214,15 +1141,14 @@ export default function AdminStudentsPage() {
                       />
                     </div>
 
+                    {/* SECTION */}
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
                         Section *
                       </label>
 
                       <select
-                        value={
-                          form.section
-                        }
+                        value={form.section}
                         onChange={(event) =>
                           updateField(
                             "section",
@@ -1235,24 +1161,25 @@ export default function AdminStudentsPage() {
                         <option value="">
                           Select section
                         </option>
+
                         <option value="A">
                           A
                         </option>
+
                         <option value="B">
                           B
                         </option>
                       </select>
                     </div>
 
+                    {/* BLOOD GROUP */}
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
                         Blood Group
                       </label>
 
                       <select
-                        value={
-                          form.blood_group
-                        }
+                        value={form.blood_group}
                         onChange={(event) =>
                           updateField(
                             "blood_group",
@@ -1278,15 +1205,14 @@ export default function AdminStudentsPage() {
                       </select>
                     </div>
 
+                    {/* CR STATUS */}
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
                         CR Status
                       </label>
 
                       <select
-                        value={
-                          form.cr_status
-                        }
+                        value={form.cr_status}
                         onChange={(event) =>
                           updateField(
                             "cr_status",
@@ -1309,6 +1235,7 @@ export default function AdminStudentsPage() {
                       </select>
                     </div>
 
+                    {/* GRADUATION */}
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
                         Graduation Date
@@ -1316,9 +1243,7 @@ export default function AdminStudentsPage() {
 
                       <input
                         type="month"
-                        value={
-                          form.graduation_date
-                        }
+                        value={form.graduation_date}
                         onChange={(event) =>
                           updateField(
                             "graduation_date",
@@ -1338,6 +1263,7 @@ export default function AdminStudentsPage() {
                   </h3>
 
                   <div className="space-y-5">
+                    {/* LINKEDIN */}
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
                         LinkedIn
@@ -1345,9 +1271,7 @@ export default function AdminStudentsPage() {
 
                       <input
                         type="url"
-                        value={
-                          form.linkedin_url
-                        }
+                        value={form.linkedin_url}
                         onChange={(event) =>
                           updateField(
                             "linkedin_url",
@@ -1359,6 +1283,7 @@ export default function AdminStudentsPage() {
                       />
                     </div>
 
+                    {/* INSTAGRAM */}
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
                         Instagram
@@ -1366,9 +1291,7 @@ export default function AdminStudentsPage() {
 
                       <input
                         type="url"
-                        value={
-                          form.instagram_url
-                        }
+                        value={form.instagram_url}
                         onChange={(event) =>
                           updateField(
                             "instagram_url",
@@ -1380,6 +1303,7 @@ export default function AdminStudentsPage() {
                       />
                     </div>
 
+                    {/* FACEBOOK */}
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
                         Facebook
@@ -1387,9 +1311,7 @@ export default function AdminStudentsPage() {
 
                       <input
                         type="url"
-                        value={
-                          form.facebook_url
-                        }
+                        value={form.facebook_url}
                         onChange={(event) =>
                           updateField(
                             "facebook_url",
