@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getCurrentRunningBatches } from "@/app/lib/students/current-batches";
 
+type CRStatus = "cr" | "co_cr" | "no" | null;
+
 type Student = {
   id: string;
   full_name: string;
@@ -12,6 +14,7 @@ type Student = {
   batch: number;
   section: string;
   blood_group: string | null;
+  cr_status: CRStatus;
   profile_photo_url: string | null;
   linkedin_url: string | null;
   instagram_url: string | null;
@@ -21,6 +24,10 @@ type Student = {
 
 const supabase = createClient();
 
+/* =========================================================
+   DHAKA DATE
+   ========================================================= */
+
 function getDhakaToday() {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Dhaka",
@@ -29,24 +36,28 @@ function getDhakaToday() {
     day: "2-digit",
   }).formatToParts(new Date());
 
-  const year = parts.find((part) => part.type === "year")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
-  const day = parts.find((part) => part.type === "day")?.value;
+  const year = parts.find(
+    (part) => part.type === "year"
+  )?.value;
+
+  const month = parts.find(
+    (part) => part.type === "month"
+  )?.value;
+
+  const day = parts.find(
+    (part) => part.type === "day"
+  )?.value;
 
   return `${year}-${month}-${day}`;
 }
 
-/**
- * A student is considered graduated when the selected
- * graduation month has arrived.
- *
- * Example:
- * Graduation date = 2026-09-01
- * Today            = 2026-09-05
- *
- * Result: Alumni
- */
-function hasGraduated(graduationDate: string | null) {
+/* =========================================================
+   GRADUATION CHECK
+   ========================================================= */
+
+function hasGraduated(
+  graduationDate: string | null
+) {
   if (!graduationDate) {
     return false;
   }
@@ -56,51 +67,129 @@ function hasGraduated(graduationDate: string | null) {
   return graduationDate <= today;
 }
 
+/* =========================================================
+   CR PRIORITY
+   =========================================================
+
+   1 = CR
+   2 = Co-CR
+   3 = Everyone else
+*/
+
+function getCRPriority(
+  status: CRStatus
+): number {
+  switch (status) {
+    case "cr":
+      return 1;
+
+    case "co_cr":
+      return 2;
+
+    case "no":
+    default:
+      return 3;
+  }
+}
+
+/* =========================================================
+   NORMALIZE CR STATUS
+   ========================================================= */
+
+function normalizeCRStatus(
+  value: unknown
+): CRStatus {
+  if (value === "cr") {
+    return "cr";
+  }
+
+  if (value === "co_cr") {
+    return "co_cr";
+  }
+
+  if (value === "no") {
+    return "no";
+  }
+
+  return null;
+}
+
+/* =========================================================
+   STUDENTS PAGE
+   ========================================================= */
+
 export default function StudentsPage() {
-  const [students, setStudents] = useState<Student[]>([]);
+  const [students, setStudents] = useState<Student[]>(
+    []
+  );
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [batchFilter, setBatchFilter] = useState("all");
-  const [sectionFilter, setSectionFilter] = useState("all");
+  const [batchFilter, setBatchFilter] =
+    useState("all");
+  const [sectionFilter, setSectionFilter] =
+    useState("all");
 
   const currentBatches = useMemo(
     () => getCurrentRunningBatches(),
     []
   );
 
+  /* =======================================================
+     LOAD STUDENTS
+     ======================================================= */
+
   useEffect(() => {
     async function loadStudents() {
       setLoading(true);
       setError("");
 
-      /*
-       * We intentionally load graduation_date as well.
-       *
-       * The extra client-side check is a safety layer.
-       * The main purpose is to ensure that a student whose
-       * graduation date has arrived does not remain visible
-       * in the Running Students directory.
-       */
       const { data, error } = await supabase
         .from("student_profiles")
         .select(
-          "id, full_name, student_id, email, batch, section, blood_group, profile_photo_url, linkedin_url, instagram_url, facebook_url, graduation_date"
+          `
+            id,
+            full_name,
+            student_id,
+            email,
+            batch,
+            section,
+            blood_group,
+            cr_status,
+            profile_photo_url,
+            linkedin_url,
+            instagram_url,
+            facebook_url,
+            graduation_date
+          `
         )
-        .in("batch", currentBatches)
-        .order("batch", { ascending: true })
-        .order("section", { ascending: true })
-        .order("full_name", { ascending: true });
+        .in("batch", currentBatches);
 
       if (error) {
-        console.error("Student loading error:", error);
+        console.error(
+          "Student loading error:",
+          error
+        );
 
         setError(error.message);
         setStudents([]);
       } else {
-        const runningStudents = ((data || []) as Student[]).filter(
-          (student) => !hasGraduated(student.graduation_date)
-        );
+        const runningStudents = (
+          data || []
+        )
+          .map((student) => ({
+            ...(student as Student),
+            cr_status: normalizeCRStatus(
+              student.cr_status
+            ),
+          }))
+          .filter(
+            (student) =>
+              !hasGraduated(
+                student.graduation_date
+              )
+          );
 
         setStudents(runningStudents);
       }
@@ -111,22 +200,33 @@ export default function StudentsPage() {
     loadStudents();
   }, [currentBatches]);
 
+  /* =======================================================
+     FILTER STUDENTS
+     ======================================================= */
+
   const filteredStudents = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const query = search
+      .trim()
+      .toLowerCase();
 
     return students.filter((student) => {
       const matchesSearch =
         !query ||
-        student.full_name.toLowerCase().includes(query) ||
+        student.full_name
+          .toLowerCase()
+          .includes(query) ||
         String(student.batch).includes(query) ||
-        student.section.toLowerCase().includes(query) ||
+        student.section
+          .toLowerCase()
+          .includes(query) ||
         (student.student_id || "")
           .toLowerCase()
           .includes(query);
 
       const matchesBatch =
         batchFilter === "all" ||
-        String(student.batch) === batchFilter;
+        String(student.batch) ===
+          batchFilter;
 
       const matchesSection =
         sectionFilter === "all" ||
@@ -145,8 +245,24 @@ export default function StudentsPage() {
     sectionFilter,
   ]);
 
+  /* =======================================================
+     GROUP + SORT
+     =======================================================
+
+     Every Batch + Section is sorted:
+
+     CR
+     ↓
+     Co-CR
+     ↓
+     Other students alphabetically
+  */
+
   const groupedStudents = useMemo(() => {
-    const groups: Record<string, Student[]> = {};
+    const groups: Record<
+      string,
+      Student[]
+    > = {};
 
     for (const student of filteredStudents) {
       const key = `${student.batch}-${student.section}`;
@@ -158,20 +274,69 @@ export default function StudentsPage() {
       groups[key].push(student);
     }
 
-    return Object.entries(groups).sort(([a], [b]) => {
-      const [batchA, sectionA] = a.split("-");
-      const [batchB, sectionB] = b.split("-");
+    /* -----------------------------------------------------
+       SORT STUDENTS INSIDE EACH GROUP
+    ----------------------------------------------------- */
 
-      return (
-        Number(batchA) - Number(batchB) ||
-        sectionA.localeCompare(sectionB)
-      );
-    });
+    for (const key of Object.keys(groups)) {
+      groups[key].sort((a, b) => {
+        const priorityDifference =
+          getCRPriority(a.cr_status) -
+          getCRPriority(b.cr_status);
+
+        if (priorityDifference !== 0) {
+          return priorityDifference;
+        }
+
+        return a.full_name
+          .trim()
+          .localeCompare(
+            b.full_name.trim(),
+            undefined,
+            {
+              sensitivity: "base",
+            }
+          );
+      });
+    }
+
+    /* -----------------------------------------------------
+       SORT GROUPS BY BATCH THEN SECTION
+    ----------------------------------------------------- */
+
+    return Object.entries(groups).sort(
+      ([a], [b]) => {
+        const [
+          batchA,
+          sectionA,
+        ] = a.split("-");
+
+        const [
+          batchB,
+          sectionB,
+        ] = b.split("-");
+
+        return (
+          Number(batchA) -
+            Number(batchB) ||
+          sectionA.localeCompare(
+            sectionB
+          )
+        );
+      }
+    );
   }, [filteredStudents]);
+
+  /* =======================================================
+     UI
+     ======================================================= */
 
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      {/* Header */}
+      {/* =================================================
+          HEADER
+      ================================================= */}
+
       <section className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
@@ -185,7 +350,8 @@ export default function StudentsPage() {
               </h1>
 
               <p className="mt-3 max-w-2xl text-slate-600 dark:text-slate-300">
-                Explore students from the currently running batches.
+                Explore students from the
+                currently running batches.
               </p>
 
               <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
@@ -196,8 +362,9 @@ export default function StudentsPage() {
               </p>
 
               <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-                Students are automatically moved to Alumni when their
-                graduation month arrives.
+                Students are automatically moved
+                to Alumni when their graduation
+                month arrives.
               </p>
             </div>
 
@@ -220,10 +387,15 @@ export default function StudentsPage() {
         </div>
       </section>
 
-      {/* Filters */}
+      {/* =================================================
+          FILTERS
+      ================================================= */}
+
       <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="grid gap-4 md:grid-cols-3">
+            {/* SEARCH */}
+
             <div>
               <label
                 htmlFor="student-search"
@@ -236,11 +408,15 @@ export default function StudentsPage() {
                 id="student-search"
                 type="text"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) =>
+                  setSearch(e.target.value)
+                }
                 placeholder="Search by name, ID, batch..."
                 className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               />
             </div>
+
+            {/* BATCH */}
 
             <div>
               <label
@@ -253,18 +429,31 @@ export default function StudentsPage() {
               <select
                 id="batch-filter"
                 value={batchFilter}
-                onChange={(e) => setBatchFilter(e.target.value)}
+                onChange={(e) =>
+                  setBatchFilter(
+                    e.target.value
+                  )
+                }
                 className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               >
-                <option value="all">All Batches</option>
+                <option value="all">
+                  All Batches
+                </option>
 
-                {currentBatches.map((batch) => (
-                  <option key={batch} value={batch}>
-                    Batch {batch}
-                  </option>
-                ))}
+                {currentBatches.map(
+                  (batch) => (
+                    <option
+                      key={batch}
+                      value={batch}
+                    >
+                      Batch {batch}
+                    </option>
+                  )
+                )}
               </select>
             </div>
+
+            {/* SECTION */}
 
             <div>
               <label
@@ -278,21 +467,36 @@ export default function StudentsPage() {
                 id="section-filter"
                 value={sectionFilter}
                 onChange={(e) =>
-                  setSectionFilter(e.target.value)
+                  setSectionFilter(
+                    e.target.value
+                  )
                 }
                 className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               >
-                <option value="all">All Sections</option>
-                <option value="A">Section A</option>
-                <option value="B">Section B</option>
+                <option value="all">
+                  All Sections
+                </option>
+
+                <option value="A">
+                  Section A
+                </option>
+
+                <option value="B">
+                  Section B
+                </option>
               </select>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Content */}
+      {/* =================================================
+          CONTENT
+      ================================================= */}
+
       <section className="mx-auto max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
+        {/* LOADING */}
+
         {loading && (
           <div className="py-16 text-center">
             <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
@@ -302,6 +506,8 @@ export default function StudentsPage() {
             </p>
           </div>
         )}
+
+        {/* ERROR */}
 
         {!loading && error && (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center dark:border-red-900/50 dark:bg-red-950/30">
@@ -315,6 +521,8 @@ export default function StudentsPage() {
           </div>
         )}
 
+        {/* NO STUDENTS */}
+
         {!loading &&
           !error &&
           filteredStudents.length === 0 && (
@@ -324,44 +532,73 @@ export default function StudentsPage() {
               </h2>
 
               <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                Try changing your search or filters.
+                Try changing your search or
+                filters.
               </p>
             </div>
           )}
+
+        {/* =================================================
+            GROUPS
+        ================================================= */}
 
         {!loading &&
           !error &&
           groupedStudents.length > 0 && (
             <div className="space-y-10">
               {groupedStudents.map(
-                ([groupName, groupStudents]) => {
-                  const [batch, section] =
+                ([
+                  groupName,
+                  groupStudents,
+                ]) => {
+                  const [
+                    batch,
+                    section,
+                  ] =
                     groupName.split("-");
 
                   return (
-                    <div key={groupName}>
+                    <div
+                      key={groupName}
+                    >
+                      {/* GROUP HEADER */}
+
                       <div className="mb-5 flex items-center justify-between">
                         <div>
                           <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                            Batch {batch} — Section {section}
+                            Batch {batch} —
+                            Section{" "}
+                            {section}
                           </h2>
 
                           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                            {groupStudents.length} student
-                            {groupStudents.length !== 1
+                            {
+                              groupStudents.length
+                            }{" "}
+                            student
+                            {groupStudents.length !==
+                            1
                               ? "s"
                               : ""}
                           </p>
                         </div>
                       </div>
 
+                      {/* STUDENT GRID */}
+
                       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {groupStudents.map((student) => (
-                          <StudentCard
-                            key={student.id}
-                            student={student}
-                          />
-                        ))}
+                        {groupStudents.map(
+                          (student) => (
+                            <StudentCard
+                              key={
+                                student.id
+                              }
+                              student={
+                                student
+                              }
+                            />
+                          )
+                        )}
                       </div>
                     </div>
                   );
@@ -374,14 +611,28 @@ export default function StudentsPage() {
   );
 }
 
+/* =========================================================
+   STUDENT CARD
+   ========================================================= */
+
 function StudentCard({
   student,
 }: {
   student: Student;
 }) {
+  const isCR =
+    student.cr_status === "cr";
+
+  const isCoCR =
+    student.cr_status === "co_cr";
+
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900">
-      <div className="flex justify-center bg-slate-100 p-6 dark:bg-slate-800">
+      {/* =================================================
+          PHOTO
+      ================================================= */}
+
+      <div className="relative flex justify-center bg-slate-100 p-6 dark:bg-slate-800">
         {student.profile_photo_url ? (
           <img
             src={student.profile_photo_url}
@@ -395,18 +646,64 @@ function StudentCard({
               .toUpperCase()}
           </div>
         )}
+
+        {/* =================================================
+            CR BADGE ON PHOTO
+        ================================================= */}
+
+        {(isCR || isCoCR) && (
+          <span
+            className={`absolute right-4 top-4 rounded-full px-3 py-1 text-xs font-bold shadow-sm ${
+              isCR
+                ? "bg-amber-400 text-amber-950"
+                : "bg-purple-600 text-white"
+            }`}
+          >
+            {isCR ? "CR" : "Co-CR"}
+          </span>
+        )}
       </div>
 
+      {/* =================================================
+          CARD BODY
+      ================================================= */}
+
       <div className="p-5">
-        <h3 className="truncate text-lg font-bold text-slate-900 dark:text-white">
-          {student.full_name}
-        </h3>
+        {/* NAME + POSITION */}
+
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="min-w-0 truncate text-lg font-bold text-slate-900 dark:text-white">
+            {student.full_name}
+          </h3>
+        </div>
+
+        {/* POSITION LABEL */}
+
+        {(isCR || isCoCR) && (
+          <div className="mt-2">
+            <span
+              className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${
+                isCR
+                  ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                  : "bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300"
+              }`}
+            >
+              {isCR
+                ? "Class Representative (CR)"
+                : "Co-Class Representative (Co-CR)"}
+            </span>
+          </div>
+        )}
+
+        {/* STUDENT ID */}
 
         {student.student_id && (
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
             ID: {student.student_id}
           </p>
         )}
+
+        {/* BADGES */}
 
         <div className="mt-4 flex flex-wrap gap-2">
           <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
@@ -424,10 +721,14 @@ function StudentCard({
           )}
         </div>
 
+        {/* SOCIAL LINKS */}
+
         <div className="mt-5 flex flex-wrap gap-2">
           {student.linkedin_url && (
             <a
-              href={student.linkedin_url}
+              href={
+                student.linkedin_url
+              }
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400"
@@ -438,7 +739,9 @@ function StudentCard({
 
           {student.instagram_url && (
             <a
-              href={student.instagram_url}
+              href={
+                student.instagram_url
+              }
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs font-semibold text-pink-600 hover:underline dark:text-pink-400"
@@ -449,7 +752,9 @@ function StudentCard({
 
           {student.facebook_url && (
             <a
-              href={student.facebook_url}
+              href={
+                student.facebook_url
+              }
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-400"
