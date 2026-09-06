@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/app/lib/supabase";
 
+type CRStatus = "cr" | "co_cr" | "no" | null;
+
 type StudentProfile = {
   id: string;
   full_name: string;
@@ -13,6 +15,7 @@ type StudentProfile = {
   batch: number;
   section: string;
   blood_group: string | null;
+  cr_status: CRStatus;
   graduation_date: string | null;
   profile_photo_url: string | null;
   linkedin_url: string | null;
@@ -40,6 +43,7 @@ export default function StudentProfilePage() {
     batch: "",
     section: "A",
     blood_group: "",
+    cr_status: "no",
     graduation_date: "",
     linkedin_url: "",
     instagram_url: "",
@@ -49,7 +53,6 @@ export default function StudentProfilePage() {
 
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState("");
-
 
   useEffect(() => {
     loadProfile();
@@ -83,12 +86,6 @@ export default function StudentProfilePage() {
   }
 
   async function getFreshAccessToken() {
-    /*
-     * Always use the same Supabase client as Student Login.
-     *
-     * refreshSession() makes sure we don't send an old access
-     * token to /api/students/profile.
-     */
     const {
       data: { session },
       error: sessionError,
@@ -102,10 +99,6 @@ export default function StudentProfilePage() {
       return session.access_token;
     }
 
-    /*
-     * If refresh did not return a session, check the existing
-     * session one more time.
-     */
     const {
       data: { session: existingSession },
     } = await supabase.auth.getSession();
@@ -115,6 +108,26 @@ export default function StudentProfilePage() {
     }
 
     return null;
+  }
+
+  function applyProfileToForm(student: StudentProfile) {
+    setProfile(student);
+
+    setForm({
+      full_name: student.full_name || "",
+      student_id: student.student_id || "",
+      batch: String(student.batch || ""),
+      section: student.section || "A",
+      blood_group: student.blood_group || "",
+      cr_status: student.cr_status || "no",
+      graduation_date: student.graduation_date
+        ? String(student.graduation_date).slice(0, 7)
+        : "",
+      linkedin_url: student.linkedin_url || "",
+      instagram_url: student.instagram_url || "",
+      facebook_url: student.facebook_url || "",
+      profile_photo_url: student.profile_photo_url || "",
+    });
   }
 
   async function loadProfile() {
@@ -141,8 +154,8 @@ export default function StudentProfilePage() {
       const data = await response.json();
 
       /*
-       * If the API says the account is now Alumni, do not try
-       * to render it as a Student profile.
+       * If the API says the account is now Alumni,
+       * redirect to the Alumni profile.
        */
       if (
         response.ok &&
@@ -155,8 +168,8 @@ export default function StudentProfilePage() {
 
       if (!response.ok) {
         /*
-         * If the server rejected the token, try one final fresh
-         * session and retry the request once.
+         * If the server rejected the token, try one final
+         * fresh session and retry the request once.
          */
         if (response.status === 401) {
           const retryToken = await getFreshAccessToken();
@@ -186,25 +199,10 @@ export default function StudentProfilePage() {
             }
 
             if (retryResponse.ok && retryData?.profile) {
-              const student = retryData.profile as StudentProfile;
+              const student =
+                retryData.profile as StudentProfile;
 
-              setProfile(student);
-
-              setForm({
-                full_name: student.full_name || "",
-                student_id: student.student_id || "",
-                batch: String(student.batch || ""),
-                section: student.section || "A",
-                blood_group: student.blood_group || "",
-                graduation_date: student.graduation_date
-                  ? String(student.graduation_date).slice(0, 7)
-                  : "",
-                linkedin_url: student.linkedin_url || "",
-                instagram_url: student.instagram_url || "",
-                facebook_url: student.facebook_url || "",
-                profile_photo_url:
-                  student.profile_photo_url || "",
-              });
+              applyProfileToForm(student);
 
               return;
             }
@@ -229,23 +227,7 @@ export default function StudentProfilePage() {
 
       const student = data.profile as StudentProfile;
 
-      setProfile(student);
-
-      setForm({
-        full_name: student.full_name || "",
-        student_id: student.student_id || "",
-        batch: String(student.batch || ""),
-        section: student.section || "A",
-        blood_group: student.blood_group || "",
-        graduation_date: student.graduation_date
-          ? String(student.graduation_date).slice(0, 7)
-          : "",
-        linkedin_url: student.linkedin_url || "",
-        instagram_url: student.instagram_url || "",
-        facebook_url: student.facebook_url || "",
-        profile_photo_url:
-          student.profile_photo_url || "",
-      });
+      applyProfileToForm(student);
     } catch (err) {
       console.error("Student profile error:", err);
 
@@ -284,6 +266,7 @@ export default function StudentProfilePage() {
       batch: String(profile.batch || ""),
       section: profile.section || "A",
       blood_group: profile.blood_group || "",
+      cr_status: profile.cr_status || "no",
       graduation_date: profile.graduation_date
         ? String(profile.graduation_date).slice(0, 7)
         : "",
@@ -293,6 +276,13 @@ export default function StudentProfilePage() {
       profile_photo_url:
         profile.profile_photo_url || "",
     });
+
+    if (photoPreview) {
+      URL.revokeObjectURL(photoPreview);
+    }
+
+    setPhoto(null);
+    setPhotoPreview("");
 
     setError("");
     setSuccess("");
@@ -309,6 +299,12 @@ export default function StudentProfilePage() {
     setSuccess("");
 
     try {
+      if (!form.cr_status) {
+        throw new Error(
+          "Please select your CR/Co-CR status."
+        );
+      }
+
       const accessToken = await getFreshAccessToken();
 
       if (!accessToken) {
@@ -317,30 +313,59 @@ export default function StudentProfilePage() {
       }
 
       const formData = new FormData();
+
       formData.append("full_name", form.full_name);
       formData.append("student_id", form.student_id);
       formData.append("batch", form.batch);
       formData.append("section", form.section);
       formData.append("blood_group", form.blood_group);
-      formData.append("graduation_date", form.graduation_date || "");
-      formData.append("linkedin_url", form.linkedin_url);
-      formData.append("instagram_url", form.instagram_url);
-      formData.append("facebook_url", form.facebook_url);
-      formData.append("profile_photo_url", form.profile_photo_url);
+
+      /*
+       * CR / Co-CR / NO
+       */
+      formData.append("cr_status", form.cr_status);
+
+      formData.append(
+        "graduation_date",
+        form.graduation_date || ""
+      );
+
+      formData.append(
+        "linkedin_url",
+        form.linkedin_url
+      );
+
+      formData.append(
+        "instagram_url",
+        form.instagram_url
+      );
+
+      formData.append(
+        "facebook_url",
+        form.facebook_url
+      );
+
+      formData.append(
+        "profile_photo_url",
+        form.profile_photo_url
+      );
 
       if (photo) {
         formData.append("profile_photo", photo);
       }
 
-      const response = await fetch("/api/students/profile", {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: "application/json",
-        },
-        cache: "no-store",
-        body: formData,
-      });
+      const response = await fetch(
+        "/api/students/profile",
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: "application/json",
+          },
+          cache: "no-store",
+          body: formData,
+        }
+      );
 
       const data = await response.json();
 
@@ -376,25 +401,40 @@ export default function StudentProfilePage() {
       setProfile(updatedProfile);
 
       setForm({
-        full_name: updatedProfile.full_name || "",
+        full_name:
+          updatedProfile.full_name || "",
+
         student_id:
           updatedProfile.student_id || "",
-        batch: String(updatedProfile.batch || ""),
-        section: updatedProfile.section || "A",
+
+        batch:
+          String(updatedProfile.batch || ""),
+
+        section:
+          updatedProfile.section || "A",
+
         blood_group:
           updatedProfile.blood_group || "",
+
+        cr_status:
+          updatedProfile.cr_status || "no",
+
         graduation_date:
           updatedProfile.graduation_date
             ? String(
                 updatedProfile.graduation_date
               ).slice(0, 7)
             : "",
+
         linkedin_url:
           updatedProfile.linkedin_url || "",
+
         instagram_url:
           updatedProfile.instagram_url || "",
+
         facebook_url:
           updatedProfile.facebook_url || "",
+
         profile_photo_url:
           updatedProfile.profile_photo_url || "",
       });
@@ -402,10 +442,12 @@ export default function StudentProfilePage() {
       if (photoPreview) {
         URL.revokeObjectURL(photoPreview);
       }
+
       setPhoto(null);
       setPhotoPreview("");
 
       setEditing(false);
+
       setSuccess(
         "Profile updated successfully."
       );
@@ -415,7 +457,10 @@ export default function StudentProfilePage() {
         behavior: "smooth",
       });
     } catch (err) {
-      console.error("Profile update error:", err);
+      console.error(
+        "Profile update error:",
+        err
+      );
 
       setError(
         err instanceof Error
@@ -441,7 +486,8 @@ export default function StudentProfilePage() {
       return "Not provided";
     }
 
-    const value = String(graduationDate).slice(0, 7);
+    const value =
+      String(graduationDate).slice(0, 7);
 
     const match = value.match(
       /^(\d{4})-(\d{2})$/
@@ -467,11 +513,32 @@ export default function StudentProfilePage() {
       Date.UTC(year, month - 1, 1)
     );
 
-    return new Intl.DateTimeFormat("en-US", {
-      month: "long",
-      year: "numeric",
-      timeZone: "UTC",
-    }).format(date);
+    return new Intl.DateTimeFormat(
+      "en-US",
+      {
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+      }
+    ).format(date);
+  }
+
+  function formatCRStatus(
+    status: CRStatus
+  ) {
+    switch (status) {
+      case "cr":
+        return "CR";
+
+      case "co_cr":
+        return "Co-CR";
+
+      case "no":
+        return "NO";
+
+      default:
+        return "NO";
+    }
   }
 
   if (loading) {
@@ -557,6 +624,7 @@ export default function StudentProfilePage() {
   return (
     <main className="min-h-screen bg-background px-4 py-10 sm:px-6">
       <div className="mx-auto max-w-4xl">
+
         {/* Header */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -597,9 +665,11 @@ export default function StudentProfilePage() {
 
         {/* Profile Card */}
         <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+
           {/* Profile Header */}
           <div className="border-b bg-muted/30 px-6 py-8 sm:px-8">
             <div className="flex flex-col items-center gap-5 sm:flex-row">
+
               {profile.profile_photo_url ? (
                 <img
                   src={profile.profile_photo_url}
@@ -627,9 +697,32 @@ export default function StudentProfilePage() {
 
                 {profile.student_id && (
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Student ID: {profile.student_id}
+                    Student ID:{" "}
+                    {profile.student_id}
                   </p>
                 )}
+
+                {/* Current CR Status */}
+                <div className="mt-3">
+                  {profile.cr_status === "cr" && (
+                    <span className="inline-flex rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">
+                      CR
+                    </span>
+                  )}
+
+                  {profile.cr_status === "co_cr" && (
+                    <span className="inline-flex rounded-full border border-primary px-3 py-1 text-xs font-bold text-primary">
+                      Co-CR
+                    </span>
+                  )}
+
+                  {(!profile.cr_status ||
+                    profile.cr_status === "no") && (
+                    <span className="inline-flex rounded-full border px-3 py-1 text-xs font-semibold text-muted-foreground">
+                      NO
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -638,6 +731,7 @@ export default function StudentProfilePage() {
           {!editing && (
             <>
               <div className="grid gap-8 p-6 sm:grid-cols-2 sm:p-8">
+
                 {/* Personal Information */}
                 <section>
                   <h3 className="mb-4 text-lg font-semibold">
@@ -669,6 +763,7 @@ export default function StudentProfilePage() {
                         profile.blood_group ||
                         "Not provided"
                       }
+
                     />
                   </div>
                 </section>
@@ -688,6 +783,13 @@ export default function StudentProfilePage() {
                     <InfoRow
                       label="Section"
                       value={`Section ${profile.section}`}
+                    />
+
+                    <InfoRow
+                      label="CR Status"
+                      value={formatCRStatus(
+                        profile.cr_status
+                      )}
                     />
 
                     <InfoRow
@@ -725,9 +827,9 @@ export default function StudentProfilePage() {
                     </p>
 
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Your profile will automatically appear
-                      in the Alumni directory when your
-                      graduation month begins.
+                      Your profile will automatically
+                      appear in the Alumni directory when
+                      your graduation month begins.
                     </p>
                   </div>
                 </div>
@@ -803,6 +905,7 @@ export default function StudentProfilePage() {
           {editing && (
             <form onSubmit={handleSave}>
               <div className="space-y-8 p-6 sm:p-8">
+
                 {/* Personal Information */}
                 <section>
                   <h3 className="mb-5 text-lg font-semibold">
@@ -810,6 +913,7 @@ export default function StudentProfilePage() {
                   </h3>
 
                   <div className="grid gap-5 sm:grid-cols-2">
+
                     <FormField
                       label="Full Name"
                       value={form.full_name}
@@ -868,14 +972,38 @@ export default function StudentProfilePage() {
                         <option value="">
                           Select blood group
                         </option>
-                        <option value="A+">A+</option>
-                        <option value="A-">A-</option>
-                        <option value="B+">B+</option>
-                        <option value="B-">B-</option>
-                        <option value="AB+">AB+</option>
-                        <option value="AB-">AB-</option>
-                        <option value="O+">O+</option>
-                        <option value="O-">O-</option>
+
+                        <option value="A+">
+                          A+
+                        </option>
+
+                        <option value="A-">
+                          A-
+                        </option>
+
+                        <option value="B+">
+                          B+
+                        </option>
+
+                        <option value="B-">
+                          B-
+                        </option>
+
+                        <option value="AB+">
+                          AB+
+                        </option>
+
+                        <option value="AB-">
+                          AB-
+                        </option>
+
+                        <option value="O+">
+                          O+
+                        </option>
+
+                        <option value="O-">
+                          O-
+                        </option>
                       </select>
                     </div>
                   </div>
@@ -888,6 +1016,7 @@ export default function StudentProfilePage() {
                   </h3>
 
                   <div className="grid gap-5 sm:grid-cols-2">
+
                     <FormField
                       label="Batch"
                       type="number"
@@ -924,6 +1053,47 @@ export default function StudentProfilePage() {
                           Section B
                         </option>
                       </select>
+                    </div>
+
+                    {/* CR / Co-CR / NO */}
+                    <div className="sm:col-span-2">
+                      <label
+                        htmlFor="cr-status"
+                        className="mb-2 block text-sm font-semibold"
+                      >
+                        Class Representative Position
+                      </label>
+
+                      <select
+                        id="cr-status"
+                        value={form.cr_status}
+                        onChange={(e) =>
+                          updateField(
+                            "cr_status",
+                            e.target.value
+                          )
+                        }
+                        required
+                        className="w-full rounded-xl border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      >
+                        <option value="cr">
+                          CR
+                        </option>
+
+                        <option value="co_cr">
+                          Co-CR
+                        </option>
+
+                        <option value="no">
+                          NO
+                        </option>
+                      </select>
+
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        You can change your CR/Co-CR/NO
+                        position whenever your class representative
+                        status changes.
+                      </p>
                     </div>
 
                     {/* Graduation Month + Year */}
@@ -976,10 +1146,15 @@ export default function StudentProfilePage() {
                   </h3>
 
                   <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+
                     <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted">
-                      {photoPreview || form.profile_photo_url ? (
+                      {photoPreview ||
+                      form.profile_photo_url ? (
                         <img
-                          src={photoPreview || form.profile_photo_url}
+                          src={
+                            photoPreview ||
+                            form.profile_photo_url
+                          }
                           alt="Profile preview"
                           className="h-full w-full object-cover"
                         />
@@ -991,6 +1166,7 @@ export default function StudentProfilePage() {
                     </div>
 
                     <div className="w-full space-y-4">
+
                       <div>
                         <label
                           htmlFor="profile-photo-upload"
@@ -998,6 +1174,7 @@ export default function StudentProfilePage() {
                         >
                           Upload Image
                         </label>
+
                         <input
                           id="profile-photo-upload"
                           type="file"
@@ -1005,8 +1182,10 @@ export default function StudentProfilePage() {
                           onChange={handlePhotoChange}
                           className="block w-full cursor-pointer rounded-xl border bg-background text-sm file:mr-4 file:border-0 file:bg-muted file:px-4 file:py-3"
                         />
+
                         <p className="mt-2 text-xs text-muted-foreground">
-                          JPG, PNG, WEBP or another image format. Maximum 5MB.
+                          JPG, PNG, WEBP or another
+                          image format. Maximum 5MB.
                         </p>
                       </div>
 
@@ -1014,13 +1193,17 @@ export default function StudentProfilePage() {
                         label="Or use Image URL"
                         value={form.profile_photo_url}
                         onChange={(value) =>
-                          updateField("profile_photo_url", value)
+                          updateField(
+                            "profile_photo_url",
+                            value
+                          )
                         }
                         placeholder="https://example.com/photo.jpg"
                       />
 
                       <p className="text-xs text-muted-foreground">
-                        If both are provided, the uploaded image takes priority.
+                        If both are provided, the
+                        uploaded image takes priority.
                       </p>
                     </div>
                   </div>
@@ -1033,6 +1216,7 @@ export default function StudentProfilePage() {
                   </h3>
 
                   <div className="space-y-5">
+
                     <FormField
                       label="LinkedIn URL"
                       value={form.linkedin_url}
@@ -1074,6 +1258,7 @@ export default function StudentProfilePage() {
 
               {/* Save / Cancel */}
               <div className="flex flex-col gap-3 border-t bg-muted/20 p-6 sm:flex-row sm:justify-end sm:p-8">
+
                 <button
                   type="button"
                   onClick={cancelEditing}
