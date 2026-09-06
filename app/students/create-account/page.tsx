@@ -1,790 +1,721 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { getCurrentRunningBatches } from "@/app/lib/students/current-batches";
 
-const CURRENT_BATCHES = [29, 30, 31, 32, 33, 34, 35, 36];
-const SECTIONS = ["A", "B"];
+type CRStatus = "cr" | "co_cr" | "no" | null;
 
-export default function CreateStudentAccountPage() {
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+type Student = {
+  id: string;
+  full_name: string;
+  student_id: string | null;
+  email: string;
+  batch: number;
+  section: string;
+  blood_group: string | null;
+  profile_photo_url: string | null;
+  linkedin_url: string | null;
+  instagram_url: string | null;
+  facebook_url: string | null;
+  graduation_date: string | null;
+  cr_status: CRStatus;
+};
 
-  const [batch, setBatch] = useState("");
-  const [section, setSection] = useState("");
-  const [studentId, setStudentId] = useState("");
-  const [bloodGroup, setBloodGroup] = useState("");
+const supabase = createClient();
 
-  // CR / Co-CR / NO
-  const [crStatus, setCrStatus] = useState("");
+function getDhakaToday() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
 
-  const [linkedin, setLinkedin] = useState("");
-  const [instagram, setInstagram] = useState("");
-  const [facebook, setFacebook] = useState("");
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
 
-  const [photo, setPhoto] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState("");
-  const [photoUrl, setPhotoUrl] = useState("");
+  return `${year}-${month}-${day}`;
+}
 
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
+/**
+ * A student is considered graduated when
+ * their graduation date has arrived.
+ */
+function hasGraduated(graduationDate: string | null) {
+  if (!graduationDate) {
+    return false;
+  }
+
+  const today = getDhakaToday();
+
+  return graduationDate <= today;
+}
+
+/**
+ * CR ordering:
+ *
+ * CR     = 1
+ * Co-CR  = 2
+ * NO     = 3
+ * null   = 3
+ */
+function getCRPriority(status: CRStatus) {
+  switch (status) {
+    case "cr":
+      return 1;
+
+    case "co_cr":
+      return 2;
+
+    case "no":
+    default:
+      return 3;
+  }
+}
+
+export default function StudentsPage() {
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const [search, setSearch] = useState("");
+  const [batchFilter, setBatchFilter] = useState("all");
+  const [sectionFilter, setSectionFilter] = useState("all");
+
+  const currentBatches = useMemo(
+    () => getCurrentRunningBatches(),
+    []
+  );
+
   useEffect(() => {
-    return () => {
-      if (photoPreview) {
-        URL.revokeObjectURL(photoPreview);
-      }
-    };
-  }, [photoPreview]);
+    async function loadStudents() {
+      setLoading(true);
+      setError("");
 
-  function handlePhotoChange(
-    event: ChangeEvent<HTMLInputElement>
-  ) {
-    const file = event.target.files?.[0];
+      const { data, error } = await supabase
+        .from("student_profiles")
+        .select(
+          `
+            id,
+            full_name,
+            student_id,
+            email,
+            batch,
+            section,
+            blood_group,
+            profile_photo_url,
+            linkedin_url,
+            instagram_url,
+            facebook_url,
+            graduation_date,
+            cr_status
+          `
+        )
+        .in("batch", currentBatches)
+        .order("batch", {
+          ascending: true,
+        })
+        .order("section", {
+          ascending: true,
+        })
+        .order("full_name", {
+          ascending: true,
+        });
 
-    if (!file) {
-      return;
-    }
-
-    setError("");
-
-    if (!file.type.startsWith("image/")) {
-      setError("Please select a valid image file.");
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      setError("Profile photo must be smaller than 5MB.");
-      return;
-    }
-
-    if (photoPreview) {
-      URL.revokeObjectURL(photoPreview);
-    }
-
-    setPhoto(file);
-    setPhotoPreview(URL.createObjectURL(file));
-  }
-
-  async function handleSubmit(
-    event: FormEvent<HTMLFormElement>
-  ) {
-    event.preventDefault();
-
-    setMessage("");
-    setError("");
-
-    // Basic validation
-    if (!fullName.trim()) {
-      setError("Please enter your full name.");
-      return;
-    }
-
-    if (!email.trim()) {
-      setError("Please enter your email address.");
-      return;
-    }
-
-    if (!password) {
-      setError("Please enter a password.");
-      return;
-    }
-
-    if (password.length < 6) {
-      setError("Password must contain at least 6 characters.");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-
-    // Academic validation
-    if (!batch) {
-      setError("Please select your batch.");
-      return;
-    }
-
-    if (!section) {
-      setError("Please select your section.");
-      return;
-    }
-
-    // CR status validation
-    if (!crStatus) {
-      setError("Please select whether you are a CR/Co-CR.");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const formData = new FormData();
-
-      // Basic information
-      formData.append(
-        "full_name",
-        fullName.trim()
-      );
-
-      formData.append(
-        "email",
-        email.trim().toLowerCase()
-      );
-
-      formData.append(
-        "password",
-        password
-      );
-
-      // Academic information
-      formData.append(
-        "batch",
-        String(Number(batch))
-      );
-
-      formData.append(
-        "section",
-        section
-      );
-
-      formData.append(
-        "student_id",
-        studentId.trim()
-      );
-
-      formData.append(
-        "blood_group",
-        bloodGroup.trim()
-      );
-
-      // CR / Co-CR / NO
-      formData.append(
-        "cr_status",
-        crStatus
-      );
-
-      // Social links
-      formData.append(
-        "linkedin_url",
-        linkedin.trim()
-      );
-
-      formData.append(
-        "instagram_url",
-        instagram.trim()
-      );
-
-      formData.append(
-        "facebook_url",
-        facebook.trim()
-      );
-
-      // Profile photo URL
-      formData.append(
-        "profile_photo_url",
-        photoUrl.trim()
-      );
-
-      // Uploaded profile photo
-      if (photo) {
-        formData.append(
-          "profile_photo",
-          photo
+      if (error) {
+        console.error(
+          "Student loading error:",
+          error
         );
+
+        setError(error.message);
+        setStudents([]);
+      } else {
+        const runningStudents =
+          ((data || []) as Student[]).filter(
+            (student) =>
+              !hasGraduated(
+                student.graduation_date
+              )
+          );
+
+        setStudents(runningStudents);
       }
 
-      const response = await fetch(
-        "/api/students/register",
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.error ||
-            "Failed to create student account."
-        );
-      }
-
-      setMessage(
-        data.message ||
-          "Student account created successfully."
-      );
-
-      // Reset form
-      setFullName("");
-      setEmail("");
-      setPassword("");
-      setConfirmPassword("");
-
-      setBatch("");
-      setSection("");
-      setStudentId("");
-      setBloodGroup("");
-      setCrStatus("");
-
-      setLinkedin("");
-      setInstagram("");
-      setFacebook("");
-
-      setPhoto(null);
-      setPhotoUrl("");
-
-      if (photoPreview) {
-        URL.revokeObjectURL(photoPreview);
-        setPhotoPreview("");
-      }
-    } catch (err) {
-      console.error(
-        "Student registration error:",
-        err
-      );
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Something went wrong. Please try again."
-      );
-    } finally {
       setLoading(false);
     }
-  }
+
+    loadStudents();
+  }, [currentBatches]);
+
+  /**
+   * Search and filters
+   */
+  const filteredStudents = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return students.filter((student) => {
+      const matchesSearch =
+        !query ||
+        student.full_name
+          .toLowerCase()
+          .includes(query) ||
+        String(student.batch).includes(query) ||
+        student.section
+          .toLowerCase()
+          .includes(query) ||
+        (student.student_id || "")
+          .toLowerCase()
+          .includes(query);
+
+      const matchesBatch =
+        batchFilter === "all" ||
+        String(student.batch) ===
+          batchFilter;
+
+      const matchesSection =
+        sectionFilter === "all" ||
+        student.section ===
+          sectionFilter;
+
+      return (
+        matchesSearch &&
+        matchesBatch &&
+        matchesSection
+      );
+    });
+  }, [
+    students,
+    search,
+    batchFilter,
+    sectionFilter,
+  ]);
+
+  /**
+   * Group by Batch + Section.
+   *
+   * Inside each section:
+   *
+   * 1. CR
+   * 2. Co-CR
+   * 3. NO / others alphabetically
+   */
+  const groupedStudents = useMemo(() => {
+    const groups: Record<
+      string,
+      Student[]
+    > = {};
+
+    for (const student of filteredStudents) {
+      const key = `${student.batch}-${student.section}`;
+
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+
+      groups[key].push(student);
+    }
+
+    return Object.entries(groups)
+      .map(
+        ([groupName, groupStudents]) => {
+          const sortedStudents = [
+            ...groupStudents,
+          ].sort((a, b) => {
+            const priorityA =
+              getCRPriority(
+                a.cr_status
+              );
+
+            const priorityB =
+              getCRPriority(
+                b.cr_status
+              );
+
+            // CR before Co-CR before others
+            if (
+              priorityA !== priorityB
+            ) {
+              return (
+                priorityA -
+                priorityB
+              );
+            }
+
+            // Same CR status → alphabetical
+            return a.full_name.localeCompare(
+              b.full_name,
+              undefined,
+              {
+                sensitivity: "base",
+              }
+            );
+          });
+
+          return [
+            groupName,
+            sortedStudents,
+          ] as [string, Student[]];
+        }
+      )
+      .sort(
+        ([groupA], [groupB]) => {
+          const [
+            batchA,
+            sectionA,
+          ] = groupA.split("-");
+
+          const [
+            batchB,
+            sectionB,
+          ] = groupB.split("-");
+
+          return (
+            Number(batchA) -
+              Number(batchB) ||
+            sectionA.localeCompare(
+              sectionB
+            )
+          );
+        }
+      );
+  }, [filteredStudents]);
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-10 dark:bg-slate-950 sm:px-6">
-      <div className="mx-auto max-w-3xl">
+    <main className="min-h-screen bg-slate-50 dark:bg-slate-950">
+      {/* ====================================================== */}
+      {/* HEADER */}
+      {/* ====================================================== */}
 
-        {/* Back */}
-        <div className="mb-6">
-          <Link
-            href="/students"
-            className="inline-flex items-center text-sm font-medium text-slate-600 transition hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400"
-          >
-            ← Back to Students
-          </Link>
-        </div>
-
-        {/* Header */}
-        <div className="mb-8 text-center">
-
-          <p className="text-sm font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-            Pharmacia Club DIU
-          </p>
-
-          <h1 className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
-            Create Student Account
-          </h1>
-
-          <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-            Register your profile for the Pharmacia Club student
-            directory.
-          </p>
-
-        </div>
-
-        {/* Success Message */}
-        {message && (
-          <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-300">
-            {message}
-          </div>
-        )}
-
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-            {error}
-          </div>
-        )}
-
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-6"
-        >
-
-          {/* ====================================================== */}
-          {/* BASIC INFORMATION */}
-          {/* ====================================================== */}
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-
-            <div className="mb-6">
-
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                Basic Information
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Enter your basic account information.
+      <section className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                Pharmacia Club DIU
               </p>
 
-            </div>
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-4xl">
+                Students
+              </h1>
 
-            <div className="grid gap-5 sm:grid-cols-2">
-
-              {/* Full Name */}
-              <FormField
-                label="Full Name"
-                required
-                value={fullName}
-                onChange={setFullName}
-                placeholder="Enter your full name"
-              />
-
-              {/* Email */}
-              <FormField
-                label="Email Address"
-                required
-                type="email"
-                value={email}
-                onChange={setEmail}
-                placeholder="example@email.com"
-              />
-
-              {/* Password */}
-              <FormField
-                label="Password"
-                required
-                type="password"
-                value={password}
-                onChange={setPassword}
-                placeholder="Minimum 6 characters"
-              />
-
-              {/* Confirm Password */}
-              <FormField
-                label="Confirm Password"
-                required
-                type="password"
-                value={confirmPassword}
-                onChange={setConfirmPassword}
-                placeholder="Re-enter your password"
-              />
-
-            </div>
-
-          </section>
-
-          {/* ====================================================== */}
-          {/* ACADEMIC INFORMATION */}
-          {/* ====================================================== */}
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-
-            <div className="mb-6">
-
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                Academic Information
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Provide your current academic details.
+              <p className="mt-3 max-w-2xl text-slate-600 dark:text-slate-300">
+                Explore students from the
+                currently running batches.
               </p>
 
-            </div>
-
-            <div className="grid gap-5 sm:grid-cols-2">
-
-              {/* Batch */}
-              <SelectField
-                label="Batch"
-                required
-                value={batch}
-                onChange={setBatch}
-                placeholder="Select batch"
-                options={CURRENT_BATCHES.map(
-                  (item) => ({
-                    value: String(item),
-                    label: `Batch ${item}`,
-                  })
-                )}
-              />
-
-              {/* Section */}
-              <SelectField
-                label="Section"
-                required
-                value={section}
-                onChange={setSection}
-                placeholder="Select section"
-                options={SECTIONS.map(
-                  (item) => ({
-                    value: item,
-                    label: `Section ${item}`,
-                  })
-                )}
-              />
-
-              {/* Student ID */}
-              <FormField
-                label="Student ID"
-                value={studentId}
-                onChange={setStudentId}
-                placeholder="Enter your student ID"
-              />
-
-              {/* Blood Group */}
-              <FormField
-                label="Blood Group"
-                value={bloodGroup}
-                onChange={setBloodGroup}
-                placeholder="Example: B+"
-              />
-
-              {/* ================================================= */}
-              {/* CR / CO-CR */}
-              {/* ================================================= */}
-
-              <div className="sm:col-span-2">
-
-                <label
-                  htmlFor="cr-status"
-                  className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
-                >
-                  Are you a CR/Co-CR?
-
-                  <span className="ml-1 text-red-500">
-                    *
-                  </span>
-                </label>
-
-                <select
-                  id="cr-status"
-                  value={crStatus}
-                  onChange={(e) =>
-                    setCrStatus(e.target.value)
-                  }
-                  required
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                >
-
-                  <option value="">
-                    Select your position
-                  </option>
-
-                  <option value="cr">
-                    CR
-                  </option>
-
-                  <option value="co_cr">
-                    Co-CR
-                  </option>
-
-                  <option value="no">
-                    NO
-                  </option>
-
-                </select>
-
-                <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                  Select your current class representative
-                  position.
-                </p>
-
-              </div>
-
-            </div>
-
-          </section>
-
-          {/* ====================================================== */}
-          {/* PROFILE PHOTO */}
-          {/* ====================================================== */}
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-
-            <div className="mb-6">
-
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                Profile Photo
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Add a professional profile photo.
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Current batches:{" "}
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  {currentBatches.join(
+                    ", "
+                  )}
+                </span>
               </p>
 
-            </div>
-
-            <div className="flex flex-col items-center gap-5 sm:flex-row">
-
-              {/* Photo Preview */}
-              <div className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 ring-4 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
-
-                {photoPreview ? (
-                  <img
-                    src={photoPreview}
-                    alt="Profile preview"
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <span className="text-sm text-slate-400">
-                    No Photo
-                  </span>
-                )}
-
-              </div>
-
-              <div className="w-full">
-
-                {/* Upload Photo */}
-                <label
-                  htmlFor="profile-photo"
-                  className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
-                >
-                  Choose Photo
-                </label>
-
-                <input
-                  id="profile-photo"
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoChange}
-                  className="block w-full cursor-pointer rounded-xl border border-slate-300 bg-white text-sm text-slate-700 file:mr-4 file:border-0 file:bg-slate-100 file:px-4 file:py-3 file:text-sm file:font-medium dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:file:bg-slate-700"
-                />
-
-                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  JPG, PNG, WEBP or other image format.
-                  Maximum size: 5MB.
-                </p>
-
-                {/* Image URL */}
-                <div className="mt-5">
-
-                  <label
-                    htmlFor="profile-photo-url"
-                    className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
-                  >
-                    Or use Image URL
-                  </label>
-
-                  <input
-                    id="profile-photo-url"
-                    type="url"
-                    value={photoUrl}
-                    onChange={(e) =>
-                      setPhotoUrl(e.target.value)
-                    }
-                    placeholder="https://example.com/profile-photo.jpg"
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                  />
-
-                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                    If both are provided, the uploaded photo is used.
-                  </p>
-
-                </div>
-
-              </div>
-
-            </div>
-
-          </section>
-
-          {/* ====================================================== */}
-          {/* SOCIAL LINKS */}
-          {/* ====================================================== */}
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-
-            <div className="mb-6">
-
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                Social Links
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Add your social media profiles. These fields are
-                optional.
+              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                Students are automatically
+                moved to Alumni when their
+                graduation month arrives.
               </p>
-
             </div>
 
-            <div className="space-y-5">
-
-              {/* LinkedIn */}
-              <FormField
-                label="LinkedIn"
-                value={linkedin}
-                onChange={setLinkedin}
-                placeholder="https://linkedin.com/in/your-profile"
-              />
-
-              {/* Instagram */}
-              <FormField
-                label="Instagram"
-                value={instagram}
-                onChange={setInstagram}
-                placeholder="https://instagram.com/your-profile"
-              />
-
-              {/* Facebook */}
-              <FormField
-                label="Facebook"
-                value={facebook}
-                onChange={setFacebook}
-                placeholder="https://facebook.com/your-profile"
-              />
-
-            </div>
-
-          </section>
-
-          {/* ====================================================== */}
-          {/* SUBMIT */}
-          {/* ====================================================== */}
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-xl bg-blue-600 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading
-                ? "Creating Account..."
-                : "Create Student Account"}
-            </button>
-
-            <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
-
-              Already have an account?{" "}
-
-              <Link
+            <div className="flex flex-wrap gap-3">
+              <a
                 href="/students/login"
-                className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
-                Login here
-              </Link>
+                Student Login
+              </a>
 
+              <a
+                href="/students/create-account"
+                className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+              >
+                Create Student Account
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ====================================================== */}
+      {/* CR / CO-CR LEGEND */}
+      {/* ====================================================== */}
+
+      <section className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+            Class Representative:
+          </span>
+
+          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+            CR
+          </span>
+
+          <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-purple-800 dark:bg-purple-950/50 dark:text-purple-300">
+            Co-CR
+          </span>
+        </div>
+      </section>
+
+      {/* ====================================================== */}
+      {/* FILTERS */}
+      {/* ====================================================== */}
+
+      <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="grid gap-4 md:grid-cols-3">
+            {/* Search */}
+            <div>
+              <label
+                htmlFor="student-search"
+                className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                Search
+              </label>
+
+              <input
+                id="student-search"
+                type="text"
+                value={search}
+                onChange={(e) =>
+                  setSearch(
+                    e.target.value
+                  )
+                }
+                placeholder="Search by name, ID, batch..."
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
+            </div>
+
+            {/* Batch Filter */}
+            <div>
+              <label
+                htmlFor="batch-filter"
+                className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                Batch
+              </label>
+
+              <select
+                id="batch-filter"
+                value={batchFilter}
+                onChange={(e) =>
+                  setBatchFilter(
+                    e.target.value
+                  )
+                }
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                <option value="all">
+                  All Batches
+                </option>
+
+                {currentBatches.map(
+                  (batch) => (
+                    <option
+                      key={batch}
+                      value={batch}
+                    >
+                      Batch {batch}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
+
+            {/* Section Filter */}
+            <div>
+              <label
+                htmlFor="section-filter"
+                className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                Section
+              </label>
+
+              <select
+                id="section-filter"
+                value={sectionFilter}
+                onChange={(e) =>
+                  setSectionFilter(
+                    e.target.value
+                  )
+                }
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                <option value="all">
+                  All Sections
+                </option>
+
+                <option value="A">
+                  Section A
+                </option>
+
+                <option value="B">
+                  Section B
+                </option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ====================================================== */}
+      {/* CONTENT */}
+      {/* ====================================================== */}
+
+      <section className="mx-auto max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
+        {/* Loading */}
+        {loading && (
+          <div className="py-16 text-center">
+            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
+
+            <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+              Loading students...
             </p>
+          </div>
+        )}
 
-          </section>
+        {/* Error */}
+        {!loading && error && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center dark:border-red-900/50 dark:bg-red-950/30">
+            <h2 className="font-semibold text-red-700 dark:text-red-400">
+              Could not load students
+            </h2>
 
-        </form>
+            <p className="mt-2 text-sm text-red-600 dark:text-red-300">
+              {error}
+            </p>
+          </div>
+        )}
 
-      </div>
+        {/* Empty */}
+        {!loading &&
+          !error &&
+          filteredStudents.length ===
+            0 && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center dark:border-slate-800 dark:bg-slate-900">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+                No students found
+              </h2>
+
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Try changing your search
+                or filters.
+              </p>
+            </div>
+          )}
+
+        {/* ================================================== */}
+        {/* GROUPED STUDENTS */}
+        {/* ================================================== */}
+
+        {!loading &&
+          !error &&
+          groupedStudents.length > 0 && (
+            <div className="space-y-10">
+              {groupedStudents.map(
+                ([
+                  groupName,
+                  groupStudents,
+                ]) => {
+                  const [
+                    batch,
+                    section,
+                  ] =
+                    groupName.split(
+                      "-"
+                    );
+
+                  return (
+                    <div
+                      key={groupName}
+                    >
+                      {/* Section Header */}
+                      <div className="mb-5 flex items-center justify-between">
+                        <div>
+                          <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                            Batch {batch} —
+                            Section{" "}
+                            {section}
+                          </h2>
+
+                          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            {
+                              groupStudents.length
+                            }{" "}
+                            student
+                            {groupStudents.length !==
+                            1
+                              ? "s"
+                              : ""}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Students */}
+                      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        {groupStudents.map(
+                          (
+                            student
+                          ) => (
+                            <StudentCard
+                              key={
+                                student.id
+                              }
+                              student={
+                                student
+                              }
+                            />
+                          )
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+              )}
+            </div>
+          )}
+      </section>
     </main>
   );
 }
 
 /* ================================================================ */
-/* FORM FIELD */
+/* STUDENT CARD */
 /* ================================================================ */
 
-function FormField({
-  label,
-  required = false,
-  type = "text",
-  value,
-  onChange,
-  placeholder,
+function StudentCard({
+  student,
 }: {
-  label: string;
-  required?: boolean;
-  type?: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
+  student: Student;
 }) {
+  const isCR =
+    student.cr_status ===
+    "cr";
+
+  const isCoCR =
+    student.cr_status ===
+    "co_cr";
+
   return (
-    <div>
+    <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900">
+      {/* Profile Photo */}
+      <div className="flex justify-center bg-slate-100 p-6 dark:bg-slate-800">
+        {student.profile_photo_url ? (
+          <img
+            src={
+              student.profile_photo_url
+            }
+            alt={
+              student.full_name
+            }
+            className="h-28 w-28 rounded-full object-cover ring-4 ring-white dark:ring-slate-700"
+          />
+        ) : (
+          <div className="flex h-28 w-28 items-center justify-center rounded-full bg-blue-600 text-3xl font-bold text-white ring-4 ring-white dark:ring-slate-700">
+            {student.full_name
+              .charAt(0)
+              .toUpperCase()}
+          </div>
+        )}
+      </div>
 
-      <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+      {/* Card Body */}
+      <div className="p-5">
+        {/* Name + Position */}
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="min-w-0 truncate text-lg font-bold text-slate-900 dark:text-white">
+            {student.full_name}
+          </h3>
 
-        {label}
+          {isCR && (
+            <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+              CR
+            </span>
+          )}
 
-        {required && (
-          <span className="ml-1 text-red-500">
-            *
-          </span>
+          {isCoCR && (
+            <span className="shrink-0 rounded-full bg-purple-100 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-purple-800 dark:bg-purple-950/50 dark:text-purple-300">
+              Co-CR
+            </span>
+          )}
+        </div>
+
+        {/* Student ID */}
+        {student.student_id && (
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            ID:{" "}
+            {student.student_id}
+          </p>
         )}
 
-      </label>
-
-      <input
-        type={type}
-        value={value}
-        onChange={(e) =>
-          onChange(e.target.value)
-        }
-        placeholder={placeholder}
-        required={required}
-        className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
-      />
-
-    </div>
-  );
-}
-
-/* ================================================================ */
-/* SELECT FIELD */
-/* ================================================================ */
-
-function SelectField({
-  label,
-  required = false,
-  value,
-  onChange,
-  placeholder,
-  options,
-}: {
-  label: string;
-  required?: boolean;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  options: {
-    value: string;
-    label: string;
-  }[];
-}) {
-  return (
-    <div>
-
-      <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-
-        {label}
-
-        {required && (
-          <span className="ml-1 text-red-500">
-            *
+        {/* Academic Badges */}
+        <div className="mt-4 flex flex-wrap gap-2">
+          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+            Batch{" "}
+            {student.batch}
           </span>
-        )}
 
-      </label>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+            Section{" "}
+            {student.section}
+          </span>
 
-      <select
-        value={value}
-        onChange={(e) =>
-          onChange(e.target.value)
-        }
-        required={required}
-        className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-      >
+          {student.blood_group && (
+            <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 dark:bg-red-950/40 dark:text-red-300">
+              {
+                student.blood_group
+              }
+            </span>
+          )}
+        </div>
 
-        <option value="">
-          {placeholder}
-        </option>
+        {/* Social Links */}
+        <div className="mt-5 flex flex-wrap gap-2">
+          {student.linkedin_url && (
+            <a
+              href={
+                student.linkedin_url
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400"
+            >
+              LinkedIn
+            </a>
+          )}
 
-        {options.map((option) => (
-          <option
-            key={option.value}
-            value={option.value}
-          >
-            {option.label}
-          </option>
-        ))}
+          {student.instagram_url && (
+            <a
+              href={
+                student.instagram_url
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-semibold text-pink-600 hover:underline dark:text-pink-400"
+            >
+              Instagram
+            </a>
+          )}
 
-      </select>
-
-    </div>
+          {student.facebook_url && (
+            <a
+              href={
+                student.facebook_url
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-400"
+            >
+              Facebook
+            </a>
+          )}
+        </div>
+      </div>
+    </article>
   );
 }
