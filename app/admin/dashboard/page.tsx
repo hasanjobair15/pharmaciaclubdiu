@@ -16,7 +16,8 @@ const dashboardItems = [
   },
   {
     title: "About",
-    description: "Open and manage the club and department information.",
+    description:
+      "Open and manage the club and department information.",
     href: "/about",
     icon: "ℹ",
   },
@@ -34,41 +35,57 @@ const dashboardItems = [
   },
   {
     title: "Academic",
-    description: "Manage academic resources and information.",
+    description:
+      "Manage academic resources and information.",
     href: "/admin/academic",
     icon: "🎓",
   },
   {
     title: "Routine",
-    description: "Open the pharmacy routine system.",
+    description:
+      "Open the pharmacy routine system.",
     href: "https://pharmroutine-diu.vercel.app/",
     icon: "🗓️",
     external: true,
   },
   {
     title: "Research",
-    description: "Manage research activities and publications.",
+    description:
+      "Manage research activities and publications.",
     href: "/admin/research",
     icon: "🔬",
   },
   {
     title: "Magazine",
-    description: "Manage magazine issues, pages and submissions.",
+    description:
+      "Manage magazine issues, pages and submissions.",
     href: "/admin/magazine",
     icon: "📖",
   },
   {
     title: "Gallery",
-    description: "Manage club photos and gallery content.",
+    description:
+      "Manage club photos and gallery content.",
     href: "/admin/gallery",
     icon: "🖼️",
   },
   {
     title: "News",
-    description: "Create and manage club news.",
+    description:
+      "Create and manage club news.",
     href: "/admin/news",
     icon: "📰",
   },
+
+  // ================= STUDENT =================
+  {
+    title: "Student",
+    description:
+      "View, search and edit student accounts and profiles.",
+    href: "/admin/students",
+    icon: "👨‍🎓",
+  },
+
   {
     title: "Alumni",
     description:
@@ -114,10 +131,14 @@ export default function AdminDashboardPage() {
           return;
         }
 
-        const userEmail = user.email?.trim().toLowerCase();
+        const userEmail =
+          user.email?.trim().toLowerCase();
 
         // Only the real admin can access this dashboard
-        if (userEmail !== ADMIN_EMAIL.toLowerCase()) {
+        if (
+          userEmail !==
+          ADMIN_EMAIL.toLowerCase()
+        ) {
           await supabase.auth.signOut();
 
           router.replace("/admin");
@@ -125,11 +146,16 @@ export default function AdminDashboardPage() {
         }
 
         if (mounted) {
-          setEmail(user.email || ADMIN_EMAIL);
+          setEmail(
+            user.email || ADMIN_EMAIL
+          );
           setLoading(false);
         }
       } catch (error) {
-        console.error("Admin authentication error:", error);
+        console.error(
+          "Admin authentication error:",
+          error
+        );
 
         await supabase.auth.signOut();
 
@@ -146,7 +172,9 @@ export default function AdminDashboardPage() {
 
   async function handleLogout() {
     await supabase.auth.signOut();
+
     router.replace("/admin");
+    router.refresh();
   }
 
   if (loading) {
@@ -266,7 +294,31 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* ================= QUICK INFORMATION ================= */}
-        <div className="mt-8 grid gap-4 lg:grid-cols-2">
+        <div className="mt-8 grid gap-4 lg:grid-cols-3">
+          {/* STUDENT */}
+          <div className="rounded-2xl border border-[#087f8c]/20 bg-[#087f8c]/5 p-5 dark:border-[#087f8c]/20 dark:bg-[#087f8c]/10">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="font-bold text-[#0b1736] dark:text-white">
+                  Student
+                </h3>
+
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                  View, search and edit any student profile,
+                  including academic and social information.
+                </p>
+              </div>
+
+              <Link
+                href="/admin/students"
+                className="inline-flex shrink-0 items-center justify-center rounded-lg bg-[#087f8c] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#066d78]"
+              >
+                Manage Students
+              </Link>
+            </div>
+          </div>
+
+          {/* ALUMNI */}
           <div className="rounded-2xl border border-[#087f8c]/20 bg-[#087f8c]/5 p-5 dark:border-[#087f8c]/20 dark:bg-[#087f8c]/10">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -289,6 +341,7 @@ export default function AdminDashboardPage() {
             </div>
           </div>
 
+          {/* ALUMNI ASSOCIATION */}
           <div className="rounded-2xl border border-[#087f8c]/20 bg-[#087f8c]/5 p-5 dark:border-[#087f8c]/20 dark:bg-[#087f8c]/10">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -298,7 +351,7 @@ export default function AdminDashboardPage() {
 
                 <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                   Manage the official Alumni Association leadership and
-                  executive committee members from the dedicated admin panel.
+                  executive committee members.
                 </p>
               </div>
 
