@@ -16,7 +16,9 @@ export default function CreateStudentAccountPage() {
   const [section, setSection] = useState("");
   const [studentId, setStudentId] = useState("");
   const [bloodGroup, setBloodGroup] = useState("");
-  const [isCR, setIsCR] = useState("");
+
+  // CR / Co-CR / NO
+  const [crStatus, setCrStatus] = useState("");
 
   const [linkedin, setLinkedin] = useState("");
   const [instagram, setInstagram] = useState("");
@@ -75,6 +77,7 @@ export default function CreateStudentAccountPage() {
     setMessage("");
     setError("");
 
+    // Basic validation
     if (!fullName.trim()) {
       setError("Please enter your full name.");
       return;
@@ -100,6 +103,7 @@ export default function CreateStudentAccountPage() {
       return;
     }
 
+    // Academic validation
     if (!batch) {
       setError("Please select your batch.");
       return;
@@ -110,8 +114,9 @@ export default function CreateStudentAccountPage() {
       return;
     }
 
-    if (!isCR) {
-      setError("Please select whether you are a CR/CR.");
+    // CR status validation
+    if (!crStatus) {
+      setError("Please select whether you are a CR/Co-CR.");
       return;
     }
 
@@ -120,34 +125,93 @@ export default function CreateStudentAccountPage() {
     try {
       const formData = new FormData();
 
-      formData.append("full_name", fullName.trim());
-      formData.append("email", email.trim().toLowerCase());
-      formData.append("password", password);
-      formData.append("batch", String(Number(batch)));
-      formData.append("section", section);
-      formData.append("student_id", studentId.trim());
-      formData.append("blood_group", bloodGroup);
-      formData.append("is_cr", isCR === "yes" ? "true" : "false");
+      // Basic information
+      formData.append(
+        "full_name",
+        fullName.trim()
+      );
 
-      formData.append("linkedin_url", linkedin.trim());
-      formData.append("instagram_url", instagram.trim());
-      formData.append("facebook_url", facebook.trim());
-      formData.append("profile_photo_url", photoUrl.trim());
+      formData.append(
+        "email",
+        email.trim().toLowerCase()
+      );
 
+      formData.append(
+        "password",
+        password
+      );
+
+      // Academic information
+      formData.append(
+        "batch",
+        String(Number(batch))
+      );
+
+      formData.append(
+        "section",
+        section
+      );
+
+      formData.append(
+        "student_id",
+        studentId.trim()
+      );
+
+      formData.append(
+        "blood_group",
+        bloodGroup.trim()
+      );
+
+      // CR / Co-CR / NO
+      formData.append(
+        "cr_status",
+        crStatus
+      );
+
+      // Social links
+      formData.append(
+        "linkedin_url",
+        linkedin.trim()
+      );
+
+      formData.append(
+        "instagram_url",
+        instagram.trim()
+      );
+
+      formData.append(
+        "facebook_url",
+        facebook.trim()
+      );
+
+      // Profile photo URL
+      formData.append(
+        "profile_photo_url",
+        photoUrl.trim()
+      );
+
+      // Uploaded profile photo
       if (photo) {
-        formData.append("profile_photo", photo);
+        formData.append(
+          "profile_photo",
+          photo
+        );
       }
 
-      const response = await fetch("/api/students/register", {
-        method: "POST",
-        body: formData,
-      });
+      const response = await fetch(
+        "/api/students/register",
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
 
       const data = await response.json();
 
       if (!response.ok) {
         throw new Error(
-          data.error || "Failed to create student account."
+          data.error ||
+            "Failed to create student account."
         );
       }
 
@@ -156,18 +220,22 @@ export default function CreateStudentAccountPage() {
           "Student account created successfully."
       );
 
+      // Reset form
       setFullName("");
       setEmail("");
       setPassword("");
       setConfirmPassword("");
+
       setBatch("");
       setSection("");
       setStudentId("");
       setBloodGroup("");
-      setIsCR("");
+      setCrStatus("");
+
       setLinkedin("");
       setInstagram("");
       setFacebook("");
+
       setPhoto(null);
       setPhotoUrl("");
 
@@ -207,6 +275,7 @@ export default function CreateStudentAccountPage() {
 
         {/* Header */}
         <div className="mb-8 text-center">
+
           <p className="text-sm font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
             Pharmacia Club DIU
           </p>
@@ -219,16 +288,17 @@ export default function CreateStudentAccountPage() {
             Register your profile for the Pharmacia Club student
             directory.
           </p>
+
         </div>
 
-        {/* Success */}
+        {/* Success Message */}
         {message && (
           <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-300">
             {message}
           </div>
         )}
 
-        {/* Error */}
+        {/* Error Message */}
         {error && (
           <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
             {error}
@@ -240,10 +310,14 @@ export default function CreateStudentAccountPage() {
           className="space-y-6"
         >
 
-          {/* Basic Information */}
+          {/* ====================================================== */}
+          {/* BASIC INFORMATION */}
+          {/* ====================================================== */}
+
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
 
             <div className="mb-6">
+
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                 Basic Information
               </h2>
@@ -251,10 +325,12 @@ export default function CreateStudentAccountPage() {
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 Enter your basic account information.
               </p>
+
             </div>
 
             <div className="grid gap-5 sm:grid-cols-2">
 
+              {/* Full Name */}
               <FormField
                 label="Full Name"
                 required
@@ -263,6 +339,7 @@ export default function CreateStudentAccountPage() {
                 placeholder="Enter your full name"
               />
 
+              {/* Email */}
               <FormField
                 label="Email Address"
                 required
@@ -272,6 +349,7 @@ export default function CreateStudentAccountPage() {
                 placeholder="example@email.com"
               />
 
+              {/* Password */}
               <FormField
                 label="Password"
                 required
@@ -281,6 +359,7 @@ export default function CreateStudentAccountPage() {
                 placeholder="Minimum 6 characters"
               />
 
+              {/* Confirm Password */}
               <FormField
                 label="Confirm Password"
                 required
@@ -291,12 +370,17 @@ export default function CreateStudentAccountPage() {
               />
 
             </div>
+
           </section>
 
-          {/* Academic Information */}
+          {/* ====================================================== */}
+          {/* ACADEMIC INFORMATION */}
+          {/* ====================================================== */}
+
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
 
             <div className="mb-6">
+
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                 Academic Information
               </h2>
@@ -304,34 +388,42 @@ export default function CreateStudentAccountPage() {
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 Provide your current academic details.
               </p>
+
             </div>
 
             <div className="grid gap-5 sm:grid-cols-2">
 
+              {/* Batch */}
               <SelectField
                 label="Batch"
                 required
                 value={batch}
                 onChange={setBatch}
                 placeholder="Select batch"
-                options={CURRENT_BATCHES.map((item) => ({
-                  value: String(item),
-                  label: `Batch ${item}`,
-                }))}
+                options={CURRENT_BATCHES.map(
+                  (item) => ({
+                    value: String(item),
+                    label: `Batch ${item}`,
+                  })
+                )}
               />
 
+              {/* Section */}
               <SelectField
                 label="Section"
                 required
                 value={section}
                 onChange={setSection}
                 placeholder="Select section"
-                options={SECTIONS.map((item) => ({
-                  value: item,
-                  label: `Section ${item}`,
-                }))}
+                options={SECTIONS.map(
+                  (item) => ({
+                    value: item,
+                    label: `Section ${item}`,
+                  })
+                )}
               />
 
+              {/* Student ID */}
               <FormField
                 label="Student ID"
                 value={studentId}
@@ -339,6 +431,7 @@ export default function CreateStudentAccountPage() {
                 placeholder="Enter your student ID"
               />
 
+              {/* Blood Group */}
               <FormField
                 label="Blood Group"
                 value={bloodGroup}
@@ -346,55 +439,70 @@ export default function CreateStudentAccountPage() {
                 placeholder="Example: B+"
               />
 
-              {/* CR/CR Selection */}
+              {/* ================================================= */}
+              {/* CR / CO-CR */}
+              {/* ================================================= */}
+
               <div className="sm:col-span-2">
 
                 <label
-                  htmlFor="is-cr"
+                  htmlFor="cr-status"
                   className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
                 >
-                  Are you a CR/CR?
+                  Are you a CR/Co-CR?
+
                   <span className="ml-1 text-red-500">
                     *
                   </span>
                 </label>
 
                 <select
-                  id="is-cr"
-                  value={isCR}
+                  id="cr-status"
+                  value={crStatus}
                   onChange={(e) =>
-                    setIsCR(e.target.value)
+                    setCrStatus(e.target.value)
                   }
                   required
                   className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 >
+
                   <option value="">
-                    Select an option
+                    Select your position
                   </option>
 
-                  <option value="yes">
-                    Yes, I am a CR/CR
+                  <option value="cr">
+                    CR
+                  </option>
+
+                  <option value="co_cr">
+                    Co-CR
                   </option>
 
                   <option value="no">
-                    No, I am not a CR/CR
+                    NO
                   </option>
+
                 </select>
 
                 <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                  Please select whether you are currently serving
-                  as a Class Representative (CR/CR).
+                  Select your current class representative
+                  position.
                 </p>
 
               </div>
 
             </div>
+
           </section>
 
-          {/* Profile Photo */}
+          {/* ====================================================== */}
+          {/* PROFILE PHOTO */}
+          {/* ====================================================== */}
+
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
 
             <div className="mb-6">
+
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                 Profile Photo
               </h2>
@@ -402,10 +510,12 @@ export default function CreateStudentAccountPage() {
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 Add a professional profile photo.
               </p>
+
             </div>
 
             <div className="flex flex-col items-center gap-5 sm:flex-row">
 
+              {/* Photo Preview */}
               <div className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 ring-4 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
 
                 {photoPreview ? (
@@ -424,6 +534,7 @@ export default function CreateStudentAccountPage() {
 
               <div className="w-full">
 
+                {/* Upload Photo */}
                 <label
                   htmlFor="profile-photo"
                   className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
@@ -444,6 +555,7 @@ export default function CreateStudentAccountPage() {
                   Maximum size: 5MB.
                 </p>
 
+                {/* Image URL */}
                 <div className="mt-5">
 
                   <label
@@ -471,13 +583,19 @@ export default function CreateStudentAccountPage() {
                 </div>
 
               </div>
+
             </div>
+
           </section>
 
-          {/* Social Links */}
+          {/* ====================================================== */}
+          {/* SOCIAL LINKS */}
+          {/* ====================================================== */}
+
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
 
             <div className="mb-6">
+
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                 Social Links
               </h2>
@@ -486,10 +604,12 @@ export default function CreateStudentAccountPage() {
                 Add your social media profiles. These fields are
                 optional.
               </p>
+
             </div>
 
             <div className="space-y-5">
 
+              {/* LinkedIn */}
               <FormField
                 label="LinkedIn"
                 value={linkedin}
@@ -497,6 +617,7 @@ export default function CreateStudentAccountPage() {
                 placeholder="https://linkedin.com/in/your-profile"
               />
 
+              {/* Instagram */}
               <FormField
                 label="Instagram"
                 value={instagram}
@@ -504,6 +625,7 @@ export default function CreateStudentAccountPage() {
                 placeholder="https://instagram.com/your-profile"
               />
 
+              {/* Facebook */}
               <FormField
                 label="Facebook"
                 value={facebook}
@@ -512,9 +634,13 @@ export default function CreateStudentAccountPage() {
               />
 
             </div>
+
           </section>
 
-          {/* Submit */}
+          {/* ====================================================== */}
+          {/* SUBMIT */}
+          {/* ====================================================== */}
+
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
 
             <button
@@ -528,6 +654,7 @@ export default function CreateStudentAccountPage() {
             </button>
 
             <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
+
               Already have an account?{" "}
 
               <Link
@@ -536,15 +663,21 @@ export default function CreateStudentAccountPage() {
               >
                 Login here
               </Link>
+
             </p>
 
           </section>
 
         </form>
+
       </div>
     </main>
   );
 }
+
+/* ================================================================ */
+/* FORM FIELD */
+/* ================================================================ */
 
 function FormField({
   label,
@@ -590,6 +723,10 @@ function FormField({
     </div>
   );
 }
+
+/* ================================================================ */
+/* SELECT FIELD */
+/* ================================================================ */
 
 function SelectField({
   label,
