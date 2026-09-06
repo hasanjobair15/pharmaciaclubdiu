@@ -370,7 +370,7 @@ export default function CreateStudentAccountPage() {
                 >
                   Graduation Month & Year
                   <span className="ml-1 text-xs font-normal text-slate-400">
-                    (Optional)
+                    (Only fill after graduation)
                   </span>
                 </label>
 
