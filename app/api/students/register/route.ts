@@ -4,6 +4,58 @@ import { isCurrentRunningBatch } from "@/app/lib/students/current-batches";
 
 export const runtime = "nodejs";
 
+/* =========================================================
+   TYPES
+========================================================= */
+
+type CRStatus = "cr" | "co_cr" | "no";
+
+/* =========================================================
+   SUPABASE ADMIN
+========================================================= */
+
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error("Supabase environment variables are missing.");
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
+/* =========================================================
+   CR STATUS
+========================================================= */
+
+function cleanCRStatus(value: unknown): CRStatus {
+  if (typeof value !== "string") {
+    return "no";
+  }
+
+  const status = value.trim().toLowerCase();
+
+  if (status === "cr") {
+    return "cr";
+  }
+
+  if (status === "co_cr") {
+    return "co_cr";
+  }
+
+  return "no";
+}
+
+/* =========================================================
+   GRADUATION DATE
+========================================================= */
+
 function cleanGraduationDate(value: unknown): string | null {
   if (value === null || value === undefined) {
     return null;
@@ -18,10 +70,7 @@ function cleanGraduationDate(value: unknown): string | null {
   let year: number;
   let month: number;
 
-  // Supports: YYYY-MM
   const monthMatch = raw.match(/^(\d{4})-(\d{2})$/);
-
-  // Also supports: YYYY-MM-DD
   const dateMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
 
   if (monthMatch) {
@@ -46,55 +95,67 @@ function cleanGraduationDate(value: unknown): string | null {
     return null;
   }
 
-  // Store the graduation month as the first day of that month.
   return `${year}-${String(month).padStart(2, "0")}-01`;
 }
 
-function getSupabaseAdmin() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+/* =========================================================
+   PROFILE PHOTO BUCKET
+========================================================= */
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error("Supabase environment variables are missing.");
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
-}
-
-async function ensureProfilePhotoBucket(supabaseAdmin: ReturnType<typeof getSupabaseAdmin>) {
+async function ensureProfilePhotoBucket(
+  supabaseAdmin: ReturnType<typeof getSupabaseAdmin>
+) {
   const bucketName = "profile-photos";
+
   const { data: bucket, error: getError } =
     await supabaseAdmin.storage.getBucket(bucketName);
 
-  if (getError && !getError.message.toLowerCase().includes("not found")) {
-    throw new Error(`Unable to access profile photo storage: ${getError.message}`);
+  if (
+    getError &&
+    !getError.message.toLowerCase().includes("not found")
+  ) {
+    throw new Error(
+      `Unable to access profile photo storage: ${getError.message}`
+    );
   }
 
   if (!bucket) {
-    const { error: createError } = await supabaseAdmin.storage.createBucket(
-      bucketName,
-      { public: true, fileSizeLimit: "5MB", allowedMimeTypes: ["image/*"] }
-    );
-    if (createError && !createError.message.toLowerCase().includes("already exists")) {
-      throw new Error(`Unable to create profile photo storage: ${createError.message}`);
+    const { error: createError } =
+      await supabaseAdmin.storage.createBucket(bucketName, {
+        public: true,
+        fileSizeLimit: "5MB",
+        allowedMimeTypes: ["image/*"],
+      });
+
+    if (
+      createError &&
+      !createError.message.toLowerCase().includes("already exists")
+    ) {
+      throw new Error(
+        `Unable to create profile photo storage: ${createError.message}`
+      );
     }
   } else if (!bucket.public) {
-    const { error: updateError } = await supabaseAdmin.storage.updateBucket(
-      bucketName,
-      { public: true, fileSizeLimit: "5MB", allowedMimeTypes: ["image/*"] }
-    );
+    const { error: updateError } =
+      await supabaseAdmin.storage.updateBucket(bucketName, {
+        public: true,
+        fileSizeLimit: "5MB",
+        allowedMimeTypes: ["image/*"],
+      });
+
     if (updateError) {
-      throw new Error(`Profile photo bucket is private and could not be made public: ${updateError.message}`);
+      throw new Error(
+        `Profile photo bucket is private and could not be made public: ${updateError.message}`
+      );
     }
   }
 
   return bucketName;
 }
+
+/* =========================================================
+   UPLOAD PROFILE PHOTO
+========================================================= */
 
 async function uploadStudentProfilePhoto(
   supabaseAdmin: ReturnType<typeof getSupabaseAdmin>,
@@ -109,10 +170,17 @@ async function uploadStudentProfilePhoto(
     throw new Error("Profile photo must be smaller than 5MB.");
   }
 
-  const bucketName = await ensureProfilePhotoBucket(supabaseAdmin);
+  const bucketName = await ensureProfilePhotoBucket(
+    supabaseAdmin
+  );
+
   const extension =
-    file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") ||
-    "jpg";
+    file.name
+      .split(".")
+      .pop()
+      ?.toLowerCase()
+      .replace(/[^a-z0-9]/g, "") || "jpg";
+
   const filePath = `students/${userId}/${crypto.randomUUID()}.${extension}`;
 
   const { error } = await supabaseAdmin.storage
@@ -124,7 +192,9 @@ async function uploadStudentProfilePhoto(
     });
 
   if (error) {
-    throw new Error(`Profile photo upload failed: ${error.message}`);
+    throw new Error(
+      `Profile photo upload failed: ${error.message}`
+    );
   }
 
   const { data } = supabaseAdmin.storage
@@ -134,13 +204,20 @@ async function uploadStudentProfilePhoto(
   return data.publicUrl;
 }
 
+/* =========================================================
+   POST
+========================================================= */
+
 export async function POST(request: NextRequest) {
   let supabaseAdmin;
 
   try {
     supabaseAdmin = getSupabaseAdmin();
   } catch (error) {
-    console.error("Supabase configuration error:", error);
+    console.error(
+      "Supabase configuration error:",
+      error
+    );
 
     return NextResponse.json(
       {
@@ -153,7 +230,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const contentType = request.headers.get("content-type") || "";
+    const contentType =
+      request.headers.get("content-type") || "";
+
     let body: Record<string, unknown>;
 
     if (contentType.includes("multipart/form-data")) {
@@ -163,64 +242,85 @@ export async function POST(request: NextRequest) {
       body = await request.json();
     }
 
-    const {
-      full_name,
-      email,
-      password,
-      batch,
-      section,
-      student_id,
-      blood_group,
-      profile_photo_url,
-      linkedin_url,
-      instagram_url,
-      facebook_url,
-      graduation_date,
-      profile_photo,
-    } = body;
+    /* =====================================================
+       READ FIELDS
+    ===================================================== */
 
-    const cleanName = String(full_name ?? "").trim();
-    const cleanEmail = String(email ?? "").trim().toLowerCase();
-    const cleanPassword = String(password ?? "");
-    const cleanSection = String(section ?? "").trim().toUpperCase();
+    const cleanName =
+      String(body.full_name ?? "").trim();
 
-    const numericBatch = Number(batch);
+    const cleanEmail =
+      String(body.email ?? "")
+        .trim()
+        .toLowerCase();
+
+    const cleanPassword =
+      String(body.password ?? "");
+
+    const cleanSection =
+      String(body.section ?? "")
+        .trim()
+        .toUpperCase();
+
+    const numericBatch =
+      Number(body.batch);
 
     const cleanStudentId =
-      student_id === null || student_id === undefined
+      body.student_id === null ||
+      body.student_id === undefined
         ? null
-        : String(student_id).trim() || null;
+        : String(body.student_id).trim() || null;
 
     const cleanBloodGroup =
-      blood_group === null || blood_group === undefined
+      body.blood_group === null ||
+      body.blood_group === undefined
         ? null
-        : String(blood_group).trim() || null;
+        : String(body.blood_group).trim() || null;
 
     const cleanPhotoUrl =
-      profile_photo_url === null || profile_photo_url === undefined
+      body.profile_photo_url === null ||
+      body.profile_photo_url === undefined
         ? null
-        : String(profile_photo_url).trim() || null;
+        : String(body.profile_photo_url).trim() || null;
 
+    /*
+     * Accept both names so the API is backwards compatible.
+     */
     const cleanLinkedinUrl =
-      linkedin_url === null || linkedin_url === undefined
-        ? null
-        : String(linkedin_url).trim() || null;
+      body.linkedin_url !== undefined
+        ? String(body.linkedin_url).trim() || null
+        : body.linkedin !== undefined
+        ? String(body.linkedin).trim() || null
+        : null;
 
     const cleanInstagramUrl =
-      instagram_url === null || instagram_url === undefined
-        ? null
-        : String(instagram_url).trim() || null;
+      body.instagram_url !== undefined
+        ? String(body.instagram_url).trim() || null
+        : body.instagram !== undefined
+        ? String(body.instagram).trim() || null
+        : null;
 
     const cleanFacebookUrl =
-      facebook_url === null || facebook_url === undefined
-        ? null
-        : String(facebook_url).trim() || null;
+      body.facebook_url !== undefined
+        ? String(body.facebook_url).trim() || null
+        : body.facebook !== undefined
+        ? String(body.facebook).trim() || null
+        : null;
 
-    const cleanGraduation = cleanGraduationDate(graduation_date);
+    const cleanGraduation =
+      cleanGraduationDate(
+        body.graduation_date
+      );
 
-    // ------------------------------------------------------------
-    // Basic validation
-    // ------------------------------------------------------------
+    const crStatus =
+      cleanCRStatus(body.cr_status);
+
+    const profilePhoto =
+      body.profile_photo;
+
+    /* =====================================================
+       VALIDATION
+    ===================================================== */
 
     if (!cleanName) {
       return NextResponse.json(
@@ -258,7 +358,8 @@ export async function POST(request: NextRequest) {
     if (cleanPassword.length < 6) {
       return NextResponse.json(
         {
-          error: "Password must be at least 6 characters.",
+          error:
+            "Password must be at least 6 characters.",
         },
         {
           status: 400,
@@ -288,7 +389,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Only currently running batches can register as students.
     if (!isCurrentRunningBatch(numericBatch)) {
       return NextResponse.json(
         {
@@ -300,8 +400,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // If a graduation date was supplied, make sure it is valid.
-    if (graduation_date && !cleanGraduation) {
+    if (
+      body.graduation_date &&
+      !cleanGraduation
+    ) {
       return NextResponse.json(
         {
           error:
@@ -313,25 +415,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ------------------------------------------------------------
-    // Create Supabase Auth account
-    // ------------------------------------------------------------
+    /* =====================================================
+       CREATE AUTH USER
+    ===================================================== */
 
-    const { data: authData, error: authError } =
+    const {
+      data: authData,
+      error: authError,
+    } =
       await supabaseAdmin.auth.admin.createUser({
         email: cleanEmail,
         password: cleanPassword,
         email_confirm: true,
         user_metadata: {
+          account_type: "student",
           full_name: cleanName,
           batch: numericBatch,
           section: cleanSection,
+          cr_status: crStatus,
           graduation_date: cleanGraduation,
         },
       });
 
-    if (authError || !authData.user) {
-      console.error("Student auth creation error:", authError);
+    if (
+      authError ||
+      !authData.user
+    ) {
+      console.error(
+        "Student auth creation error:",
+        authError
+      );
 
       return NextResponse.json(
         {
@@ -345,22 +458,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userId = authData.user.id;
+    const userId =
+      authData.user.id;
 
-    // Upload through the server with the Supabase service role.
-    // This avoids exposing storage write permissions to anonymous users
-    // and fixes the "row violates row-level security policy" error.
-    let uploadedPhotoUrl: string | null = cleanPhotoUrl;
+    /* =====================================================
+       PROFILE PHOTO
+    ===================================================== */
 
-    if (profile_photo instanceof File && profile_photo.size > 0) {
+    let uploadedPhotoUrl =
+      cleanPhotoUrl;
+
+    if (
+      profilePhoto instanceof File &&
+      profilePhoto.size > 0
+    ) {
       try {
-        uploadedPhotoUrl = await uploadStudentProfilePhoto(
-          supabaseAdmin,
-          userId,
-          profile_photo
-        );
+        uploadedPhotoUrl =
+          await uploadStudentProfilePhoto(
+            supabaseAdmin,
+            userId,
+            profilePhoto
+          );
       } catch (uploadError) {
-        await supabaseAdmin.auth.admin.deleteUser(userId);
+        await supabaseAdmin.auth.admin.deleteUser(
+          userId
+        );
+
         return NextResponse.json(
           {
             error:
@@ -368,16 +491,20 @@ export async function POST(request: NextRequest) {
                 ? uploadError.message
                 : "Profile photo upload failed.",
           },
-          { status: 400 }
+          {
+            status: 400,
+          }
         );
       }
     }
 
-    // ------------------------------------------------------------
-    // Create student profile
-    // ------------------------------------------------------------
+    /* =====================================================
+       CREATE STUDENT PROFILE
+    ===================================================== */
 
-    const { error: profileError } = await supabaseAdmin
+    const {
+      error: profileError,
+    } = await supabaseAdmin
       .from("student_profiles")
       .insert({
         id: userId,
@@ -387,14 +514,17 @@ export async function POST(request: NextRequest) {
         section: cleanSection,
         student_id: cleanStudentId,
         blood_group: cleanBloodGroup,
-        profile_photo_url: uploadedPhotoUrl,
-        linkedin_url: cleanLinkedinUrl,
-        instagram_url: cleanInstagramUrl,
-        facebook_url: cleanFacebookUrl,
-
-        // New automatic student → alumni field.
-        // NULL means no graduation date has been provided.
-        graduation_date: cleanGraduation,
+        cr_status: crStatus,
+        profile_photo_url:
+          uploadedPhotoUrl,
+        linkedin_url:
+          cleanLinkedinUrl,
+        instagram_url:
+          cleanInstagramUrl,
+        facebook_url:
+          cleanFacebookUrl,
+        graduation_date:
+          cleanGraduation,
       });
 
     if (profileError) {
@@ -403,8 +533,9 @@ export async function POST(request: NextRequest) {
         profileError
       );
 
-      // Remove the Auth account if the profile could not be created.
-      await supabaseAdmin.auth.admin.deleteUser(userId);
+      await supabaseAdmin.auth.admin.deleteUser(
+        userId
+      );
 
       return NextResponse.json(
         {
@@ -418,21 +549,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ------------------------------------------------------------
-    // Success
-    // ------------------------------------------------------------
+    /* =====================================================
+       SUCCESS
+    ===================================================== */
 
     return NextResponse.json(
       {
         success: true,
-        message: "Student account created successfully.",
+        message:
+          "Student account created successfully.",
         user: {
           id: userId,
           full_name: cleanName,
           email: cleanEmail,
+          student_id:
+            cleanStudentId,
           batch: numericBatch,
           section: cleanSection,
-          graduation_date: cleanGraduation,
+          cr_status: crStatus,
+          graduation_date:
+            cleanGraduation,
         },
       },
       {
@@ -440,11 +576,17 @@ export async function POST(request: NextRequest) {
       }
     );
   } catch (error) {
-    console.error("Student registration error:", error);
+    console.error(
+      "Student registration error:",
+      error
+    );
 
     return NextResponse.json(
       {
-        error: "Something went wrong while creating the student account.",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Something went wrong while creating the student account.",
       },
       {
         status: 500,
