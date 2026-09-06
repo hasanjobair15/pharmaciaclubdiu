@@ -2,12 +2,9 @@
 
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 
 const CURRENT_BATCHES = [29, 30, 31, 32, 33, 34, 35, 36];
 const SECTIONS = ["A", "B"];
-
-const supabase = createClient();
 
 export default function CreateStudentAccountPage() {
   const [fullName, setFullName] = useState("");
@@ -19,19 +16,7 @@ export default function CreateStudentAccountPage() {
   const [section, setSection] = useState("");
   const [studentId, setStudentId] = useState("");
   const [bloodGroup, setBloodGroup] = useState("");
-
-  /*
-   * Graduation month is stored as:
-   *
-   * YYYY-MM
-   *
-   * Example:
-   * September 2026 = 2026-09
-   *
-   * The API converts this to:
-   * 2026-09-01
-   */
-  const [graduationDate, setGraduationDate] = useState("");
+  const [isCR, setIsCR] = useState("");
 
   const [linkedin, setLinkedin] = useState("");
   const [instagram, setInstagram] = useState("");
@@ -82,7 +67,6 @@ export default function CreateStudentAccountPage() {
     setPhotoPreview(URL.createObjectURL(file));
   }
 
-
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>
   ) {
@@ -126,27 +110,16 @@ export default function CreateStudentAccountPage() {
       return;
     }
 
-    /*
-     * Graduation date is optional.
-     *
-     * If empty:
-     *   graduation_date = null
-     *
-     * Therefore the student stays in Running Students.
-     */
-    if (graduationDate) {
-      const validFormat = /^\d{4}-(0[1-9]|1[0-2])$/;
-
-      if (!validFormat.test(graduationDate)) {
-        setError("Please select a valid graduation month.");
-        return;
-      }
+    if (!isCR) {
+      setError("Please select whether you are a CR/CR.");
+      return;
     }
 
     setLoading(true);
 
     try {
       const formData = new FormData();
+
       formData.append("full_name", fullName.trim());
       formData.append("email", email.trim().toLowerCase());
       formData.append("password", password);
@@ -154,7 +127,8 @@ export default function CreateStudentAccountPage() {
       formData.append("section", section);
       formData.append("student_id", studentId.trim());
       formData.append("blood_group", bloodGroup);
-      formData.append("graduation_date", graduationDate || "");
+      formData.append("is_cr", isCR === "yes" ? "true" : "false");
+
       formData.append("linkedin_url", linkedin.trim());
       formData.append("instagram_url", instagram.trim());
       formData.append("facebook_url", facebook.trim());
@@ -190,7 +164,7 @@ export default function CreateStudentAccountPage() {
       setSection("");
       setStudentId("");
       setBloodGroup("");
-      setGraduationDate("");
+      setIsCR("");
       setLinkedin("");
       setInstagram("");
       setFacebook("");
@@ -202,7 +176,10 @@ export default function CreateStudentAccountPage() {
         setPhotoPreview("");
       }
     } catch (err) {
-      console.error("Student registration error:", err);
+      console.error(
+        "Student registration error:",
+        err
+      );
 
       setError(
         err instanceof Error
@@ -217,6 +194,7 @@ export default function CreateStudentAccountPage() {
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-10 dark:bg-slate-950 sm:px-6">
       <div className="mx-auto max-w-3xl">
+
         {/* Back */}
         <div className="mb-6">
           <Link
@@ -261,8 +239,10 @@ export default function CreateStudentAccountPage() {
           onSubmit={handleSubmit}
           className="space-y-6"
         >
+
           {/* Basic Information */}
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+
             <div className="mb-6">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                 Basic Information
@@ -274,6 +254,7 @@ export default function CreateStudentAccountPage() {
             </div>
 
             <div className="grid gap-5 sm:grid-cols-2">
+
               <FormField
                 label="Full Name"
                 required
@@ -308,11 +289,13 @@ export default function CreateStudentAccountPage() {
                 onChange={setConfirmPassword}
                 placeholder="Re-enter your password"
               />
+
             </div>
           </section>
 
           {/* Academic Information */}
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+
             <div className="mb-6">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                 Academic Information
@@ -324,6 +307,7 @@ export default function CreateStudentAccountPage() {
             </div>
 
             <div className="grid gap-5 sm:grid-cols-2">
+
               <SelectField
                 label="Batch"
                 required
@@ -362,41 +346,54 @@ export default function CreateStudentAccountPage() {
                 placeholder="Example: B+"
               />
 
-              {/* NEW GRADUATION FIELD */}
+              {/* CR/CR Selection */}
               <div className="sm:col-span-2">
+
                 <label
-                  htmlFor="graduation-date"
+                  htmlFor="is-cr"
                   className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
                 >
-                  Graduation Month & Year
-                  <span className="ml-1 text-xs font-normal text-slate-400">
-                    (Only fill after graduation)
+                  Are you a CR/CR?
+                  <span className="ml-1 text-red-500">
+                    *
                   </span>
                 </label>
 
-                <input
-                  id="graduation-date"
-                  type="month"
-                  value={graduationDate}
+                <select
+                  id="is-cr"
+                  value={isCR}
                   onChange={(e) =>
-                    setGraduationDate(e.target.value)
+                    setIsCR(e.target.value)
                   }
+                  required
                   className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                />
+                >
+                  <option value="">
+                    Select an option
+                  </option>
+
+                  <option value="yes">
+                    Yes, I am a CR/CR
+                  </option>
+
+                  <option value="no">
+                    No, I am not a CR/CR
+                  </option>
+                </select>
 
                 <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                  Select the month and year you graduate. Once
-                  that month arrives, your profile will
-                  automatically appear in the Alumni section.
-                  Leave this empty if you do not want to set a
-                  graduation date.
+                  Please select whether you are currently serving
+                  as a Class Representative (CR/CR).
                 </p>
+
               </div>
+
             </div>
           </section>
 
           {/* Profile Photo */}
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+
             <div className="mb-6">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                 Profile Photo
@@ -408,7 +405,9 @@ export default function CreateStudentAccountPage() {
             </div>
 
             <div className="flex flex-col items-center gap-5 sm:flex-row">
+
               <div className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 ring-4 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
+
                 {photoPreview ? (
                   <img
                     src={photoPreview}
@@ -420,9 +419,11 @@ export default function CreateStudentAccountPage() {
                     No Photo
                   </span>
                 )}
+
               </div>
 
               <div className="w-full">
+
                 <label
                   htmlFor="profile-photo"
                   className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
@@ -439,35 +440,43 @@ export default function CreateStudentAccountPage() {
                 />
 
                 <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  JPG, PNG, WEBP or other image format. Maximum
-                  size: 5MB. You can also use an image URL below.
+                  JPG, PNG, WEBP or other image format.
+                  Maximum size: 5MB.
                 </p>
 
                 <div className="mt-5">
+
                   <label
                     htmlFor="profile-photo-url"
                     className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
                   >
                     Or use Image URL
                   </label>
+
                   <input
                     id="profile-photo-url"
                     type="url"
                     value={photoUrl}
-                    onChange={(e) => setPhotoUrl(e.target.value)}
+                    onChange={(e) =>
+                      setPhotoUrl(e.target.value)
+                    }
                     placeholder="https://example.com/profile-photo.jpg"
                     className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   />
+
                   <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                     If both are provided, the uploaded photo is used.
                   </p>
+
                 </div>
+
               </div>
             </div>
           </section>
 
           {/* Social Links */}
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+
             <div className="mb-6">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                 Social Links
@@ -480,6 +489,7 @@ export default function CreateStudentAccountPage() {
             </div>
 
             <div className="space-y-5">
+
               <FormField
                 label="LinkedIn"
                 value={linkedin}
@@ -500,11 +510,13 @@ export default function CreateStudentAccountPage() {
                 onChange={setFacebook}
                 placeholder="https://facebook.com/your-profile"
               />
+
             </div>
           </section>
 
           {/* Submit */}
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+
             <button
               type="submit"
               disabled={loading}
@@ -517,6 +529,7 @@ export default function CreateStudentAccountPage() {
 
             <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
               Already have an account?{" "}
+
               <Link
                 href="/students/login"
                 className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
@@ -524,7 +537,9 @@ export default function CreateStudentAccountPage() {
                 Login here
               </Link>
             </p>
+
           </section>
+
         </form>
       </div>
     </main>
@@ -548,22 +563,30 @@ function FormField({
 }) {
   return (
     <div>
+
       <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+
         {label}
 
         {required && (
-          <span className="ml-1 text-red-500">*</span>
+          <span className="ml-1 text-red-500">
+            *
+          </span>
         )}
+
       </label>
 
       <input
         type={type}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) =>
+          onChange(e.target.value)
+        }
         placeholder={placeholder}
         required={required}
         className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
       />
+
     </div>
   );
 }
@@ -588,21 +611,31 @@ function SelectField({
 }) {
   return (
     <div>
+
       <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+
         {label}
 
         {required && (
-          <span className="ml-1 text-red-500">*</span>
+          <span className="ml-1 text-red-500">
+            *
+          </span>
         )}
+
       </label>
 
       <select
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) =>
+          onChange(e.target.value)
+        }
         required={required}
         className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
       >
-        <option value="">{placeholder}</option>
+
+        <option value="">
+          {placeholder}
+        </option>
 
         {options.map((option) => (
           <option
@@ -612,7 +645,9 @@ function SelectField({
             {option.label}
           </option>
         ))}
+
       </select>
+
     </div>
   );
 }
