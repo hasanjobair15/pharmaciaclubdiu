@@ -21,17 +21,26 @@ export default function CreateStudentAccountPage() {
     []
   );
 
+  // Personal information
   const [fullName, setFullName] = useState("");
   const [studentId, setStudentId] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] =
-    useState("");
 
+  // Academic information
   const [batch, setBatch] = useState("");
   const [section, setSection] = useState("");
   const [crStatus, setCrStatus] =
     useState<CRStatus | "">("");
+
+  // Social media
+  const [linkedin, setLinkedin] = useState("");
+  const [facebook, setFacebook] = useState("");
+  const [instagram, setInstagram] = useState("");
+
+  // Password
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] =
+    useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -48,6 +57,10 @@ export default function CreateStudentAccountPage() {
     const cleanName = fullName.trim();
     const cleanStudentId = studentId.trim();
     const cleanEmail = email.trim().toLowerCase();
+
+    const cleanLinkedin = linkedin.trim();
+    const cleanFacebook = facebook.trim();
+    const cleanInstagram = instagram.trim();
 
     if (!cleanName) {
       setError("Please enter your full name.");
@@ -103,13 +116,23 @@ export default function CreateStudentAccountPage() {
 
       const formData = new FormData();
 
+      // Personal
       formData.append("full_name", cleanName);
       formData.append("student_id", cleanStudentId);
       formData.append("email", cleanEmail);
-      formData.append("password", password);
+
+      // Academic
       formData.append("batch", batch);
       formData.append("section", section);
       formData.append("cr_status", crStatus);
+
+      // Social media
+      formData.append("linkedin", cleanLinkedin);
+      formData.append("facebook", cleanFacebook);
+      formData.append("instagram", cleanInstagram);
+
+      // Password
+      formData.append("password", password);
 
       const response = await fetch(
         "/api/students/register",
@@ -140,19 +163,19 @@ export default function CreateStudentAccountPage() {
           "Student account created successfully."
       );
 
+      // Clear form
       setFullName("");
       setStudentId("");
       setEmail("");
-      setPassword("");
-      setConfirmPassword("");
       setBatch("");
       setSection("");
       setCrStatus("");
+      setLinkedin("");
+      setFacebook("");
+      setInstagram("");
+      setPassword("");
+      setConfirmPassword("");
 
-      /*
-       * Give the user a moment to see the success
-       * message before going to login.
-       */
       setTimeout(() => {
         router.push("/students/login");
       }, 1800);
@@ -392,8 +415,7 @@ export default function CreateStudentAccountPage() {
                           key={currentSection}
                           value={currentSection}
                         >
-                          Section{" "}
-                          {currentSection}
+                          Section {currentSection}
                         </option>
                       )
                     )}
@@ -442,23 +464,112 @@ export default function CreateStudentAccountPage() {
                 </div>
               </div>
 
-              {/* CR explanation */}
               <div className="mt-4 rounded-xl bg-slate-50 p-4 dark:bg-slate-800/70">
                 <p className="text-xs leading-5 text-slate-600 dark:text-slate-400">
                   <strong className="text-slate-800 dark:text-slate-200">
                     CR:
                   </strong>{" "}
-                  Class Representative.
-                  {" "}
+                  Class Representative.{" "}
                   <strong className="text-slate-800 dark:text-slate-200">
                     Co-CR:
                   </strong>{" "}
-                  Co-Class Representative.
-                  {" "}
+                  Co-Class Representative.{" "}
                   <strong className="text-slate-800 dark:text-slate-200">
                     NO:
                   </strong>{" "}
                   Not a Class Representative.
+                </p>
+              </div>
+            </div>
+
+            {/* Social Media */}
+            <div className="border-t border-slate-200 pt-8 dark:border-slate-800">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                Social Media
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Add your social media profiles. These
+                links will be displayed on your student
+                profile.
+              </p>
+
+              <div className="mt-5 grid gap-5 md:grid-cols-2">
+                {/* LinkedIn */}
+                <div>
+                  <label
+                    htmlFor="linkedin"
+                    className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300"
+                  >
+                    LinkedIn Profile
+                  </label>
+
+                  <input
+                    id="linkedin"
+                    type="url"
+                    value={linkedin}
+                    onChange={(e) =>
+                      setLinkedin(e.target.value)
+                    }
+                    placeholder="https://www.linkedin.com/in/yourname"
+                    autoComplete="url"
+                    disabled={loading}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+
+                {/* Facebook */}
+                <div>
+                  <label
+                    htmlFor="facebook"
+                    className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300"
+                  >
+                    Facebook Profile
+                  </label>
+
+                  <input
+                    id="facebook"
+                    type="url"
+                    value={facebook}
+                    onChange={(e) =>
+                      setFacebook(e.target.value)
+                    }
+                    placeholder="https://www.facebook.com/yourname"
+                    autoComplete="url"
+                    disabled={loading}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+
+                {/* Instagram */}
+                <div className="md:col-span-2">
+                  <label
+                    htmlFor="instagram"
+                    className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300"
+                  >
+                    Instagram Profile
+                  </label>
+
+                  <input
+                    id="instagram"
+                    type="url"
+                    value={instagram}
+                    onChange={(e) =>
+                      setInstagram(e.target.value)
+                    }
+                    placeholder="https://www.instagram.com/yourusername"
+                    autoComplete="url"
+                    disabled={loading}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-xl bg-blue-50 p-4 dark:bg-blue-950/30">
+                <p className="text-xs leading-5 text-blue-700 dark:text-blue-300">
+                  Social media links are optional. Leave
+                  any field blank if you do not want to
+                  provide that profile.
                 </p>
               </div>
             </div>
