@@ -1,721 +1,559 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import {
+  FormEvent,
+  useMemo,
+  useState,
+} from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { getCurrentRunningBatches } from "@/app/lib/students/current-batches";
 
-type CRStatus = "cr" | "co_cr" | "no" | null;
+type CRStatus = "cr" | "co_cr" | "no";
 
-type Student = {
-  id: string;
-  full_name: string;
-  student_id: string | null;
-  email: string;
-  batch: number;
-  section: string;
-  blood_group: string | null;
-  profile_photo_url: string | null;
-  linkedin_url: string | null;
-  instagram_url: string | null;
-  facebook_url: string | null;
-  graduation_date: string | null;
-  cr_status: CRStatus;
-};
+const SECTIONS = ["A", "B"];
 
-const supabase = createClient();
-
-function getDhakaToday() {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Dhaka",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-
-  const year = parts.find((part) => part.type === "year")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
-  const day = parts.find((part) => part.type === "day")?.value;
-
-  return `${year}-${month}-${day}`;
-}
-
-/**
- * A student is considered graduated when
- * their graduation date has arrived.
- */
-function hasGraduated(graduationDate: string | null) {
-  if (!graduationDate) {
-    return false;
-  }
-
-  const today = getDhakaToday();
-
-  return graduationDate <= today;
-}
-
-/**
- * CR ordering:
- *
- * CR     = 1
- * Co-CR  = 2
- * NO     = 3
- * null   = 3
- */
-function getCRPriority(status: CRStatus) {
-  switch (status) {
-    case "cr":
-      return 1;
-
-    case "co_cr":
-      return 2;
-
-    case "no":
-    default:
-      return 3;
-  }
-}
-
-export default function StudentsPage() {
-  const [students, setStudents] = useState<Student[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const [search, setSearch] = useState("");
-  const [batchFilter, setBatchFilter] = useState("all");
-  const [sectionFilter, setSectionFilter] = useState("all");
+export default function CreateStudentAccountPage() {
+  const router = useRouter();
 
   const currentBatches = useMemo(
     () => getCurrentRunningBatches(),
     []
   );
 
-  useEffect(() => {
-    async function loadStudents() {
+  const [fullName, setFullName] = useState("");
+  const [studentId, setStudentId] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] =
+    useState("");
+
+  const [batch, setBatch] = useState("");
+  const [section, setSection] = useState("");
+  const [crStatus, setCrStatus] =
+    useState<CRStatus | "">("");
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    setError("");
+    setSuccess("");
+
+    const cleanName = fullName.trim();
+    const cleanStudentId = studentId.trim();
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanName) {
+      setError("Please enter your full name.");
+      return;
+    }
+
+    if (!cleanStudentId) {
+      setError("Please enter your student ID.");
+      return;
+    }
+
+    if (!cleanEmail) {
+      setError("Please enter your email address.");
+      return;
+    }
+
+    if (!password) {
+      setError("Please enter a password.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError(
+        "Password must be at least 6 characters long."
+      );
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    if (!batch) {
+      setError("Please select your batch.");
+      return;
+    }
+
+    if (!section) {
+      setError("Please select your section.");
+      return;
+    }
+
+    if (!crStatus) {
+      setError(
+        "Please select your class representative status."
+      );
+      return;
+    }
+
+    try {
       setLoading(true);
-      setError("");
 
-      const { data, error } = await supabase
-        .from("student_profiles")
-        .select(
-          `
-            id,
-            full_name,
-            student_id,
-            email,
-            batch,
-            section,
-            blood_group,
-            profile_photo_url,
-            linkedin_url,
-            instagram_url,
-            facebook_url,
-            graduation_date,
-            cr_status
-          `
-        )
-        .in("batch", currentBatches)
-        .order("batch", {
-          ascending: true,
-        })
-        .order("section", {
-          ascending: true,
-        })
-        .order("full_name", {
-          ascending: true,
-        });
+      const formData = new FormData();
 
-      if (error) {
-        console.error(
-          "Student loading error:",
-          error
-        );
+      formData.append("full_name", cleanName);
+      formData.append("student_id", cleanStudentId);
+      formData.append("email", cleanEmail);
+      formData.append("password", password);
+      formData.append("batch", batch);
+      formData.append("section", section);
+      formData.append("cr_status", crStatus);
 
-        setError(error.message);
-        setStudents([]);
-      } else {
-        const runningStudents =
-          ((data || []) as Student[]).filter(
-            (student) =>
-              !hasGraduated(
-                student.graduation_date
-              )
-          );
+      const response = await fetch(
+        "/api/students/register",
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
 
-        setStudents(runningStudents);
+      let result: any = null;
+
+      try {
+        result = await response.json();
+      } catch {
+        result = null;
       }
 
+      if (!response.ok) {
+        throw new Error(
+          result?.error ||
+            result?.message ||
+            "Unable to create student account."
+        );
+      }
+
+      setSuccess(
+        result?.message ||
+          "Student account created successfully."
+      );
+
+      setFullName("");
+      setStudentId("");
+      setEmail("");
+      setPassword("");
+      setConfirmPassword("");
+      setBatch("");
+      setSection("");
+      setCrStatus("");
+
+      /*
+       * Give the user a moment to see the success
+       * message before going to login.
+       */
+      setTimeout(() => {
+        router.push("/students/login");
+      }, 1800);
+    } catch (err) {
+      console.error(
+        "Student registration error:",
+        err
+      );
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong while creating the account."
+      );
+    } finally {
       setLoading(false);
     }
-
-    loadStudents();
-  }, [currentBatches]);
-
-  /**
-   * Search and filters
-   */
-  const filteredStudents = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    return students.filter((student) => {
-      const matchesSearch =
-        !query ||
-        student.full_name
-          .toLowerCase()
-          .includes(query) ||
-        String(student.batch).includes(query) ||
-        student.section
-          .toLowerCase()
-          .includes(query) ||
-        (student.student_id || "")
-          .toLowerCase()
-          .includes(query);
-
-      const matchesBatch =
-        batchFilter === "all" ||
-        String(student.batch) ===
-          batchFilter;
-
-      const matchesSection =
-        sectionFilter === "all" ||
-        student.section ===
-          sectionFilter;
-
-      return (
-        matchesSearch &&
-        matchesBatch &&
-        matchesSection
-      );
-    });
-  }, [
-    students,
-    search,
-    batchFilter,
-    sectionFilter,
-  ]);
-
-  /**
-   * Group by Batch + Section.
-   *
-   * Inside each section:
-   *
-   * 1. CR
-   * 2. Co-CR
-   * 3. NO / others alphabetically
-   */
-  const groupedStudents = useMemo(() => {
-    const groups: Record<
-      string,
-      Student[]
-    > = {};
-
-    for (const student of filteredStudents) {
-      const key = `${student.batch}-${student.section}`;
-
-      if (!groups[key]) {
-        groups[key] = [];
-      }
-
-      groups[key].push(student);
-    }
-
-    return Object.entries(groups)
-      .map(
-        ([groupName, groupStudents]) => {
-          const sortedStudents = [
-            ...groupStudents,
-          ].sort((a, b) => {
-            const priorityA =
-              getCRPriority(
-                a.cr_status
-              );
-
-            const priorityB =
-              getCRPriority(
-                b.cr_status
-              );
-
-            // CR before Co-CR before others
-            if (
-              priorityA !== priorityB
-            ) {
-              return (
-                priorityA -
-                priorityB
-              );
-            }
-
-            // Same CR status → alphabetical
-            return a.full_name.localeCompare(
-              b.full_name,
-              undefined,
-              {
-                sensitivity: "base",
-              }
-            );
-          });
-
-          return [
-            groupName,
-            sortedStudents,
-          ] as [string, Student[]];
-        }
-      )
-      .sort(
-        ([groupA], [groupB]) => {
-          const [
-            batchA,
-            sectionA,
-          ] = groupA.split("-");
-
-          const [
-            batchB,
-            sectionB,
-          ] = groupB.split("-");
-
-          return (
-            Number(batchA) -
-              Number(batchB) ||
-            sectionA.localeCompare(
-              sectionB
-            )
-          );
-        }
-      );
-  }, [filteredStudents]);
+  }
 
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      {/* ====================================================== */}
-      {/* HEADER */}
-      {/* ====================================================== */}
-
+      {/* Header */}
       <section className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-                Pharmacia Club DIU
-              </p>
+        <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
+          <Link
+            href="/students"
+            className="text-sm font-semibold text-blue-600 hover:underline dark:text-blue-400"
+          >
+            ← Back to Students
+          </Link>
 
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-4xl">
-                Students
-              </h1>
+          <div className="mt-6">
+            <p className="text-sm font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+              Pharmacia Club DIU
+            </p>
 
-              <p className="mt-3 max-w-2xl text-slate-600 dark:text-slate-300">
-                Explore students from the
-                currently running batches.
-              </p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-4xl">
+              Create Student Account
+            </h1>
 
-              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                Current batches:{" "}
-                <span className="font-semibold text-slate-700 dark:text-slate-200">
-                  {currentBatches.join(
-                    ", "
-                  )}
-                </span>
-              </p>
-
-              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-                Students are automatically
-                moved to Alumni when their
-                graduation month arrives.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              <a
-                href="/students/login"
-                className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-              >
-                Student Login
-              </a>
-
-              <a
-                href="/students/create-account"
-                className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
-              >
-                Create Student Account
-              </a>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ====================================================== */}
-      {/* CR / CO-CR LEGEND */}
-      {/* ====================================================== */}
-
-      <section className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
-            Class Representative:
-          </span>
-
-          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
-            CR
-          </span>
-
-          <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-purple-800 dark:bg-purple-950/50 dark:text-purple-300">
-            Co-CR
-          </span>
-        </div>
-      </section>
-
-      {/* ====================================================== */}
-      {/* FILTERS */}
-      {/* ====================================================== */}
-
-      <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="grid gap-4 md:grid-cols-3">
-            {/* Search */}
-            <div>
-              <label
-                htmlFor="student-search"
-                className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
-              >
-                Search
-              </label>
-
-              <input
-                id="student-search"
-                type="text"
-                value={search}
-                onChange={(e) =>
-                  setSearch(
-                    e.target.value
-                  )
-                }
-                placeholder="Search by name, ID, batch..."
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              />
-            </div>
-
-            {/* Batch Filter */}
-            <div>
-              <label
-                htmlFor="batch-filter"
-                className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
-              >
-                Batch
-              </label>
-
-              <select
-                id="batch-filter"
-                value={batchFilter}
-                onChange={(e) =>
-                  setBatchFilter(
-                    e.target.value
-                  )
-                }
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              >
-                <option value="all">
-                  All Batches
-                </option>
-
-                {currentBatches.map(
-                  (batch) => (
-                    <option
-                      key={batch}
-                      value={batch}
-                    >
-                      Batch {batch}
-                    </option>
-                  )
-                )}
-              </select>
-            </div>
-
-            {/* Section Filter */}
-            <div>
-              <label
-                htmlFor="section-filter"
-                className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
-              >
-                Section
-              </label>
-
-              <select
-                id="section-filter"
-                value={sectionFilter}
-                onChange={(e) =>
-                  setSectionFilter(
-                    e.target.value
-                  )
-                }
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              >
-                <option value="all">
-                  All Sections
-                </option>
-
-                <option value="A">
-                  Section A
-                </option>
-
-                <option value="B">
-                  Section B
-                </option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ====================================================== */}
-      {/* CONTENT */}
-      {/* ====================================================== */}
-
-      <section className="mx-auto max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
-        {/* Loading */}
-        {loading && (
-          <div className="py-16 text-center">
-            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
-
-            <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-              Loading students...
+            <p className="mt-3 text-slate-600 dark:text-slate-300">
+              Create your student profile for the
+              Pharmacia Club DIU student directory.
             </p>
           </div>
-        )}
+        </div>
+      </section>
 
-        {/* Error */}
-        {!loading && error && (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center dark:border-red-900/50 dark:bg-red-950/30">
-            <h2 className="font-semibold text-red-700 dark:text-red-400">
-              Could not load students
-            </h2>
+      {/* Form */}
+      <section className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+          {/* Error */}
+          {error && (
+            <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/30">
+              <p className="text-sm font-medium text-red-700 dark:text-red-300">
+                {error}
+              </p>
+            </div>
+          )}
 
-            <p className="mt-2 text-sm text-red-600 dark:text-red-300">
-              {error}
-            </p>
-          </div>
-        )}
+          {/* Success */}
+          {success && (
+            <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-900/50 dark:bg-green-950/30">
+              <p className="text-sm font-medium text-green-700 dark:text-green-300">
+                {success}
+              </p>
 
-        {/* Empty */}
-        {!loading &&
-          !error &&
-          filteredStudents.length ===
-            0 && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center dark:border-slate-800 dark:bg-slate-900">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-                No students found
+              <p className="mt-1 text-xs text-green-600 dark:text-green-400">
+                Redirecting you to student login...
+              </p>
+            </div>
+          )}
+
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-8"
+          >
+            {/* Personal Information */}
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                Personal Information
               </h2>
 
-              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                Try changing your search
-                or filters.
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Enter your basic student information.
+              </p>
+
+              <div className="mt-5 grid gap-5 md:grid-cols-2">
+                {/* Full Name */}
+                <div className="md:col-span-2">
+                  <label
+                    htmlFor="full-name"
+                    className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300"
+                  >
+                    Full Name
+                  </label>
+
+                  <input
+                    id="full-name"
+                    type="text"
+                    value={fullName}
+                    onChange={(e) =>
+                      setFullName(e.target.value)
+                    }
+                    placeholder="Enter your full name"
+                    autoComplete="name"
+                    required
+                    disabled={loading}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+
+                {/* Student ID */}
+                <div>
+                  <label
+                    htmlFor="student-id"
+                    className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300"
+                  >
+                    Student ID
+                  </label>
+
+                  <input
+                    id="student-id"
+                    type="text"
+                    value={studentId}
+                    onChange={(e) =>
+                      setStudentId(e.target.value)
+                    }
+                    placeholder="e.g. 221-35-1234"
+                    autoComplete="username"
+                    required
+                    disabled={loading}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label
+                    htmlFor="email"
+                    className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300"
+                  >
+                    Email Address
+                  </label>
+
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) =>
+                      setEmail(e.target.value)
+                    }
+                    placeholder="Enter your email"
+                    autoComplete="email"
+                    required
+                    disabled={loading}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Academic Information */}
+            <div className="border-t border-slate-200 pt-8 dark:border-slate-800">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                Academic Information
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Select your current batch, section and
+                class representative status.
+              </p>
+
+              <div className="mt-5 grid gap-5 md:grid-cols-3">
+                {/* Batch */}
+                <div>
+                  <label
+                    htmlFor="batch"
+                    className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300"
+                  >
+                    Batch
+                  </label>
+
+                  <select
+                    id="batch"
+                    value={batch}
+                    onChange={(e) =>
+                      setBatch(e.target.value)
+                    }
+                    required
+                    disabled={loading}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  >
+                    <option value="">
+                      Select batch
+                    </option>
+
+                    {currentBatches.map(
+                      (currentBatch) => (
+                        <option
+                          key={currentBatch}
+                          value={currentBatch}
+                        >
+                          Batch {currentBatch}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </div>
+
+                {/* Section */}
+                <div>
+                  <label
+                    htmlFor="section"
+                    className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300"
+                  >
+                    Section
+                  </label>
+
+                  <select
+                    id="section"
+                    value={section}
+                    onChange={(e) =>
+                      setSection(e.target.value)
+                    }
+                    required
+                    disabled={loading}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  >
+                    <option value="">
+                      Select section
+                    </option>
+
+                    {SECTIONS.map(
+                      (currentSection) => (
+                        <option
+                          key={currentSection}
+                          value={currentSection}
+                        >
+                          Section{" "}
+                          {currentSection}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </div>
+
+                {/* CR Status */}
+                <div>
+                  <label
+                    htmlFor="cr-status"
+                    className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300"
+                  >
+                    Class Representative
+                  </label>
+
+                  <select
+                    id="cr-status"
+                    value={crStatus}
+                    onChange={(e) =>
+                      setCrStatus(
+                        e.target.value as
+                          | CRStatus
+                          | ""
+                      )
+                    }
+                    required
+                    disabled={loading}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  >
+                    <option value="">
+                      Select your position
+                    </option>
+
+                    <option value="cr">
+                      CR
+                    </option>
+
+                    <option value="co_cr">
+                      Co-CR
+                    </option>
+
+                    <option value="no">
+                      NO
+                    </option>
+                  </select>
+                </div>
+              </div>
+
+              {/* CR explanation */}
+              <div className="mt-4 rounded-xl bg-slate-50 p-4 dark:bg-slate-800/70">
+                <p className="text-xs leading-5 text-slate-600 dark:text-slate-400">
+                  <strong className="text-slate-800 dark:text-slate-200">
+                    CR:
+                  </strong>{" "}
+                  Class Representative.
+                  {" "}
+                  <strong className="text-slate-800 dark:text-slate-200">
+                    Co-CR:
+                  </strong>{" "}
+                  Co-Class Representative.
+                  {" "}
+                  <strong className="text-slate-800 dark:text-slate-200">
+                    NO:
+                  </strong>{" "}
+                  Not a Class Representative.
+                </p>
+              </div>
+            </div>
+
+            {/* Password */}
+            <div className="border-t border-slate-200 pt-8 dark:border-slate-800">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                Account Security
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Create a password for your student
+                account.
+              </p>
+
+              <div className="mt-5 grid gap-5 md:grid-cols-2">
+                {/* Password */}
+                <div>
+                  <label
+                    htmlFor="password"
+                    className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300"
+                  >
+                    Password
+                  </label>
+
+                  <input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) =>
+                      setPassword(e.target.value)
+                    }
+                    placeholder="Minimum 6 characters"
+                    autoComplete="new-password"
+                    minLength={6}
+                    required
+                    disabled={loading}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+
+                {/* Confirm Password */}
+                <div>
+                  <label
+                    htmlFor="confirm-password"
+                    className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300"
+                  >
+                    Confirm Password
+                  </label>
+
+                  <input
+                    id="confirm-password"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) =>
+                      setConfirmPassword(
+                        e.target.value
+                      )
+                    }
+                    placeholder="Re-enter your password"
+                    autoComplete="new-password"
+                    minLength={6}
+                    required
+                    disabled={loading}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Submit */}
+            <div className="border-t border-slate-200 pt-8 dark:border-slate-800">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-offset-slate-900"
+              >
+                {loading
+                  ? "Creating Account..."
+                  : "Create Student Account"}
+              </button>
+
+              <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
+                Already have an account?{" "}
+                <Link
+                  href="/students/login"
+                  className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                >
+                  Student Login
+                </Link>
               </p>
             </div>
-          )}
-
-        {/* ================================================== */}
-        {/* GROUPED STUDENTS */}
-        {/* ================================================== */}
-
-        {!loading &&
-          !error &&
-          groupedStudents.length > 0 && (
-            <div className="space-y-10">
-              {groupedStudents.map(
-                ([
-                  groupName,
-                  groupStudents,
-                ]) => {
-                  const [
-                    batch,
-                    section,
-                  ] =
-                    groupName.split(
-                      "-"
-                    );
-
-                  return (
-                    <div
-                      key={groupName}
-                    >
-                      {/* Section Header */}
-                      <div className="mb-5 flex items-center justify-between">
-                        <div>
-                          <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                            Batch {batch} —
-                            Section{" "}
-                            {section}
-                          </h2>
-
-                          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                            {
-                              groupStudents.length
-                            }{" "}
-                            student
-                            {groupStudents.length !==
-                            1
-                              ? "s"
-                              : ""}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Students */}
-                      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {groupStudents.map(
-                          (
-                            student
-                          ) => (
-                            <StudentCard
-                              key={
-                                student.id
-                              }
-                              student={
-                                student
-                              }
-                            />
-                          )
-                        )}
-                      </div>
-                    </div>
-                  );
-                }
-              )}
-            </div>
-          )}
+          </form>
+        </div>
       </section>
     </main>
-  );
-}
-
-/* ================================================================ */
-/* STUDENT CARD */
-/* ================================================================ */
-
-function StudentCard({
-  student,
-}: {
-  student: Student;
-}) {
-  const isCR =
-    student.cr_status ===
-    "cr";
-
-  const isCoCR =
-    student.cr_status ===
-    "co_cr";
-
-  return (
-    <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900">
-      {/* Profile Photo */}
-      <div className="flex justify-center bg-slate-100 p-6 dark:bg-slate-800">
-        {student.profile_photo_url ? (
-          <img
-            src={
-              student.profile_photo_url
-            }
-            alt={
-              student.full_name
-            }
-            className="h-28 w-28 rounded-full object-cover ring-4 ring-white dark:ring-slate-700"
-          />
-        ) : (
-          <div className="flex h-28 w-28 items-center justify-center rounded-full bg-blue-600 text-3xl font-bold text-white ring-4 ring-white dark:ring-slate-700">
-            {student.full_name
-              .charAt(0)
-              .toUpperCase()}
-          </div>
-        )}
-      </div>
-
-      {/* Card Body */}
-      <div className="p-5">
-        {/* Name + Position */}
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="min-w-0 truncate text-lg font-bold text-slate-900 dark:text-white">
-            {student.full_name}
-          </h3>
-
-          {isCR && (
-            <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
-              CR
-            </span>
-          )}
-
-          {isCoCR && (
-            <span className="shrink-0 rounded-full bg-purple-100 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-purple-800 dark:bg-purple-950/50 dark:text-purple-300">
-              Co-CR
-            </span>
-          )}
-        </div>
-
-        {/* Student ID */}
-        {student.student_id && (
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            ID:{" "}
-            {student.student_id}
-          </p>
-        )}
-
-        {/* Academic Badges */}
-        <div className="mt-4 flex flex-wrap gap-2">
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
-            Batch{" "}
-            {student.batch}
-          </span>
-
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-            Section{" "}
-            {student.section}
-          </span>
-
-          {student.blood_group && (
-            <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 dark:bg-red-950/40 dark:text-red-300">
-              {
-                student.blood_group
-              }
-            </span>
-          )}
-        </div>
-
-        {/* Social Links */}
-        <div className="mt-5 flex flex-wrap gap-2">
-          {student.linkedin_url && (
-            <a
-              href={
-                student.linkedin_url
-              }
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400"
-            >
-              LinkedIn
-            </a>
-          )}
-
-          {student.instagram_url && (
-            <a
-              href={
-                student.instagram_url
-              }
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-semibold text-pink-600 hover:underline dark:text-pink-400"
-            >
-              Instagram
-            </a>
-          )}
-
-          {student.facebook_url && (
-            <a
-              href={
-                student.facebook_url
-              }
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-400"
-            >
-              Facebook
-            </a>
-          )}
-        </div>
-      </div>
-    </article>
   );
 }
