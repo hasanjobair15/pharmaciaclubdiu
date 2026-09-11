@@ -7,7 +7,7 @@ type Alumni = {
   id: string;
   full_name: string;
   batch: string;
-  section: string;
+  section: string | null;
   graduation_year: number | null;
   graduation_date: string | null;
   profile_photo_url: string | null;
@@ -206,15 +206,6 @@ export default function AlumniPage() {
           `
         )
         .eq("is_public", true)
-        .not(
-          "graduation_date",
-          "is",
-          null
-        )
-        .lte(
-          "graduation_date",
-          today
-        )
         .order(
           "full_name",
           {
@@ -422,34 +413,19 @@ export default function AlumniPage() {
       }
 
       /*
-       * Final safety filter:
-       *
-       * Nobody without a graduation date can
-       * appear in the Alumni directory.
+       * Admin-added alumni may intentionally have
+       * no graduation date, email, or section.
+       * They are still valid public alumni profiles
+       * when is_public is true.
        */
-      const validAlumni =
-        merged.filter(
-          (person) => {
-            const date =
-              normalizeGraduationDate(
-                person.graduation_date
-              );
-
-            return (
-              date !== null &&
-              date <= today
-            );
-          }
-        );
-
-      validAlumni.sort(
+      merged.sort(
         (a, b) =>
           a.full_name.localeCompare(
             b.full_name
           )
       );
 
-      setAlumni(validAlumni);
+      setAlumni(merged);
       setLoading(false);
     }
 
@@ -489,19 +465,16 @@ export default function AlumniPage() {
           acc[person.batch] = {};
         }
 
+        const sectionKey =
+          person.section?.trim() || "Not Specified";
+
         if (
-          !acc[person.batch][
-            person.section
-          ]
+          !acc[person.batch][sectionKey]
         ) {
-          acc[person.batch][
-            person.section
-          ] = [];
+          acc[person.batch][sectionKey] = [];
         }
 
-        acc[person.batch][
-          person.section
-        ].push(person);
+        acc[person.batch][sectionKey].push(person);
 
         return acc;
       },
@@ -651,7 +624,7 @@ export default function AlumniPage() {
                       <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
 
                       <h2 className="rounded-full bg-[#0b1736] px-6 py-2 text-lg font-bold text-white dark:bg-[#087f8c]">
-                        {batch} Batch
+                        {batch}
                       </h2>
 
                       <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
