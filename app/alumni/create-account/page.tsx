@@ -14,11 +14,16 @@ const batches = Array.from(
   (_, index) => {
     const number = index + 1;
 
-    if (number === 1) return "1st Batch";
-    if (number === 2) return "2nd Batch";
-    if (number === 3) return "3rd Batch";
+    let label = `${number}th Batch`;
 
-    return `${number}th Batch`;
+    if (number === 1) label = "1st Batch";
+    if (number === 2) label = "2nd Batch";
+    if (number === 3) label = "3rd Batch";
+
+    return {
+      value: String(number).padStart(2, "0"),
+      label,
+    };
   }
 );
 
@@ -234,29 +239,45 @@ export default function CreateAlumniAccountPage() {
             fullName: fullName.trim(),
             email: email.trim(),
             password,
+
+            // Database receives 01, 02, 03 ... 28
             batch,
+
             section,
+
             graduationDate:
               graduationDate || null,
+
             profilePhotoUrl:
               uploadedPhotoUrl || null,
+
             currentPosition:
               currentPosition.trim() || null,
+
             organization:
               organization.trim() || null,
+
             department:
               department.trim() || null,
+
             country:
               country.trim() || null,
+
             professionalCategory:
               professionalCategory || null,
-            bio: bio.trim() || null,
+
+            bio:
+              bio.trim() || null,
+
             linkedinUrl:
               linkedinUrl.trim() || null,
+
             facebookUrl:
               facebookUrl.trim() || null,
+
             instagramUrl:
               instagramUrl.trim() || null,
+
             isPublic,
           }),
         }
@@ -281,6 +302,7 @@ export default function CreateAlumniAccountPage() {
        * profile page and authentication flow continue
        * to work.
        */
+
       const { createClient } = await import(
         "@/lib/supabase/client"
       );
@@ -298,6 +320,7 @@ export default function CreateAlumniAccountPage() {
          * Account was still created successfully.
          * Send the user to login if automatic login fails.
          */
+
         router.push("/alumni/login");
         return;
       }
@@ -322,6 +345,7 @@ export default function CreateAlumniAccountPage() {
   return (
     <main className="min-h-screen bg-background px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-4xl">
+
         <div className="mb-8 text-center">
           <Link
             href="/alumni"
@@ -345,7 +369,9 @@ export default function CreateAlumniAccountPage() {
           onSubmit={handleSubmit}
           className="space-y-8"
         >
+
           {/* ACCOUNT INFORMATION */}
+
           <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-7">
             <div className="mb-6">
               <h2 className="text-xl font-semibold">
@@ -359,6 +385,7 @@ export default function CreateAlumniAccountPage() {
             </div>
 
             <div className="grid gap-5 sm:grid-cols-2">
+
               <div className="sm:col-span-2">
                 <label
                   htmlFor="fullName"
@@ -446,10 +473,12 @@ export default function CreateAlumniAccountPage() {
                   minLength={6}
                 />
               </div>
+
             </div>
           </section>
 
           {/* ACADEMIC INFORMATION */}
+
           <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-7">
             <div className="mb-6">
               <h2 className="text-xl font-semibold">
@@ -463,6 +492,7 @@ export default function CreateAlumniAccountPage() {
             </div>
 
             <div className="grid gap-5 sm:grid-cols-2">
+
               <div>
                 <label
                   htmlFor="batch"
@@ -486,10 +516,10 @@ export default function CreateAlumniAccountPage() {
 
                   {batches.map((item) => (
                     <option
-                      key={item}
-                      value={item}
+                      key={item.value}
+                      value={item.value}
                     >
-                      {item}
+                      {item.label}
                     </option>
                   ))}
                 </select>
@@ -551,10 +581,12 @@ export default function CreateAlumniAccountPage() {
                   Optional.
                 </p>
               </div>
+
             </div>
           </section>
 
           {/* PROFILE PHOTO */}
+
           <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-7">
             <div className="mb-6">
               <h2 className="text-xl font-semibold">
@@ -567,6 +599,7 @@ export default function CreateAlumniAccountPage() {
             </div>
 
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+
               {photoPreview ? (
                 <img
                   src={photoPreview}
@@ -600,6 +633,7 @@ export default function CreateAlumniAccountPage() {
                   Maximum 10 MB.
                 </p>
               </div>
+
             </div>
 
             <div className="mt-6">
@@ -630,6 +664,7 @@ export default function CreateAlumniAccountPage() {
           </section>
 
           {/* PROFESSIONAL INFORMATION */}
+
           <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-7">
             <div className="mb-6">
               <h2 className="text-xl font-semibold">
@@ -644,6 +679,7 @@ export default function CreateAlumniAccountPage() {
             </div>
 
             <div className="grid gap-5 sm:grid-cols-2">
+
               <div>
                 <label
                   htmlFor="currentPosition"
@@ -789,10 +825,12 @@ export default function CreateAlumniAccountPage() {
                   Maximum 1000 characters.
                 </p>
               </div>
+
             </div>
           </section>
 
           {/* SOCIAL PROFILES */}
+
           <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-7">
             <div className="mb-6">
               <h2 className="text-xl font-semibold">
@@ -805,6 +843,7 @@ export default function CreateAlumniAccountPage() {
             </div>
 
             <div className="grid gap-5">
+
               <div>
                 <label
                   htmlFor="linkedinUrl"
@@ -870,10 +909,12 @@ export default function CreateAlumniAccountPage() {
                   className="w-full rounded-xl border bg-background px-4 py-3 outline-none transition focus:ring-2 focus:ring-primary"
                 />
               </div>
+
             </div>
           </section>
 
           {/* VISIBILITY */}
+
           <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-7">
             <div className="mb-5">
               <h2 className="text-xl font-semibold">
@@ -887,6 +928,7 @@ export default function CreateAlumniAccountPage() {
             </div>
 
             <label className="flex cursor-pointer items-start gap-3">
+
               <input
                 type="checkbox"
                 checked={isPublic}
@@ -906,10 +948,12 @@ export default function CreateAlumniAccountPage() {
                   alumni directory when enabled.
                 </span>
               </span>
+
             </label>
           </section>
 
           {/* MESSAGES */}
+
           {errorMessage && (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {errorMessage}
@@ -923,7 +967,9 @@ export default function CreateAlumniAccountPage() {
           )}
 
           {/* SUBMIT */}
+
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
             <Link
               href="/alumni/login"
               className="text-center text-sm font-medium text-muted-foreground transition hover:text-foreground sm:text-left"
@@ -942,7 +988,9 @@ export default function CreateAlumniAccountPage() {
                 ? "Creating Account..."
                 : "Create Alumni Account"}
             </button>
+
           </div>
+
         </form>
       </div>
     </main>
