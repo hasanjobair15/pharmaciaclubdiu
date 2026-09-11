@@ -71,9 +71,9 @@ async function verifyAdmin(request: NextRequest) {
 ========================================================= */
 
 /**
- * Converts different batch formats into the database format.
+ * Converts different batch formats into database format.
  *
- * Accepted examples:
+ * Accepted:
  *   "1"          -> "1"
  *   "01"         -> "1"
  *   "1st Batch"  -> "1"
@@ -86,8 +86,6 @@ async function verifyAdmin(request: NextRequest) {
  *   "29th Batch"
  *   "ABC"
  *   ""
- *
- * Database constraint allows only 1–28.
  */
 function normalizeBatch(value: unknown): string {
   if (
@@ -123,19 +121,62 @@ function normalizeBatch(value: unknown): string {
 }
 
 /* =========================================================
+   SECTION NORMALIZATION
+========================================================= */
+
+/**
+ * Database requires section to be NOT NULL.
+ *
+ * Valid sections:
+ *   A
+ *   B
+ *   C
+ *   D
+ *   E
+ *   F
+ */
+function normalizeSection(value: unknown): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const section = value.trim().toUpperCase();
+
+  const validSections = [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+  ];
+
+  if (!validSections.includes(section)) {
+    return "";
+  }
+
+  return section;
+}
+
+/* =========================================================
    GRADUATION DATE
 ========================================================= */
 
 function cleanGraduationDate(value: unknown) {
-  if (typeof value !== "string") return null;
+  if (typeof value !== "string") {
+    return null;
+  }
 
   const trimmed = value.trim();
 
-  if (!trimmed) return null;
+  if (!trimmed) {
+    return null;
+  }
 
-  const match = /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(
-    trimmed
-  );
+  const match =
+    /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(
+      trimmed
+    );
 
   if (!match) {
     throw new Error(
@@ -219,7 +260,10 @@ async function uploadPhoto(
     );
   }
 
-  const bytes = Buffer.from(base64, "base64");
+  const bytes = Buffer.from(
+    base64,
+    "base64"
+  );
 
   if (bytes.byteLength > 3 * 1024 * 1024) {
     throw new Error(
@@ -227,13 +271,18 @@ async function uploadPhoto(
     );
   }
 
-  const { error } = await supabaseAdmin.storage
-    .from("committee-photos")
-    .upload(photoPath(userId), bytes, {
-      contentType: mime,
-      upsert: true,
-      cacheControl: "3600",
-    });
+  const { error } =
+    await supabaseAdmin.storage
+      .from("committee-photos")
+      .upload(
+        photoPath(userId),
+        bytes,
+        {
+          contentType: mime,
+          upsert: true,
+          cacheControl: "3600",
+        }
+      );
 
   if (error) {
     throw error;
@@ -243,16 +292,23 @@ async function uploadPhoto(
     data: { publicUrl },
   } = supabaseAdmin.storage
     .from("committee-photos")
-    .getPublicUrl(photoPath(userId));
+    .getPublicUrl(
+      photoPath(userId)
+    );
 
   return `${publicUrl}?v=${Date.now()}`;
 }
 
-async function removeStoredPhoto(userId: string) {
+async function removeStoredPhoto(
+  userId: string
+) {
   try {
-    const { error } = await supabaseAdmin.storage
-      .from("committee-photos")
-      .remove([photoPath(userId)]);
+    const { error } =
+      await supabaseAdmin.storage
+        .from("committee-photos")
+        .remove([
+          photoPath(userId),
+        ]);
 
     if (error) {
       console.warn(
@@ -272,13 +328,14 @@ async function removeStoredPhoto(userId: string) {
    GET — LOAD ALL ALUMNI
 ========================================================= */
 
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest
+) {
   try {
-    /* -------------------------
-       Check environment
-    ------------------------- */
-
-    if (!supabaseUrl || !serviceRoleKey) {
+    if (
+      !supabaseUrl ||
+      !serviceRoleKey
+    ) {
       return NextResponse.json(
         {
           error:
@@ -288,11 +345,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    /* -------------------------
-       Verify admin
-    ------------------------- */
-
-    const admin = await verifyAdmin(request);
+    const admin =
+      await verifyAdmin(request);
 
     if (!admin) {
       return NextResponse.json(
@@ -304,19 +358,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    /* -------------------------
-       Get alumni profiles
-    ------------------------- */
-
     const {
       data: profiles,
       error: profilesError,
     } = await supabaseAdmin
       .from("alumni_profiles")
       .select("*")
-      .order("batch", { ascending: true })
-      .order("section", { ascending: true })
-      .order("full_name", { ascending: true });
+      .order("batch", {
+        ascending: true,
+      })
+      .order("section", {
+        ascending: true,
+      })
+      .order("full_name", {
+        ascending: true,
+      });
 
     if (profilesError) {
       console.error(
@@ -334,20 +390,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    /* -------------------------
-       Get Auth users
-
-       IMPORTANT:
-       Failure here must NOT hide
-       alumni_profiles records.
-    ------------------------- */
-
     const authMap = new Map<
       string,
       {
-        emailConfirmedAt: string | null;
-        lastSignInAt: string | null;
-        email: string | null;
+        emailConfirmedAt:
+          | string
+          | null;
+        lastSignInAt:
+          | string
+          | null;
+        email:
+          | string
+          | null;
       }
     >();
 
@@ -360,10 +414,12 @@ export async function GET(request: NextRequest) {
           data: authPage,
           error: authError,
         } =
-          await supabaseAdmin.auth.admin.listUsers({
-            page,
-            perPage,
-          });
+          await supabaseAdmin.auth.admin.listUsers(
+            {
+              page,
+              perPage,
+            }
+          );
 
         if (authError) {
           console.warn(
@@ -373,18 +429,25 @@ export async function GET(request: NextRequest) {
           break;
         }
 
-        const users = authPage?.users || [];
+        const users =
+          authPage?.users || [];
 
         for (const user of users) {
-          authMap.set(user.id, {
-            emailConfirmedAt:
-              user.email_confirmed_at ?? null,
+          authMap.set(
+            user.id,
+            {
+              emailConfirmedAt:
+                user.email_confirmed_at ??
+                null,
 
-            lastSignInAt:
-              user.last_sign_in_at ?? null,
+              lastSignInAt:
+                user.last_sign_in_at ??
+                null,
 
-            email: user.email ?? null,
-          });
+              email:
+                user.email ?? null,
+            }
+          );
         }
 
         if (users.length < perPage) {
@@ -400,35 +463,34 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    /* -------------------------
-       Combine profile + auth data
+    const alumni =
+      (profiles || []).map(
+        (profile) => {
+          const auth =
+            authMap.get(
+              profile.id
+            );
 
-       Even if Auth lookup fails,
-       profile is still returned.
-    ------------------------- */
+          return {
+            ...profile,
 
-    const alumni = (profiles || []).map(
-      (profile) => {
-        const auth = authMap.get(profile.id);
+            auth: {
+              emailConfirmedAt:
+                auth?.emailConfirmedAt ??
+                null,
 
-        return {
-          ...profile,
+              lastSignInAt:
+                auth?.lastSignInAt ??
+                null,
 
-          auth: {
-            emailConfirmedAt:
-              auth?.emailConfirmedAt ?? null,
-
-            lastSignInAt:
-              auth?.lastSignInAt ?? null,
-
-            email:
-              auth?.email ??
-              profile.email ??
-              null,
-          },
-        };
-      }
-    );
+              email:
+                auth?.email ??
+                profile.email ??
+                null,
+            },
+          };
+        }
+      );
 
     return NextResponse.json({
       success: true,
@@ -443,7 +505,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       {
-        error: "Internal server error.",
+        error:
+          "Internal server error.",
       },
       { status: 500 }
     );
@@ -454,9 +517,12 @@ export async function GET(request: NextRequest) {
    POST — CREATE ALUMNI
 ========================================================= */
 
-export async function POST(request: NextRequest) {
+export async function POST(
+  request: NextRequest
+) {
   try {
-    const admin = await verifyAdmin(request);
+    const admin =
+      await verifyAdmin(request);
 
     if (!admin) {
       return NextResponse.json(
@@ -468,7 +534,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    const body =
+      await request.json();
 
     const {
       full_name,
@@ -489,13 +556,18 @@ export async function POST(request: NextRequest) {
     } = body;
 
     /* -------------------------
-       Validation
+       Basic validation
     ------------------------- */
 
-    if (!full_name?.trim()) {
+    if (
+      typeof full_name !==
+        "string" ||
+      !full_name.trim()
+    ) {
       return NextResponse.json(
         {
-          error: "Full name is required.",
+          error:
+            "Full name is required.",
         },
         { status: 400 }
       );
@@ -518,10 +590,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    /* -------------------------
+       Normalize section
+    ------------------------- */
+
+    const normalizedSection =
+      normalizeSection(section);
+
+    if (!normalizedSection) {
+      return NextResponse.json(
+        {
+          error:
+            "Section is required. Please select a valid section (A, B, C, D, E, or F).",
+        },
+        { status: 400 }
+      );
+    }
+
+    /* -------------------------
+       Normalize email
+    ------------------------- */
+
     const normalizedEmail =
-      typeof email === "string" && email.trim()
+      typeof email === "string" &&
+      email.trim()
         ? email.trim().toLowerCase()
         : null;
+
+    /* -------------------------
+       Graduation date
+    ------------------------- */
 
     let normalizedGraduationDate:
       | string
@@ -546,8 +644,6 @@ export async function POST(request: NextRequest) {
 
     /* -------------------------
        Prevent duplicate profile
-       Only real email addresses
-       are checked.
     ------------------------- */
 
     if (normalizedEmail) {
@@ -556,7 +652,10 @@ export async function POST(request: NextRequest) {
       } = await supabaseAdmin
         .from("alumni_profiles")
         .select("id,email")
-        .ilike("email", normalizedEmail)
+        .ilike(
+          "email",
+          normalizedEmail
+        )
         .maybeSingle();
 
       if (existingProfile) {
@@ -572,12 +671,6 @@ export async function POST(request: NextRequest) {
 
     /* -------------------------
        Create Auth user
-       If the admin does not provide
-       an email, use an internal
-       non-contact address so the
-       profile can still have a valid
-       auth UUID. The real profile
-       email remains NULL.
     ------------------------- */
 
     const temporaryPassword =
@@ -591,23 +684,34 @@ export async function POST(request: NextRequest) {
       data: createdUser,
       error: createUserError,
     } =
-      await supabaseAdmin.auth.admin.createUser({
-        email: authEmail,
-        password: temporaryPassword,
-        email_confirm: true,
+      await supabaseAdmin.auth.admin.createUser(
+        {
+          email: authEmail,
+          password:
+            temporaryPassword,
+          email_confirm: true,
 
-        user_metadata: {
-          full_name: full_name.trim(),
+          user_metadata: {
+            full_name:
+              full_name.trim(),
 
-          /* IMPORTANT:
-             Store database-safe batch */
-          batch: normalizedBatch,
+            /*
+             * Database-safe batch.
+             * Example: "1st Batch" -> "1"
+             */
+            batch:
+              normalizedBatch,
 
-          section: section || null,
+            /*
+             * Database-safe section.
+             */
+            section:
+              normalizedSection,
 
-          admin_added: true,
-        },
-      });
+            admin_added: true,
+          },
+        }
+      );
 
     if (
       createUserError ||
@@ -623,7 +727,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userId = createdUser.user.id;
+    const userId =
+      createdUser.user.id;
 
     /* -------------------------
        Upload photo
@@ -674,13 +779,18 @@ export async function POST(request: NextRequest) {
         email:
           normalizedEmail,
 
-        /* IMPORTANT:
-           Database receives only 1–28 */
+        /*
+         * Database receives:
+         * "1", "2", ..., "28"
+         */
         batch:
           normalizedBatch,
 
+        /*
+         * NEVER NULL
+         */
         section:
-          section || null,
+          normalizedSection,
 
         graduation_year:
           graduation_year || null,
@@ -692,41 +802,63 @@ export async function POST(request: NextRequest) {
           profilePhotoUrl,
 
         current_position:
-          current_position?.trim() ||
-          null,
+          typeof current_position ===
+            "string" &&
+          current_position.trim()
+            ? current_position.trim()
+            : null,
 
         organization:
-          organization?.trim() ||
-          null,
+          typeof organization ===
+            "string" &&
+          organization.trim()
+            ? organization.trim()
+            : null,
 
         bio:
-          bio?.trim() ||
-          null,
+          typeof bio === "string" &&
+          bio.trim()
+            ? bio.trim()
+            : null,
 
         phone:
-          phone?.trim() ||
-          null,
+          typeof phone === "string" &&
+          phone.trim()
+            ? phone.trim()
+            : null,
 
         linkedin_url:
-          linkedin_url?.trim() ||
-          null,
+          typeof linkedin_url ===
+            "string" &&
+          linkedin_url.trim()
+            ? linkedin_url.trim()
+            : null,
 
         facebook_url:
-          facebook_url?.trim() ||
-          null,
+          typeof facebook_url ===
+            "string" &&
+          facebook_url.trim()
+            ? facebook_url.trim()
+            : null,
 
         instagram_url:
-          instagram_url?.trim() ||
-          null,
+          typeof instagram_url ===
+            "string" &&
+          instagram_url.trim()
+            ? instagram_url.trim()
+            : null,
 
         is_public:
-          typeof is_public === "boolean"
+          typeof is_public ===
+          "boolean"
             ? is_public
             : true,
       });
 
     if (profileError) {
-      await removeStoredPhoto(userId);
+      await removeStoredPhoto(
+        userId
+      );
 
       await supabaseAdmin.auth.admin.deleteUser(
         userId
@@ -762,9 +894,11 @@ export async function POST(request: NextRequest) {
       email_provided:
         Boolean(normalizedEmail),
 
-      /* Helpful for frontend */
       batch:
         normalizedBatch,
+
+      section:
+        normalizedSection,
     });
   } catch (error) {
     console.error(
@@ -836,13 +970,29 @@ export async function PATCH(
       );
     }
 
+    if (id === admin.id) {
+      return NextResponse.json(
+        {
+          error:
+            "The administrator account cannot be modified as an alumni account.",
+        },
+        { status: 403 }
+      );
+    }
+
+    /* -------------------------
+       Graduation date
+    ------------------------- */
+
     let normalizedGraduationDate:
       | string
       | null
-      | undefined = undefined;
+      | undefined =
+      undefined;
 
     if (
-      graduation_date !== undefined
+      graduation_date !==
+      undefined
     ) {
       try {
         normalizedGraduationDate =
@@ -862,16 +1012,6 @@ export async function PATCH(
       }
     }
 
-    if (id === admin.id) {
-      return NextResponse.json(
-        {
-          error:
-            "The administrator account cannot be modified as an alumni account.",
-        },
-        { status: 403 }
-      );
-    }
-
     /* -------------------------
        Verify profile exists
     ------------------------- */
@@ -879,11 +1019,12 @@ export async function PATCH(
     const {
       data: existingProfile,
       error: existingProfileError,
-    } = await supabaseAdmin
-      .from("alumni_profiles")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle();
+    } =
+      await supabaseAdmin
+        .from("alumni_profiles")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
 
     if (
       existingProfileError ||
@@ -899,13 +1040,66 @@ export async function PATCH(
     }
 
     /* -------------------------
+       Normalize batch if supplied
+    ------------------------- */
+
+    let normalizedBatch:
+      | string
+      | undefined =
+      undefined;
+
+    if (
+      batch !== undefined
+    ) {
+      normalizedBatch =
+        normalizeBatch(batch);
+
+      if (!normalizedBatch) {
+        return NextResponse.json(
+          {
+            error:
+              "Invalid batch. Please select a batch from 1st Batch to 28th Batch.",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    /* -------------------------
+       Normalize section if supplied
+    ------------------------- */
+
+    let normalizedSection:
+      | string
+      | undefined =
+      undefined;
+
+    if (
+      section !== undefined
+    ) {
+      normalizedSection =
+        normalizeSection(section);
+
+      if (!normalizedSection) {
+        return NextResponse.json(
+          {
+            error:
+              "Invalid section. Please select A, B, C, D, E, or F.",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    /* -------------------------
        Photo
     ------------------------- */
 
     let profilePhotoUrl:
       | string
       | null
-      | undefined = undefined;
+      | undefined =
+      undefined;
 
     if (photoData) {
       try {
@@ -926,13 +1120,15 @@ export async function PATCH(
         );
       }
     } else if (removePhoto) {
-      await removeStoredPhoto(id);
+      await removeStoredPhoto(
+        id
+      );
 
       profilePhotoUrl = null;
     }
 
     /* -------------------------
-       Prepare profile update
+       Prepare update
     ------------------------- */
 
     const updatePayload: Record<
@@ -940,114 +1136,167 @@ export async function PATCH(
       unknown
     > = {};
 
-    if (full_name !== undefined) {
-      updatePayload.full_name =
-        full_name?.trim() ||
-        null;
-    }
+    if (
+      full_name !==
+      undefined
+    ) {
+      const normalizedFullName =
+        typeof full_name ===
+          "string"
+          ? full_name.trim()
+          : "";
 
-    /* -------------------------
-       Normalize batch on update
-    ------------------------- */
-
-    if (batch !== undefined) {
-      const normalizedBatch =
-        normalizeBatch(batch);
-
-      if (!normalizedBatch) {
+      if (!normalizedFullName) {
         return NextResponse.json(
           {
             error:
-              "Invalid batch. Please select a batch from 1st Batch to 28th Batch.",
+              "Full name cannot be empty.",
           },
           { status: 400 }
         );
       }
 
+      updatePayload.full_name =
+        normalizedFullName;
+    }
+
+    if (
+      normalizedBatch !==
+      undefined
+    ) {
       updatePayload.batch =
         normalizedBatch;
     }
 
-    if (section !== undefined) {
+    if (
+      normalizedSection !==
+      undefined
+    ) {
       updatePayload.section =
-        section;
+        normalizedSection;
     }
 
     if (
-      graduation_year !== undefined
+      graduation_year !==
+      undefined
     ) {
       updatePayload.graduation_year =
         graduation_year || null;
     }
 
     if (
-      graduation_date !== undefined
+      graduation_date !==
+      undefined
     ) {
       updatePayload.graduation_date =
         normalizedGraduationDate;
     }
 
     if (
-      current_position !== undefined
+      current_position !==
+      undefined
     ) {
       updatePayload.current_position =
-        current_position?.trim() ||
-        null;
-    }
-
-    if (organization !== undefined) {
-      updatePayload.organization =
-        organization?.trim() ||
-        null;
-    }
-
-    if (bio !== undefined) {
-      updatePayload.bio =
-        bio?.trim() ||
-        null;
-    }
-
-    if (phone !== undefined) {
-      updatePayload.phone =
-        phone?.trim() ||
-        null;
-    }
-
-    if (linkedin_url !== undefined) {
-      updatePayload.linkedin_url =
-        linkedin_url?.trim() ||
-        null;
-    }
-
-    if (facebook_url !== undefined) {
-      updatePayload.facebook_url =
-        facebook_url?.trim() ||
-        null;
+        typeof current_position ===
+          "string" &&
+        current_position.trim()
+          ? current_position.trim()
+          : null;
     }
 
     if (
-      instagram_url !== undefined
+      organization !==
+      undefined
+    ) {
+      updatePayload.organization =
+        typeof organization ===
+          "string" &&
+        organization.trim()
+          ? organization.trim()
+          : null;
+    }
+
+    if (
+      bio !== undefined
+    ) {
+      updatePayload.bio =
+        typeof bio === "string" &&
+        bio.trim()
+          ? bio.trim()
+          : null;
+    }
+
+    if (
+      phone !== undefined
+    ) {
+      updatePayload.phone =
+        typeof phone === "string" &&
+        phone.trim()
+          ? phone.trim()
+          : null;
+    }
+
+    if (
+      linkedin_url !==
+      undefined
+    ) {
+      updatePayload.linkedin_url =
+        typeof linkedin_url ===
+          "string" &&
+        linkedin_url.trim()
+          ? linkedin_url.trim()
+          : null;
+    }
+
+    if (
+      facebook_url !==
+      undefined
+    ) {
+      updatePayload.facebook_url =
+        typeof facebook_url ===
+          "string" &&
+        facebook_url.trim()
+          ? facebook_url.trim()
+          : null;
+    }
+
+    if (
+      instagram_url !==
+      undefined
     ) {
       updatePayload.instagram_url =
-        instagram_url?.trim() ||
-        null;
+        typeof instagram_url ===
+          "string" &&
+        instagram_url.trim()
+          ? instagram_url.trim()
+          : null;
     }
 
     if (
-      typeof is_public === "boolean"
+      typeof is_public ===
+      "boolean"
     ) {
       updatePayload.is_public =
         is_public;
     }
 
-    if (email !== undefined) {
+    if (
+      email !== undefined
+    ) {
+      const normalizedEmail =
+        typeof email ===
+          "string" &&
+        email.trim()
+          ? email.trim().toLowerCase()
+          : null;
+
       updatePayload.email =
-        email?.trim().toLowerCase() ||
-        null;
+        normalizedEmail;
     }
 
     if (
-      profilePhotoUrl !== undefined
+      profilePhotoUrl !==
+      undefined
     ) {
       updatePayload.profile_photo_url =
         profilePhotoUrl;
@@ -1055,13 +1304,13 @@ export async function PATCH(
 
     /* -------------------------
        Update Auth email FIRST
-       so profile and Auth stay
-       synchronized.
     ------------------------- */
 
     if (
       email !== undefined &&
-      email?.trim()
+      typeof email ===
+        "string" &&
+      email.trim()
     ) {
       const newEmail =
         email
@@ -1148,6 +1397,86 @@ export async function PATCH(
           },
           { status: 400 }
         );
+      }
+    }
+
+    /* -------------------------
+       Keep Auth metadata
+       synchronized with
+       changed batch/section/name
+    ------------------------- */
+
+    const metadataUpdate: Record<
+      string,
+      unknown
+    > = {};
+
+    if (
+      full_name !==
+      undefined
+    ) {
+      metadataUpdate.full_name =
+        typeof full_name ===
+          "string"
+          ? full_name.trim()
+          : existingProfile.full_name;
+    }
+
+    if (
+      normalizedBatch !==
+      undefined
+    ) {
+      metadataUpdate.batch =
+        normalizedBatch;
+    }
+
+    if (
+      normalizedSection !==
+      undefined
+    ) {
+      metadataUpdate.section =
+        normalizedSection;
+    }
+
+    if (
+      Object.keys(
+        metadataUpdate
+      ).length > 0
+    ) {
+      const {
+        data: authUserData,
+      } =
+        await supabaseAdmin.auth.admin.getUserById(
+          id
+        );
+
+      if (
+        authUserData?.user
+      ) {
+        const existingMetadata =
+          authUserData.user
+            .user_metadata ||
+          {};
+
+        const {
+          error: metadataError,
+        } =
+          await supabaseAdmin.auth.admin.updateUserById(
+            id,
+            {
+              user_metadata: {
+                ...existingMetadata,
+                ...metadataUpdate,
+              },
+            }
+          );
+
+        if (metadataError) {
+          console.warn(
+            "Auth metadata synchronization warning:",
+            metadataError.message
+          );
+        }
       }
     }
 
@@ -1273,10 +1602,11 @@ export async function DELETE(
 
     const {
       error: profileDeleteError,
-    } = await supabaseAdmin
-      .from("alumni_profiles")
-      .delete()
-      .eq("id", id);
+    } =
+      await supabaseAdmin
+        .from("alumni_profiles")
+        .delete()
+        .eq("id", id);
 
     if (profileDeleteError) {
       return NextResponse.json(
