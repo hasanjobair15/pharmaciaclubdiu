@@ -205,7 +205,7 @@ export default function AdminAlumniPage() {
       full_name: person.full_name,
       email: person.email || "",
       batch: person.batch,
-      section: person.section,
+      section: person.section || "",
       graduation_date: person.graduation_date
         ? String(person.graduation_date).slice(0, 7)
         : person.graduation_year
