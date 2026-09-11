@@ -391,13 +391,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!email?.trim()) {
-      return NextResponse.json(
-        { error: "Email is required." },
-        { status: 400 }
-      );
-    }
-
     if (!batch) {
       return NextResponse.json(
         { error: "Batch is required." },
@@ -405,14 +398,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!section) {
-      return NextResponse.json(
-        { error: "Section is required." },
-        { status: 400 }
-      );
-    }
-
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail =
+      typeof email === "string" && email.trim()
+        ? email.trim().toLowerCase()
+        : null;
 
     let normalizedGraduationDate: string | null;
 
@@ -425,52 +414,60 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!normalizedGraduationDate) {
-      return NextResponse.json(
-        { error: "Graduation Month & Year is required." },
-        { status: 400 }
-      );
-    }
-
     /* -------------------------
        Prevent duplicate profile
+       Only real email addresses
+       are checked.
     ------------------------- */
 
-    const { data: existingProfile } =
-      await supabaseAdmin
-        .from("alumni_profiles")
-        .select("id,email")
-        .ilike("email", normalizedEmail)
-        .maybeSingle();
+    if (normalizedEmail) {
+      const { data: existingProfile } =
+        await supabaseAdmin
+          .from("alumni_profiles")
+          .select("id,email")
+          .ilike("email", normalizedEmail)
+          .maybeSingle();
 
-    if (existingProfile) {
-      return NextResponse.json(
-        {
-          error:
-            "An alumni profile with this email already exists.",
-        },
-        { status: 409 }
-      );
+      if (existingProfile) {
+        return NextResponse.json(
+          {
+            error:
+              "An alumni profile with this email already exists.",
+          },
+          { status: 409 }
+        );
+      }
     }
 
     /* -------------------------
        Create Auth user
+       If the admin does not provide
+       an email, use an internal
+       non-contact address so the
+       profile can still have a valid
+       auth UUID. The real profile
+       email remains NULL.
     ------------------------- */
 
     const temporaryPassword =
       generateTemporaryPassword();
 
+    const authEmail =
+      normalizedEmail ||
+      `admin-${crypto.randomUUID()}@alumni.local`;
+
     const {
       data: createdUser,
       error: createUserError,
     } = await supabaseAdmin.auth.admin.createUser({
-      email: normalizedEmail,
+      email: authEmail,
       password: temporaryPassword,
       email_confirm: true,
       user_metadata: {
         full_name: full_name.trim(),
         batch,
-        section,
+        section: section || null,
+        admin_added: true,
       },
     });
 
@@ -531,7 +528,7 @@ export async function POST(request: NextRequest) {
           full_name: full_name.trim(),
           email: normalizedEmail,
           batch,
-          section,
+          section: section || null,
           graduation_year:
             graduation_year || null,
           graduation_date: normalizedGraduationDate,
@@ -577,7 +574,9 @@ export async function POST(request: NextRequest) {
       message:
         "Alumni account created successfully.",
       user_id: userId,
-      temporary_password: temporaryPassword,
+      temporary_password: normalizedEmail ? temporaryPassword : null,
+      account_created: true,
+      email_provided: Boolean(normalizedEmail),
     });
   } catch (error) {
     console.error(
@@ -644,13 +643,6 @@ export async function PATCH(request: NextRequest) {
       } catch (error) {
         return NextResponse.json(
           { error: error instanceof Error ? error.message : "Invalid graduation date." },
-          { status: 400 }
-        );
-      }
-
-      if (!normalizedGraduationDate) {
-        return NextResponse.json(
-          { error: "Graduation Month & Year is required for an alumni profile." },
           { status: 400 }
         );
       }
