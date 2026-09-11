@@ -67,28 +67,95 @@ async function verifyAdmin(request: NextRequest) {
 }
 
 /* =========================================================
-   TEMPORARY PASSWORD
+   BATCH NORMALIZATION
+========================================================= */
+
+/**
+ * Converts different batch formats into the database format.
+ *
+ * Accepted examples:
+ *   "1"          -> "1"
+ *   "01"         -> "1"
+ *   "1st Batch"  -> "1"
+ *   "Batch 01"   -> "1"
+ *   "28th Batch" -> "28"
+ *
+ * Rejected:
+ *   "0"
+ *   "29"
+ *   "29th Batch"
+ *   "ABC"
+ *   ""
+ *
+ * Database constraint allows only 1–28.
+ */
+function normalizeBatch(value: unknown): string {
+  if (
+    typeof value !== "string" &&
+    typeof value !== "number"
+  ) {
+    return "";
+  }
+
+  const raw = String(value).trim();
+
+  if (!raw) {
+    return "";
+  }
+
+  const match = raw.match(/\d+/);
+
+  if (!match) {
+    return "";
+  }
+
+  const batchNumber = Number(match[0]);
+
+  if (
+    !Number.isInteger(batchNumber) ||
+    batchNumber < 1 ||
+    batchNumber > 28
+  ) {
+    return "";
+  }
+
+  return String(batchNumber);
+}
+
+/* =========================================================
+   GRADUATION DATE
 ========================================================= */
 
 function cleanGraduationDate(value: unknown) {
   if (typeof value !== "string") return null;
 
   const trimmed = value.trim();
+
   if (!trimmed) return null;
 
-  const match = /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(trimmed);
+  const match = /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(
+    trimmed
+  );
+
   if (!match) {
-    throw new Error("Graduation Month & Year must be in YYYY-MM format.");
+    throw new Error(
+      "Graduation Month & Year must be in YYYY-MM format."
+    );
   }
 
   const year = Number(match[1]);
   const month = Number(match[2]);
 
   if (month < 1 || month > 12) {
-    throw new Error("Graduation Month & Year is invalid.");
+    throw new Error(
+      "Graduation Month & Year is invalid."
+    );
   }
 
-  const result = `${year}-${String(month).padStart(2, "0")}-01`;
+  const result = `${year}-${String(month).padStart(
+    2,
+    "0"
+  )}-01`;
 
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Dhaka",
@@ -97,17 +164,29 @@ function cleanGraduationDate(value: unknown) {
     day: "2-digit",
   }).formatToParts(new Date());
 
-  const today = `${parts.find((part) => part.type === "year")?.value}-${parts.find((part) => part.type === "month")?.value}-01`;
+  const today = `${parts.find(
+    (part) => part.type === "year"
+  )?.value}-${parts.find(
+    (part) => part.type === "month"
+  )?.value}-01`;
 
   if (result > today) {
-    throw new Error("Graduation Month & Year cannot be in the future.");
+    throw new Error(
+      "Graduation Month & Year cannot be in the future."
+    );
   }
 
   return result;
 }
 
+/* =========================================================
+   TEMPORARY PASSWORD
+========================================================= */
+
 function generateTemporaryPassword() {
-  const randomPart = Math.random().toString(36).slice(2, 10);
+  const randomPart = Math.random()
+    .toString(36)
+    .slice(2, 10);
 
   return `PCDIU-${randomPart}-29Kp`;
 }
@@ -120,8 +199,12 @@ function photoPath(userId: string) {
   return `alumni/${userId}/profile.webp`;
 }
 
-async function uploadPhoto(userId: string, dataUrl: string) {
-  const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+async function uploadPhoto(
+  userId: string,
+  dataUrl: string
+) {
+  const match =
+    /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
 
   if (!match) {
     throw new Error("Invalid image data.");
@@ -131,13 +214,17 @@ async function uploadPhoto(userId: string, dataUrl: string) {
   const base64 = match[2];
 
   if (!mime.startsWith("image/")) {
-    throw new Error("Only image files are supported.");
+    throw new Error(
+      "Only image files are supported."
+    );
   }
 
   const bytes = Buffer.from(base64, "base64");
 
   if (bytes.byteLength > 3 * 1024 * 1024) {
-    throw new Error("Image is too large. Maximum size is 3 MB.");
+    throw new Error(
+      "Image is too large. Maximum size is 3 MB."
+    );
   }
 
   const { error } = await supabaseAdmin.storage
@@ -168,16 +255,22 @@ async function removeStoredPhoto(userId: string) {
       .remove([photoPath(userId)]);
 
     if (error) {
-      console.warn("Photo removal warning:", error.message);
+      console.warn(
+        "Photo removal warning:",
+        error.message
+      );
     }
   } catch (error) {
-    console.warn("Photo removal exception:", error);
+    console.warn(
+      "Photo removal exception:",
+      error
+    );
   }
 }
 
 /* =========================================================
    GET — LOAD ALL ALUMNI
-   ========================================================= */
+========================================================= */
 
 export async function GET(request: NextRequest) {
   try {
@@ -203,7 +296,10 @@ export async function GET(request: NextRequest) {
 
     if (!admin) {
       return NextResponse.json(
-        { error: "Unauthorized. Admin access required." },
+        {
+          error:
+            "Unauthorized. Admin access required.",
+        },
         { status: 401 }
       );
     }
@@ -212,13 +308,15 @@ export async function GET(request: NextRequest) {
        Get alumni profiles
     ------------------------- */
 
-    const { data: profiles, error: profilesError } =
-      await supabaseAdmin
-        .from("alumni_profiles")
-        .select("*")
-        .order("batch", { ascending: true })
-        .order("section", { ascending: true })
-        .order("full_name", { ascending: true });
+    const {
+      data: profiles,
+      error: profilesError,
+    } = await supabaseAdmin
+      .from("alumni_profiles")
+      .select("*")
+      .order("batch", { ascending: true })
+      .order("section", { ascending: true })
+      .order("full_name", { ascending: true });
 
     if (profilesError) {
       console.error(
@@ -261,10 +359,11 @@ export async function GET(request: NextRequest) {
         const {
           data: authPage,
           error: authError,
-        } = await supabaseAdmin.auth.admin.listUsers({
-          page,
-          perPage,
-        });
+        } =
+          await supabaseAdmin.auth.admin.listUsers({
+            page,
+            perPage,
+          });
 
         if (authError) {
           console.warn(
@@ -280,8 +379,10 @@ export async function GET(request: NextRequest) {
           authMap.set(user.id, {
             emailConfirmedAt:
               user.email_confirmed_at ?? null,
+
             lastSignInAt:
               user.last_sign_in_at ?? null,
+
             email: user.email ?? null,
           });
         }
@@ -306,24 +407,28 @@ export async function GET(request: NextRequest) {
        profile is still returned.
     ------------------------- */
 
-    const alumni = (profiles || []).map((profile) => {
-      const auth = authMap.get(profile.id);
+    const alumni = (profiles || []).map(
+      (profile) => {
+        const auth = authMap.get(profile.id);
 
-      return {
-        ...profile,
+        return {
+          ...profile,
 
-        auth: {
-          emailConfirmedAt:
-            auth?.emailConfirmedAt ?? null,
+          auth: {
+            emailConfirmedAt:
+              auth?.emailConfirmedAt ?? null,
 
-          lastSignInAt:
-            auth?.lastSignInAt ?? null,
+            lastSignInAt:
+              auth?.lastSignInAt ?? null,
 
-          email:
-            auth?.email ?? profile.email ?? null,
-        },
-      };
-    });
+            email:
+              auth?.email ??
+              profile.email ??
+              null,
+          },
+        };
+      }
+    );
 
     return NextResponse.json({
       success: true,
@@ -355,7 +460,10 @@ export async function POST(request: NextRequest) {
 
     if (!admin) {
       return NextResponse.json(
-        { error: "Unauthorized. Admin access required." },
+        {
+          error:
+            "Unauthorized. Admin access required.",
+        },
         { status: 401 }
       );
     }
@@ -386,14 +494,26 @@ export async function POST(request: NextRequest) {
 
     if (!full_name?.trim()) {
       return NextResponse.json(
-        { error: "Full name is required." },
+        {
+          error: "Full name is required.",
+        },
         { status: 400 }
       );
     }
 
-    if (!batch) {
+    /* -------------------------
+       Normalize batch
+    ------------------------- */
+
+    const normalizedBatch =
+      normalizeBatch(batch);
+
+    if (!normalizedBatch) {
       return NextResponse.json(
-        { error: "Batch is required." },
+        {
+          error:
+            "Invalid batch. Please select a batch from 1st Batch to 28th Batch.",
+        },
         { status: 400 }
       );
     }
@@ -403,13 +523,23 @@ export async function POST(request: NextRequest) {
         ? email.trim().toLowerCase()
         : null;
 
-    let normalizedGraduationDate: string | null;
+    let normalizedGraduationDate:
+      | string
+      | null;
 
     try {
-      normalizedGraduationDate = cleanGraduationDate(graduation_date);
+      normalizedGraduationDate =
+        cleanGraduationDate(
+          graduation_date
+        );
     } catch (error) {
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : "Invalid graduation date." },
+        {
+          error:
+            error instanceof Error
+              ? error.message
+              : "Invalid graduation date.",
+        },
         { status: 400 }
       );
     }
@@ -421,12 +551,13 @@ export async function POST(request: NextRequest) {
     ------------------------- */
 
     if (normalizedEmail) {
-      const { data: existingProfile } =
-        await supabaseAdmin
-          .from("alumni_profiles")
-          .select("id,email")
-          .ilike("email", normalizedEmail)
-          .maybeSingle();
+      const {
+        data: existingProfile,
+      } = await supabaseAdmin
+        .from("alumni_profiles")
+        .select("id,email")
+        .ilike("email", normalizedEmail)
+        .maybeSingle();
 
       if (existingProfile) {
         return NextResponse.json(
@@ -459,17 +590,24 @@ export async function POST(request: NextRequest) {
     const {
       data: createdUser,
       error: createUserError,
-    } = await supabaseAdmin.auth.admin.createUser({
-      email: authEmail,
-      password: temporaryPassword,
-      email_confirm: true,
-      user_metadata: {
-        full_name: full_name.trim(),
-        batch,
-        section: section || null,
-        admin_added: true,
-      },
-    });
+    } =
+      await supabaseAdmin.auth.admin.createUser({
+        email: authEmail,
+        password: temporaryPassword,
+        email_confirm: true,
+
+        user_metadata: {
+          full_name: full_name.trim(),
+
+          /* IMPORTANT:
+             Store database-safe batch */
+          batch: normalizedBatch,
+
+          section: section || null,
+
+          admin_added: true,
+        },
+      });
 
     if (
       createUserError ||
@@ -491,14 +629,17 @@ export async function POST(request: NextRequest) {
        Upload photo
     ------------------------- */
 
-    let profilePhotoUrl: string | null = null;
+    let profilePhotoUrl:
+      | string
+      | null = null;
 
     if (photoData) {
       try {
-        profilePhotoUrl = await uploadPhoto(
-          userId,
-          photoData
-        );
+        profilePhotoUrl =
+          await uploadPhoto(
+            userId,
+            photoData
+          );
       } catch (photoError) {
         await supabaseAdmin.auth.admin.deleteUser(
           userId
@@ -520,37 +661,69 @@ export async function POST(request: NextRequest) {
        Create profile
     ------------------------- */
 
-    const { error: profileError } =
-      await supabaseAdmin
-        .from("alumni_profiles")
-        .insert({
-          id: userId,
-          full_name: full_name.trim(),
-          email: normalizedEmail,
-          batch,
-          section: section || null,
-          graduation_year:
-            graduation_year || null,
-          graduation_date: normalizedGraduationDate,
-          profile_photo_url:
-            profilePhotoUrl,
-          current_position:
-            current_position?.trim() || null,
-          organization:
-            organization?.trim() || null,
-          bio: bio?.trim() || null,
-          phone: phone?.trim() || null,
-          linkedin_url:
-            linkedin_url?.trim() || null,
-          facebook_url:
-            facebook_url?.trim() || null,
-          instagram_url:
-            instagram_url?.trim() || null,
-          is_public:
-            typeof is_public === "boolean"
-              ? is_public
-              : true,
-        });
+    const {
+      error: profileError,
+    } = await supabaseAdmin
+      .from("alumni_profiles")
+      .insert({
+        id: userId,
+
+        full_name:
+          full_name.trim(),
+
+        email:
+          normalizedEmail,
+
+        /* IMPORTANT:
+           Database receives only 1–28 */
+        batch:
+          normalizedBatch,
+
+        section:
+          section || null,
+
+        graduation_year:
+          graduation_year || null,
+
+        graduation_date:
+          normalizedGraduationDate,
+
+        profile_photo_url:
+          profilePhotoUrl,
+
+        current_position:
+          current_position?.trim() ||
+          null,
+
+        organization:
+          organization?.trim() ||
+          null,
+
+        bio:
+          bio?.trim() ||
+          null,
+
+        phone:
+          phone?.trim() ||
+          null,
+
+        linkedin_url:
+          linkedin_url?.trim() ||
+          null,
+
+        facebook_url:
+          facebook_url?.trim() ||
+          null,
+
+        instagram_url:
+          instagram_url?.trim() ||
+          null,
+
+        is_public:
+          typeof is_public === "boolean"
+            ? is_public
+            : true,
+      });
 
     if (profileError) {
       await removeStoredPhoto(userId);
@@ -571,12 +744,27 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+
       message:
         "Alumni account created successfully.",
-      user_id: userId,
-      temporary_password: normalizedEmail ? temporaryPassword : null,
-      account_created: true,
-      email_provided: Boolean(normalizedEmail),
+
+      user_id:
+        userId,
+
+      temporary_password:
+        normalizedEmail
+          ? temporaryPassword
+          : null,
+
+      account_created:
+        true,
+
+      email_provided:
+        Boolean(normalizedEmail),
+
+      /* Helpful for frontend */
+      batch:
+        normalizedBatch,
     });
   } catch (error) {
     console.error(
@@ -585,7 +773,10 @@ export async function POST(request: NextRequest) {
     );
 
     return NextResponse.json(
-      { error: "Internal server error." },
+      {
+        error:
+          "Internal server error.",
+      },
       { status: 500 }
     );
   }
@@ -595,18 +786,25 @@ export async function POST(request: NextRequest) {
    PATCH — UPDATE ALUMNI
 ========================================================= */
 
-export async function PATCH(request: NextRequest) {
+export async function PATCH(
+  request: NextRequest
+) {
   try {
-    const admin = await verifyAdmin(request);
+    const admin =
+      await verifyAdmin(request);
 
     if (!admin) {
       return NextResponse.json(
-        { error: "Unauthorized. Admin access required." },
+        {
+          error:
+            "Unauthorized. Admin access required.",
+        },
         { status: 401 }
       );
     }
 
-    const body = await request.json();
+    const body =
+      await request.json();
 
     const {
       id,
@@ -630,19 +828,35 @@ export async function PATCH(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json(
-        { error: "Alumni ID is required." },
+        {
+          error:
+            "Alumni ID is required.",
+        },
         { status: 400 }
       );
     }
 
-    let normalizedGraduationDate: string | null | undefined = undefined;
+    let normalizedGraduationDate:
+      | string
+      | null
+      | undefined = undefined;
 
-    if (graduation_date !== undefined) {
+    if (
+      graduation_date !== undefined
+    ) {
       try {
-        normalizedGraduationDate = cleanGraduationDate(graduation_date);
+        normalizedGraduationDate =
+          cleanGraduationDate(
+            graduation_date
+          );
       } catch (error) {
         return NextResponse.json(
-          { error: error instanceof Error ? error.message : "Invalid graduation date." },
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Invalid graduation date.",
+          },
           { status: 400 }
         );
       }
@@ -676,7 +890,10 @@ export async function PATCH(request: NextRequest) {
       !existingProfile
     ) {
       return NextResponse.json(
-        { error: "Alumni profile not found." },
+        {
+          error:
+            "Alumni profile not found.",
+        },
         { status: 404 }
       );
     }
@@ -693,7 +910,10 @@ export async function PATCH(request: NextRequest) {
     if (photoData) {
       try {
         profilePhotoUrl =
-          await uploadPhoto(id, photoData);
+          await uploadPhoto(
+            id,
+            photoData
+          );
       } catch (photoError) {
         return NextResponse.json(
           {
@@ -707,6 +927,7 @@ export async function PATCH(request: NextRequest) {
       }
     } else if (removePhoto) {
       await removeStoredPhoto(id);
+
       profilePhotoUrl = null;
     }
 
@@ -721,72 +942,113 @@ export async function PATCH(request: NextRequest) {
 
     if (full_name !== undefined) {
       updatePayload.full_name =
-        full_name?.trim() || null;
+        full_name?.trim() ||
+        null;
     }
 
+    /* -------------------------
+       Normalize batch on update
+    ------------------------- */
+
     if (batch !== undefined) {
-      updatePayload.batch = batch;
+      const normalizedBatch =
+        normalizeBatch(batch);
+
+      if (!normalizedBatch) {
+        return NextResponse.json(
+          {
+            error:
+              "Invalid batch. Please select a batch from 1st Batch to 28th Batch.",
+          },
+          { status: 400 }
+        );
+      }
+
+      updatePayload.batch =
+        normalizedBatch;
     }
 
     if (section !== undefined) {
-      updatePayload.section = section;
+      updatePayload.section =
+        section;
     }
 
-    if (graduation_year !== undefined) {
+    if (
+      graduation_year !== undefined
+    ) {
       updatePayload.graduation_year =
         graduation_year || null;
     }
 
-    if (graduation_date !== undefined) {
+    if (
+      graduation_date !== undefined
+    ) {
       updatePayload.graduation_date =
         normalizedGraduationDate;
     }
 
-    if (current_position !== undefined) {
+    if (
+      current_position !== undefined
+    ) {
       updatePayload.current_position =
-        current_position?.trim() || null;
+        current_position?.trim() ||
+        null;
     }
 
     if (organization !== undefined) {
       updatePayload.organization =
-        organization?.trim() || null;
+        organization?.trim() ||
+        null;
     }
 
     if (bio !== undefined) {
       updatePayload.bio =
-        bio?.trim() || null;
+        bio?.trim() ||
+        null;
     }
 
     if (phone !== undefined) {
       updatePayload.phone =
-        phone?.trim() || null;
+        phone?.trim() ||
+        null;
     }
 
     if (linkedin_url !== undefined) {
       updatePayload.linkedin_url =
-        linkedin_url?.trim() || null;
+        linkedin_url?.trim() ||
+        null;
     }
 
     if (facebook_url !== undefined) {
       updatePayload.facebook_url =
-        facebook_url?.trim() || null;
+        facebook_url?.trim() ||
+        null;
     }
 
-    if (instagram_url !== undefined) {
+    if (
+      instagram_url !== undefined
+    ) {
       updatePayload.instagram_url =
-        instagram_url?.trim() || null;
+        instagram_url?.trim() ||
+        null;
     }
 
-    if (typeof is_public === "boolean") {
-      updatePayload.is_public = is_public;
+    if (
+      typeof is_public === "boolean"
+    ) {
+      updatePayload.is_public =
+        is_public;
     }
 
     if (email !== undefined) {
       updatePayload.email =
-        email?.trim().toLowerCase() || null;
+        email?.trim().toLowerCase() ||
+        null;
     }
 
-    if (profilePhotoUrl !== undefined) {
+    if (
+      profilePhotoUrl !== undefined
+    ) {
       updatePayload.profile_photo_url =
         profilePhotoUrl;
     }
@@ -802,7 +1064,9 @@ export async function PATCH(request: NextRequest) {
       email?.trim()
     ) {
       const newEmail =
-        email.trim().toLowerCase();
+        email
+          .trim()
+          .toLowerCase();
 
       if (
         newEmail !==
@@ -810,12 +1074,16 @@ export async function PATCH(request: NextRequest) {
       ) {
         const {
           data: duplicateProfile,
-        } = await supabaseAdmin
-          .from("alumni_profiles")
-          .select("id")
-          .ilike("email", newEmail)
-          .neq("id", id)
-          .maybeSingle();
+        } =
+          await supabaseAdmin
+            .from("alumni_profiles")
+            .select("id")
+            .ilike(
+              "email",
+              newEmail
+            )
+            .neq("id", id)
+            .maybeSingle();
 
         if (duplicateProfile) {
           return NextResponse.json(
@@ -833,8 +1101,11 @@ export async function PATCH(request: NextRequest) {
           await supabaseAdmin.auth.admin.updateUserById(
             id,
             {
-              email: newEmail,
-              email_confirm: true,
+              email:
+                newEmail,
+
+              email_confirm:
+                true,
             }
           );
 
@@ -856,14 +1127,18 @@ export async function PATCH(request: NextRequest) {
     ------------------------- */
 
     if (
-      Object.keys(updatePayload).length > 0
+      Object.keys(updatePayload)
+        .length > 0
     ) {
       const {
         error: profileError,
-      } = await supabaseAdmin
-        .from("alumni_profiles")
-        .update(updatePayload)
-        .eq("id", id);
+      } =
+        await supabaseAdmin
+          .from("alumni_profiles")
+          .update(
+            updatePayload
+          )
+          .eq("id", id);
 
       if (profileError) {
         return NextResponse.json(
@@ -878,6 +1153,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+
       message:
         "Alumni profile updated successfully.",
     });
@@ -888,7 +1164,10 @@ export async function PATCH(request: NextRequest) {
     );
 
     return NextResponse.json(
-      { error: "Internal server error." },
+      {
+        error:
+          "Internal server error.",
+      },
       { status: 500 }
     );
   }
@@ -902,22 +1181,30 @@ export async function DELETE(
   request: NextRequest
 ) {
   try {
-    const admin = await verifyAdmin(request);
+    const admin =
+      await verifyAdmin(request);
 
     if (!admin) {
       return NextResponse.json(
-        { error: "Unauthorized. Admin access required." },
+        {
+          error:
+            "Unauthorized. Admin access required.",
+        },
         { status: 401 }
       );
     }
 
-    const body = await request.json();
+    const body =
+      await request.json();
 
     const { id } = body;
 
     if (!id) {
       return NextResponse.json(
-        { error: "Alumni ID is required." },
+        {
+          error:
+            "Alumni ID is required.",
+        },
         { status: 400 }
       );
     }
@@ -1026,6 +1313,7 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
+
       message:
         "Alumni account deleted successfully.",
     });
@@ -1036,7 +1324,10 @@ export async function DELETE(
     );
 
     return NextResponse.json(
-      { error: "Internal server error." },
+      {
+        error:
+          "Internal server error.",
+      },
       { status: 500 }
     );
   }
