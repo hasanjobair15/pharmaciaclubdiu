@@ -14,7 +14,7 @@ type Alumni = {
   full_name: string;
   email: string | null;
   batch: string;
-  section: string;
+  section: string | null;
   graduation_year: number | null;
   graduation_date: string | null;
   profile_photo_url: string | null;
@@ -47,7 +47,7 @@ const emptyForm = {
   full_name: "",
   email: "",
   batch: "30th Batch",
-  section: "A",
+  section: "",
   graduation_date: "",
   current_position: "",
   organization: "",
@@ -144,7 +144,7 @@ export default function AdminAlumniPage() {
         person.full_name.toLowerCase().includes(query) ||
         (person.email || "").toLowerCase().includes(query) ||
         person.batch.toLowerCase().includes(query) ||
-        person.section.toLowerCase().includes(query) ||
+        (person.section || "").toLowerCase().includes(query) ||
         (person.organization || "").toLowerCase().includes(query) ||
         (person.current_position || "")
           .toLowerCase()
@@ -313,7 +313,7 @@ export default function AdminAlumniPage() {
 
   function validateGraduationDate(value: string) {
     if (!value) {
-      return "Graduation Month & Year is required.";
+      return "";
     }
 
     if (value > getDhakaTodayMonth()) {
@@ -359,10 +359,10 @@ export default function AdminAlumniPage() {
         },
         body: JSON.stringify({
           full_name: form.full_name,
-          email: form.email,
+          email: form.email.trim() || null,
           batch: form.batch,
-          section: form.section,
-          graduation_date: form.graduation_date,
+          section: form.section || null,
+          graduation_date: form.graduation_date || null,
           photoData: photoData || undefined,
           current_position: form.current_position,
           organization: form.organization,
@@ -436,10 +436,10 @@ export default function AdminAlumniPage() {
         body: JSON.stringify({
           id: selectedAlumni.id,
           full_name: form.full_name,
-          email: form.email,
+          email: form.email.trim() || null,
           batch: form.batch,
-          section: form.section,
-          graduation_date: form.graduation_date,
+          section: form.section || null,
+          graduation_date: form.graduation_date || null,
           photoData: photoData || undefined,
           removePhoto: photoRemove || undefined,
           current_position: form.current_position,
@@ -950,13 +950,12 @@ export default function AdminAlumniPage() {
                   />
 
                   <FormInput
-                    label="Email *"
+                    label="Email"
                     type="email"
                     value={form.email}
                     onChange={(value) =>
                       updateField("email", value)
                     }
-                    required
                   />
                 </div>
 
@@ -970,7 +969,7 @@ export default function AdminAlumniPage() {
                 />
 
                 <FormSelect
-                  label="Section *"
+                  label="Section"
                   value={form.section}
                   onChange={(value) =>
                     updateField("section", value)
@@ -979,13 +978,12 @@ export default function AdminAlumniPage() {
                 />
 
                 <FormInput
-                  label="Graduation Month & Year *"
+                  label="Graduation Month & Year"
                   type="month"
                   value={form.graduation_date}
                   onChange={(value) =>
                     updateField("graduation_date", value)
                   }
-                  required
                 />
 
                 <FormInput
@@ -1611,6 +1609,10 @@ function FormSelect({
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#087f8c] dark:border-slate-700 dark:bg-slate-900 dark:text-white"
       >
+        {label === "Section" && (
+          <option value="">Not specified</option>
+        )}
+
         {options.map((option) => (
           <option key={option} value={option}>
             {option}
